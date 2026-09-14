@@ -1,0 +1,32 @@
+# Java
+target/
+*.class
+*.jar
+!.mvn/wrapper/*.jar
+
+# IDEA
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+
+# 环境与密钥（规范要求不进仓库）
+.env
+.env.*
+!.env.example
+*.local
+application-local.yml
+
+# 日志
+logs/
+*.log
+
+# 系统
+.DS_Store
+Thumbs.db
