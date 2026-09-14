@@ -11,9 +11,9 @@ AI 大学生学科竞赛全流程智能服务平台。
 
 | 软件 | 版本 |
 | --- | --- |
-| JDK | 17 |
-| Node.js | 20.x |
-| pnpm | 最新（`npm i -g pnpm`） |
+| JDK | 17（在 IDEA 项目结构中选择，命令行 java 版本不影响） |
+| Node.js | 20 或更高（开发机实测 24 可用） |
+| pnpm | 12.x（`npm i -g pnpm` 安装，全组统一同一大版本） |
 | Maven | 3.8+（IDEA 自带亦可） |
 | Docker Desktop | 最新 |
 
