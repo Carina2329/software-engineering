@@ -51,3 +51,5 @@ cd frontend && pnpm install && pnpm dev
 - 分支模型与提交规范见 `docs/AI学科竞赛系统-前后端工程规划与命名规范-V0.1.md`；
 - 禁止直接提交 `main`；功能开发从 `develop` 拉 `feature/xxx` 分支；
 - 密钥、真实数据、`.env` 禁止进仓库。
+
+## 更新记录
