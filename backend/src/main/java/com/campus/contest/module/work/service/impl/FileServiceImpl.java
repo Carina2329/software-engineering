@@ -28,8 +28,6 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, FileDO> implements 
     private static final int MAX_BATCH = 20;
     /** 演示阶段固定上传人，接入登录后改为当前登录用户 */
     private static final long DEMO_USER_ID = 1L;
-    private static final int STORAGE_LOCAL = 1;
-
     private final StorageService storageService;
 
     public FileServiceImpl(StorageService storageService) {
@@ -56,6 +54,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, FileDO> implements 
                 String sha256 = sha256(file);
                 FileDO exist = getOne(Wrappers.<FileDO>lambdaQuery()
                         .eq(FileDO::getSha256, sha256)
+                        .eq(FileDO::getStorageType, storageService.type())
                         .eq(FileDO::getDeleted, 0)
                         .last("limit 1"), false);
                 if (exist != null) {
@@ -72,7 +71,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, FileDO> implements 
                 entity.setOriginalName(file.getOriginalFilename());
                 entity.setMimeType(file.getContentType());
                 entity.setFileSize(file.getSize());
-                entity.setStorageType(STORAGE_LOCAL);
+                entity.setStorageType(storageService.type());
                 entity.setStoragePath(relativePath);
                 entity.setSha256(sha256);
                 entity.setUploaderId(DEMO_USER_ID);

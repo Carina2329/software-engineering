@@ -1,6 +1,7 @@
 package com.campus.contest.storage;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import java.util.UUID;
  * 本地磁盘实现：文件写入 storage.root 目录，按 UUID 命名，返回相对路径。
  */
 @Service
+@ConditionalOnProperty(name = "storage.type", havingValue = "local", matchIfMissing = true)
 public class LocalStorage implements StorageService {
 
     @Value("${storage.root}")
@@ -37,6 +39,11 @@ public class LocalStorage implements StorageService {
             throw new IllegalArgumentException("非法路径");
         }
         return target;
+    }
+
+    @Override
+    public int type() {
+        return 1;
     }
 
     @Override

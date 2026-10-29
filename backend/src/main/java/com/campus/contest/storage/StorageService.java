@@ -12,6 +12,9 @@ import java.io.OutputStream;
  */
 public interface StorageService {
 
+    /** 文件存储类型：1 本地磁盘，2 对象存储 */
+    int type();
+
     /** 保存上传文件，返回相对于存储根目录的相对路径 */
     String store(MultipartFile file);
 

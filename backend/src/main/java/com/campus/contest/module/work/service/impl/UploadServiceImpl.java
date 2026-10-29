@@ -82,6 +82,7 @@ public class UploadServiceImpl implements UploadService {
         if (sha256 != null) {
             FileDO exist = fileMapper.selectOne(Wrappers.<FileDO>lambdaQuery()
                     .eq(FileDO::getSha256, sha256.toLowerCase())
+                    .eq(FileDO::getStorageType, storageService.type())
                     .eq(FileDO::getDeleted, 0)
                     .last("limit 1"));
             if (exist != null) {
@@ -237,7 +238,7 @@ public class UploadServiceImpl implements UploadService {
         FileDO file = new FileDO();
         file.setOriginalName(task.getFileName());
         file.setFileSize(task.getTotalSize());
-        file.setStorageType(1);
+        file.setStorageType(storageService.type());
         file.setStoragePath(relative);
         file.setSha256(sha256);
         file.setUploaderId(DEMO_USER_ID);
