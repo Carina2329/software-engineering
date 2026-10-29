@@ -7,9 +7,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.UUID;
 
 /**
@@ -20,6 +24,20 @@ public class LocalStorage implements StorageService {
 
     @Value("${storage.root}")
     private String root;
+
+    private Path base() {
+        return Paths.get(root).toAbsolutePath().normalize();
+    }
+
+    /** 解析相对路径并防止路径穿越 */
+    private Path resolve(String relativePath) {
+        Path base = base();
+        Path target = base.resolve(relativePath).normalize();
+        if (!target.startsWith(base)) {
+            throw new IllegalArgumentException("非法路径");
+        }
+        return target;
+    }
 
     @Override
     public String store(MultipartFile file) {
@@ -32,12 +50,7 @@ public class LocalStorage implements StorageService {
             ext = original.substring(original.lastIndexOf('.'));
         }
         String relative = "files/" + UUID.randomUUID() + ext;
-
-        Path base = Paths.get(root).toAbsolutePath().normalize();
-        Path target = base.resolve(relative).normalize();
-        if (!target.startsWith(base)) {
-            throw new IllegalArgumentException("非法路径");
-        }
+        Path target = resolve(relative);
         try {
             Files.createDirectories(target.getParent());
             file.transferTo(target);
@@ -49,9 +62,8 @@ public class LocalStorage implements StorageService {
 
     @Override
     public Resource load(String relativePath) {
-        Path base = Paths.get(root).toAbsolutePath().normalize();
-        Path target = base.resolve(relativePath).normalize();
-        if (!target.startsWith(base) || !Files.exists(target)) {
+        Path target = resolve(relativePath);
+        if (!Files.exists(target)) {
             return null;
         }
         return new FileSystemResource(target);
@@ -60,9 +72,47 @@ public class LocalStorage implements StorageService {
     @Override
     public void delete(String relativePath) {
         try {
-            Files.deleteIfExists(Paths.get(root).toAbsolutePath().resolve(relativePath));
+            Files.deleteIfExists(resolve(relativePath));
         } catch (IOException e) {
             throw new RuntimeException("删除文件失败", e);
+        }
+    }
+
+    @Override
+    public void write(String relativePath, InputStream in) {
+        Path target = resolve(relativePath);
+        try {
+            Files.createDirectories(target.getParent());
+            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new RuntimeException("写入文件失败", e);
+        }
+    }
+
+    @Override
+    public InputStream open(String relativePath) {
+        Path target = resolve(relativePath);
+        if (!Files.exists(target)) {
+            throw new IllegalArgumentException("文件不存在：" + relativePath);
+        }
+        try {
+            return Files.newInputStream(target);
+        } catch (IOException e) {
+            throw new RuntimeException("读取文件失败", e);
+        }
+    }
+
+    @Override
+    public OutputStream create(String relativePath) {
+        Path target = resolve(relativePath);
+        try {
+            Files.createDirectories(target.getParent());
+            return Files.newOutputStream(target,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE);
+        } catch (IOException e) {
+            throw new RuntimeException("创建文件失败", e);
         }
     }
 }
