@@ -6,25 +6,42 @@
   <style>
     body { font-family: "Microsoft YaHei", sans-serif; margin: 40px; color: #222; }
     h1 { font-size: 20px; }
-    .box { border: 1px solid #ddd; border-radius: 8px; padding: 20px; max-width: 900px; }
-    input[type=file] { margin: 10px 0; }
-    button { padding: 8px 18px; border: none; border-radius: 6px; background: #2f6fed; color: #fff; cursor: pointer; }
-    button:disabled { background: #9bb3e8; }
+    .box { border: 1px solid #ddd; border-radius: 8px; padding: 20px; max-width: 960px; }
+    input[type=file] { margin: 8px 0; }
+    button { padding: 6px 14px; border: none; border-radius: 6px; background: #2f6fed; color: #fff; cursor: pointer; }
+    button:disabled { background: #9bb3e8; cursor: not-allowed; }
+    button.ghost { background: #eef1f6; color: #333; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin: 12px 0; }
+    .count { color: #666; font-size: 13px; }
+    #list { margin: 10px 0; }
+    .item { display: flex; justify-content: space-between; align-items: center;
+            padding: 6px 10px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .item em { color: #888; font-style: normal; margin-left: 8px; }
+    .item button { padding: 2px 8px; background: #f3f4f6; color: #b42318; font-size: 12px; }
     table { border-collapse: collapse; width: 100%; margin-top: 16px; font-size: 13px; }
     th, td { border: 1px solid #e3e3e3; padding: 6px 8px; text-align: left; }
     th { background: #f5f7fb; }
     .ok { color: #1a7f37; }
     .fail { color: #c62828; }
     .hint { color: #666; font-size: 13px; }
+    .warn { color: #b42318; font-size: 13px; }
   </style>
 </head>
 <body>
   <h1>文件存储测试 · 小文件批量上传</h1>
   <div class="box">
-    <p class="hint">接口：POST /api/v1/files/batch（单次最多 20 个文件）</p>
-    <input type="file" id="files" multiple>
-    <br>
-    <button id="upload" type="button">开始上传</button>
+    <p class="hint">接口：POST /api/v1/files/batch（单次最多 20 个文件）。可以多次选择文件，会累加到下面的列表。</p>
+
+    <input type="file" id="picker" multiple>
+    <div class="toolbar">
+      <button id="upload" type="button" disabled>开始上传</button>
+      <button id="clear" class="ghost" type="button">清空列表</button>
+      <span class="count" id="count">已选 0 / 20 个文件</span>
+      <span class="warn" id="warn"></span>
+    </div>
+
+    <div id="list"></div>
+
     <table id="result" style="display:none">
       <thead>
         <tr><th>文件名</th><th>大小</th><th>结果</th><th>fileId</th><th>路径</th><th>错误</th></tr>
@@ -34,27 +51,93 @@
   </div>
 
   <script>
-    const input = document.getElementById('files');
-    const btn = document.getElementById('upload');
+    const MAX = 20;
+    const picker = document.getElementById('picker');
+    const uploadBtn = document.getElementById('upload');
+    const clearBtn = document.getElementById('clear');
+    const listEl = document.getElementById('list');
+    const countEl = document.getElementById('count');
+    const warnEl = document.getElementById('warn');
     const table = document.getElementById('result');
     const tbody = table.querySelector('tbody');
 
-    btn.addEventListener('click', async () => {
-      if (!input.files.length) { alert('请先选择文件'); return; }
+    /** 已选文件（跨多次选择累加） */
+    let selected = [];
+    let uploading = false;
+
+    const keyOf = f => f.name + '|' + f.size + '|' + f.lastModified;
+
+    function formatSize(n) {
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+      return (n / 1024 / 1024).toFixed(2) + ' MB';
+    }
+
+    function render() {
+      listEl.innerHTML = '';
+      selected.forEach((f, i) => {
+        const row = document.createElement('div');
+        row.className = 'item';
+        const label = document.createElement('span');
+        label.textContent = f.name;
+        const size = document.createElement('em');
+        size.textContent = formatSize(f.size);
+        label.appendChild(size);
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.textContent = '移除';
+        del.addEventListener('click', () => {
+          selected.splice(i, 1);
+          render();
+        });
+
+        row.appendChild(label);
+        row.appendChild(del);
+        listEl.appendChild(row);
+      });
+
+      countEl.textContent = `已选 ${selected.length} / ${MAX} 个文件`;
+      warnEl.textContent = selected.length > MAX ? '超过 20 个，请先移除多余文件' : '';
+      uploadBtn.disabled = uploading || selected.length === 0 || selected.length > MAX;
+    }
+
+    picker.addEventListener('change', () => {
+      for (const f of picker.files) {
+        if (!selected.some(s => keyOf(s) === keyOf(f))) {
+          selected.push(f);
+        }
+      }
+      // 清空 input 的值，保证同一个文件还能再次选择
+      picker.value = '';
+      render();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      selected = [];
+      render();
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      if (!selected.length) return;
       const form = new FormData();
-      for (const f of input.files) { form.append('files', f); }
-      btn.disabled = true;
-      btn.textContent = '上传中...';
+      selected.forEach(f => form.append('files', f));
+
+      uploading = true;
+      uploadBtn.textContent = '上传中...';
+      render();
       tbody.innerHTML = '';
+
       try {
         const resp = await fetch('/api/v1/files/batch', { method: 'POST', body: form });
         const json = await resp.json();
-        if (json.code !== 0) { throw new Error(json.message || '上传失败'); }
+        if (json.code !== 0) throw new Error(json.message || '上传失败');
+
         for (const r of json.data.results) {
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${r.fileName || ''}</td>
-            <td>${r.size ?? ''}</td>
+            <td>${formatSize(r.size || 0)}</td>
             <td class="${r.success ? 'ok' : 'fail'}">${r.success ? (r.duplicated ? '秒传（已存在）' : '成功') : '失败'}</td>
             <td>${r.fileId ?? ''}</td>
             <td>${r.path ?? ''}</td>
@@ -62,13 +145,17 @@
           tbody.appendChild(tr);
         }
         table.style.display = 'table';
+        selected = [];
       } catch (e) {
         alert('上传失败：' + e.message);
       } finally {
-        btn.disabled = false;
-        btn.textContent = '开始上传';
+        uploading = false;
+        uploadBtn.textContent = '开始上传';
+        render();
       }
     });
+
+    render();
   </script>
 </body>
 </html>
