@@ -3,6 +3,13 @@ spring:
     active: dev
   application:
     name: contest-agent-platform
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
 
 server:
   port: 8080
+
+storage:
+  root: D:/codex/storage
