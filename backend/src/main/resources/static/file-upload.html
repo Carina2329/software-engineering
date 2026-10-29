@@ -17,8 +17,9 @@
     .hint { color: #666; font-size: 13px; }
     .ok { color: #1a7f37; }
     .fail { color: #c62828; }
+    .warn { color: #b42318; font-size: 13px; }
     #log { background: #1e1e1e; color: #d4d4d4; font-family: Consolas, monospace; font-size: 12px;
-           padding: 12px; border-radius: 6px; height: 220px; overflow-y: auto; margin-top: 16px; }
+           padding: 12px; border-radius: 6px; height: 240px; overflow-y: auto; margin-top: 16px; }
     #log div { margin: 2px 0; }
     a { color: #2f6fed; }
   </style>
@@ -28,6 +29,7 @@
   <div class="box">
     <p class="hint">
       流程：选择文件 → 计算 SHA-256（秒传判断）→ 初始化上传 → 分片上传 → 暂停/继续 → 合并 → 校验 → 下载。
+      刷新页面后，如果上次任务没传完，页面上会显示它；重新选择同一个文件即可续传。
     </p>
 
     <div class="row">
@@ -46,7 +48,7 @@
       <button id="pause" class="ghost" type="button" disabled>暂停</button>
       <button id="resumeBtn" class="ghost" type="button" disabled>刷新后续传</button>
       <button id="mergeBtn" class="ghost" type="button" disabled>合并分片</button>
-      <button id="clearBtn" class="ghost" type="button">重置</button>
+      <button id="clearBtn" class="ghost" type="button">重置 / 放弃任务</button>
     </div>
 
     <div class="row">
@@ -56,6 +58,10 @@
 
     <div class="row">
       <span class="stat" id="taskText">uploadId：-</span>
+    </div>
+
+    <div class="row">
+      <span class="warn" id="resumeHint"></span>
     </div>
 
     <div class="row" id="resultRow" style="display:none">
@@ -80,6 +86,7 @@
     const bar = document.getElementById('progress');
     const progressText = document.getElementById('progressText');
     const taskText = document.getElementById('taskText');
+    const resumeHint = document.getElementById('resumeHint');
     const resultRow = document.getElementById('resultRow');
     const resultText = document.getElementById('resultText');
     const downloadLink = document.getElementById('downloadLink');
@@ -95,6 +102,27 @@
       running: false,
       sha256: null
     };
+
+    function savedTask() {
+      try {
+        return JSON.parse(localStorage.getItem(storeKey) || 'null');
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function saveTask() {
+      if (!state.uploadId) return;
+      localStorage.setItem(storeKey, JSON.stringify({
+        uploadId: state.uploadId,
+        fileName: state.file.name,
+        totalSize: state.file.size
+      }));
+    }
+
+    function dropTask() {
+      localStorage.removeItem(storeKey);
+    }
 
     function log(msg, cls) {
       const d = document.createElement('div');
@@ -139,13 +167,50 @@
       return resp.json();
     }
 
+    /** 页面打开时检查是否有未完成任务 */
+    async function restoreTask() {
+      const saved = savedTask();
+      if (!saved) return;
+      try {
+        const json = await fetch(`${API}/uploads/${saved.uploadId}`).then(r => r.json());
+        if (json.code !== 0) {
+          log('上次任务已失效，已清除记录');
+          dropTask();
+          return;
+        }
+        state.uploadId = saved.uploadId;
+        state.totalChunks = json.data.totalChunks;
+        state.uploaded = new Set(json.data.uploaded);
+        updateProgress();
+        resumeBtn.disabled = false;
+        resumeHint.textContent =
+          `发现未完成任务：${saved.fileName}（${fmt(saved.totalSize)}），已传 ${json.data.uploadedChunks}/${json.data.totalChunks}。` +
+          `请重新选择同一个文件，再点"刷新后续传"。`;
+        log('发现未完成任务 uploadId=' + saved.uploadId + '，请选择同一个文件后续传');
+      } catch (e) {
+        log('查询上次任务失败：' + e.message, 'fail');
+      }
+    }
+
     fileInput.addEventListener('change', () => {
       state.file = fileInput.files[0] || null;
       startBtn.disabled = !state.file;
-      const saved = JSON.parse(sessionStorage.getItem(storeKey) || 'null');
-      resumeBtn.disabled = !(state.file && saved
-        && saved.fileName === state.file.name && saved.totalSize === state.file.size);
-      if (state.file) log('已选择：' + state.file.name + '（' + fmt(state.file.size) + '）');
+      resumeHint.textContent = '';
+
+      const saved = savedTask();
+      if (!state.file) return;
+      log('已选择：' + state.file.name + '（' + fmt(state.file.size) + '）');
+
+      if (saved) {
+        const match = saved.fileName === state.file.name && saved.totalSize === state.file.size;
+        resumeBtn.disabled = !match;
+        if (match) {
+          resumeHint.textContent = '文件与未完成任务匹配，可以点"刷新后续传"。';
+        } else {
+          resumeHint.textContent =
+            `与未完成任务不一致：需要 ${saved.fileName}（${fmt(saved.totalSize)}），当前选的是 ${state.file.name}（${fmt(state.file.size)}）。`;
+        }
+      }
     });
 
     startBtn.addEventListener('click', async () => {
@@ -155,6 +220,7 @@
       state.totalChunks = 0;
       state.uploadId = null;
       state.paused = false;
+      dropTask();
       updateProgress();
 
       startBtn.disabled = true;
@@ -179,9 +245,7 @@
 
       state.uploadId = json.data.uploadId;
       state.totalChunks = json.data.totalChunks;
-      sessionStorage.setItem(storeKey, JSON.stringify({
-        uploadId: state.uploadId, fileName: state.file.name, totalSize: state.file.size
-      }));
+      saveTask();
       log(`任务已创建 uploadId=${state.uploadId}，共 ${state.totalChunks} 片`);
       updateProgress();
       await uploadLoop();
@@ -244,17 +308,31 @@
     });
 
     resumeBtn.addEventListener('click', async () => {
-      const saved = JSON.parse(sessionStorage.getItem(storeKey) || 'null');
-      if (!saved || !state.file) return;
+      const saved = savedTask();
+      if (!saved) { log('没有可续传的任务'); return; }
+      if (!state.file) {
+        log(`请先选择文件：${saved.fileName}（${fmt(saved.totalSize)}）`, 'fail');
+        resumeHint.textContent = `请先选择文件：${saved.fileName}（${fmt(saved.totalSize)}）`;
+        return;
+      }
+      if (saved.fileName !== state.file.name || saved.totalSize !== state.file.size) {
+        log('选择的文件与任务不一致，无法续传', 'fail');
+        return;
+      }
+
+      const json = await fetch(`${API}/uploads/${saved.uploadId}`).then(r => r.json());
+      if (json.code !== 0) {
+        log('任务不存在或已放弃：' + json.message, 'fail');
+        dropTask();
+        return;
+      }
+
       state.uploadId = saved.uploadId;
-      state.chunkSize = parseInt(chunkSelect.value, 10);
-
-      const json = await fetch(`${API}/uploads/${state.uploadId}`).then(r => r.json());
-      if (json.code !== 0) { log('查询进度失败：' + json.message, 'fail'); return; }
-
       state.totalChunks = json.data.totalChunks;
+      state.chunkSize = parseInt(chunkSelect.value, 10);
       state.uploaded = new Set(json.data.uploaded);
       state.paused = false;
+      resumeHint.textContent = '';
       log(`已恢复任务 uploadId=${state.uploadId}，已传 ${state.uploaded.size}/${state.totalChunks}`);
       updateProgress();
       await uploadLoop();
@@ -271,7 +349,9 @@
       log('合并完成：fileId=' + json.data.fileId + '，SHA-256=' + json.data.sha256, 'ok');
       log(same ? '校验通过：与本地 SHA-256 一致' : '请在本地核对 SHA-256', same ? 'ok' : '');
       showResult(json.data.fileId, json.data.sha256, json.data.path);
-      sessionStorage.removeItem(storeKey);
+      dropTask();
+      resumeBtn.disabled = true;
+      resumeHint.textContent = '';
     });
 
     function showResult(fileId, sha256, path) {
@@ -280,17 +360,28 @@
       downloadLink.href = `${API}/files/${fileId}/content`;
     }
 
-    clearBtn.addEventListener('click', () => {
+    clearBtn.addEventListener('click', async () => {
+      const saved = savedTask();
+      if (saved) {
+        try {
+          await fetch(`${API}/uploads/${saved.uploadId}`, { method: 'DELETE' });
+          log('已放弃任务 uploadId=' + saved.uploadId + '，分片已清理');
+        } catch (e) {
+          log('放弃任务失败：' + e.message, 'fail');
+        }
+      }
+      dropTask();
       state.uploadId = null;
       state.uploaded = new Set();
       state.totalChunks = 0;
-      sessionStorage.removeItem(storeKey);
       resultRow.style.display = 'none';
-      logEl.innerHTML = '';
+      resumeHint.textContent = '';
+      resumeBtn.disabled = true;
       updateProgress();
     });
 
     updateProgress();
+    restoreTask();
   </script>
 </body>
 </html>
