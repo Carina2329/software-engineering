@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>文件存储测试</title>
+  <style>
+    body { font-family: "Microsoft YaHei", sans-serif; margin: 40px; color: #222; }
+    h1 { font-size: 20px; }
+    .box { border: 1px solid #ddd; border-radius: 8px; padding: 20px; max-width: 900px; }
+    input[type=file] { margin: 10px 0; }
+    button { padding: 8px 18px; border: none; border-radius: 6px; background: #2f6fed; color: #fff; cursor: pointer; }
+    button:disabled { background: #9bb3e8; }
+    table { border-collapse: collapse; width: 100%; margin-top: 16px; font-size: 13px; }
+    th, td { border: 1px solid #e3e3e3; padding: 6px 8px; text-align: left; }
+    th { background: #f5f7fb; }
+    .ok { color: #1a7f37; }
+    .fail { color: #c62828; }
+    .hint { color: #666; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>文件存储测试 · 小文件批量上传</h1>
+  <div class="box">
+    <p class="hint">接口：POST /api/v1/files/batch（单次最多 20 个文件）</p>
+    <input type="file" id="files" multiple>
+    <br>
+    <button id="upload" type="button">开始上传</button>
+    <table id="result" style="display:none">
+      <thead>
+        <tr><th>文件名</th><th>大小</th><th>结果</th><th>fileId</th><th>路径</th><th>错误</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const input = document.getElementById('files');
+    const btn = document.getElementById('upload');
+    const table = document.getElementById('result');
+    const tbody = table.querySelector('tbody');
+
+    btn.addEventListener('click', async () => {
+      if (!input.files.length) { alert('请先选择文件'); return; }
+      const form = new FormData();
+      for (const f of input.files) { form.append('files', f); }
+      btn.disabled = true;
+      btn.textContent = '上传中...';
+      tbody.innerHTML = '';
+      try {
+        const resp = await fetch('/api/v1/files/batch', { method: 'POST', body: form });
+        const json = await resp.json();
+        if (json.code !== 0) { throw new Error(json.message || '上传失败'); }
+        for (const r of json.data.results) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${r.fileName || ''}</td>
+            <td>${r.size ?? ''}</td>
+            <td class="${r.success ? 'ok' : 'fail'}">${r.success ? (r.duplicated ? '秒传（已存在）' : '成功') : '失败'}</td>
+            <td>${r.fileId ?? ''}</td>
+            <td>${r.path ?? ''}</td>
+            <td>${r.error ?? ''}</td>`;
+          tbody.appendChild(tr);
+        }
+        table.style.display = 'table';
+      } catch (e) {
+        alert('上传失败：' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '开始上传';
+      }
+    });
+  </script>
+</body>
+</html>
