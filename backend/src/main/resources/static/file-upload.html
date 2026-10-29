@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>文件存储测试 · 大文件分片上传</title>
+  <style>
+    body { font-family: "Microsoft YaHei", sans-serif; margin: 40px; color: #222; }
+    h1 { font-size: 20px; }
+    .box { border: 1px solid #ddd; border-radius: 8px; padding: 20px; max-width: 960px; }
+    .row { margin: 12px 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    button { padding: 7px 16px; border: none; border-radius: 6px; background: #2f6fed; color: #fff; cursor: pointer; }
+    button:disabled { background: #9bb3e8; cursor: not-allowed; }
+    button.ghost { background: #eef1f6; color: #333; }
+    .bar { height: 18px; background: #eef1f6; border-radius: 9px; overflow: hidden; flex: 1; min-width: 240px; }
+    .bar > div { height: 100%; width: 0; background: #2f6fed; transition: width .2s; }
+    .stat { font-size: 13px; color: #555; }
+    .hint { color: #666; font-size: 13px; }
+    .ok { color: #1a7f37; }
+    .fail { color: #c62828; }
+    #log { background: #1e1e1e; color: #d4d4d4; font-family: Consolas, monospace; font-size: 12px;
+           padding: 12px; border-radius: 6px; height: 220px; overflow-y: auto; margin-top: 16px; }
+    #log div { margin: 2px 0; }
+    a { color: #2f6fed; }
+  </style>
+</head>
+<body>
+  <h1>文件存储测试 · 大文件分片上传与断点续传</h1>
+  <div class="box">
+    <p class="hint">
+      流程：选择文件 → 计算 SHA-256（秒传判断）→ 初始化上传 → 分片上传 → 暂停/继续 → 合并 → 校验 → 下载。
+    </p>
+
+    <div class="row">
+      <input type="file" id="file">
+      <label class="stat">分片大小：
+        <select id="chunkSize">
+          <option value="1048576" selected>1 MB</option>
+          <option value="2097152">2 MB</option>
+          <option value="5242880">5 MB</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="row">
+      <button id="start" type="button" disabled>开始上传</button>
+      <button id="pause" class="ghost" type="button" disabled>暂停</button>
+      <button id="resumeBtn" class="ghost" type="button" disabled>继续（同一文件）</button>
+      <button id="mergeBtn" class="ghost" type="button" disabled>合并分片</button>
+      <button id="clearBtn" class="ghost" type="button">重置</button>
+    </div>
+
+    <div class="row">
+      <div class="bar"><div id="progress"></div></div>
+      <span class="stat" id="progressText">等待上传</span>
+    </div>
+
+    <div class="row">
+      <span class="stat" id="taskText">uploadId：-</span>
+    </div>
+
+    <div class="row" id="resultRow" style="display:none">
+      <span class="stat" id="resultText"></span>
+      <a id="downloadLink" href="#" target="_blank">下载合并结果</a>
+    </div>
+
+    <div id="log"></div>
+  </div>
+
+  <script>
+    const API = '/api/v1';
+    const storeKey = 'big-upload-task';
+
+    const fileInput = document.getElementById('file');
+    const chunkSelect = document.getElementById('chunkSize');
+    const startBtn = document.getElementById('start');
+    const pauseBtn = document.getElementById('pause');
+    const resumeBtn = document.getElementById('resumeBtn');
+    const mergeBtn = document.getElementById('mergeBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const bar = document.getElementById('progress');
+    const progressText = document.getElementById('progressText');
+    const taskText = document.getElementById('taskText');
+    const resultRow = document.getElementById('resultRow');
+    const resultText = document.getElementById('resultText');
+    const downloadLink = document.getElementById('downloadLink');
+    const logEl = document.getElementById('log');
+
+    const state = {
+      uploadId: null,
+      file: null,
+      chunkSize: 1048576,
+      totalChunks: 0,
+      uploaded: new Set(),
+      paused: false,
+      running: false,
+      sha256: null
+    };
+
+    function log(msg, cls) {
+      const d = document.createElement('div');
+      if (cls) d.className = cls;
+      d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+      logEl.appendChild(d);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function fmt(n) {
+      if (n < 1024) return n + ' B';
+      if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+      if (n < 1073741824) return (n / 1048576).toFixed(2) + ' MB';
+      return (n / 1073741824).toFixed(2) + ' GB';
+    }
+
+    function updateProgress() {
+      const done = state.uploaded.size;
+      const total = state.totalChunks || 0;
+      const pct = total ? Math.round(done * 100 / total) : 0;
+      bar.style.width = pct + '%';
+      progressText.textContent = total ? `${done}/${total} 片（${pct}%）` : '等待上传';
+      taskText.textContent = 'uploadId：' + (state.uploadId ?? '-');
+      mergeBtn.disabled = !state.uploadId || done !== total || total === 0;
+    }
+
+    async function sha256Hex(file) {
+      // 超大文件跳过浏览器端摘要（服务端合并后会返回摘要）
+      if (file.size > 200 * 1024 * 1024) return null;
+      const buf = await file.arrayBuffer();
+      const digest = await crypto.subtle.digest('SHA-256', buf);
+      return Array.from(new Uint8Array(digest))
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function postJson(url, body) {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      return resp.json();
+    }
+
+    fileInput.addEventListener('change', () => {
+      state.file = fileInput.files[0] || null;
+      startBtn.disabled = !state.file;
+      const saved = JSON.parse(sessionStorage.getItem(storeKey) || 'null');
+      resumeBtn.disabled = !(state.file && saved
+        && saved.fileName === state.file.name && saved.totalSize === state.file.size);
+      if (state.file) log('已选择：' + state.file.name + '（' + fmt(state.file.size) + '）');
+    });
+
+    startBtn.addEventListener('click', async () => {
+      if (!state.file) return;
+      state.chunkSize = parseInt(chunkSelect.value, 10);
+      state.uploaded = new Set();
+      state.totalChunks = 0;
+      state.uploadId = null;
+      state.paused = false;
+      updateProgress();
+
+      startBtn.disabled = true;
+      log('计算 SHA-256…');
+      state.sha256 = await sha256Hex(state.file);
+      if (state.sha256) log('SHA-256：' + state.sha256);
+
+      const json = await postJson(API + '/uploads', {
+        fileName: state.file.name,
+        totalSize: state.file.size,
+        sha256: state.sha256,
+        chunkSize: state.chunkSize
+      });
+      if (json.code !== 0) { log('初始化失败：' + json.message, 'fail'); startBtn.disabled = false; return; }
+
+      if (json.data.instant) {
+        log('秒传命中：fileId=' + json.data.fileId, 'ok');
+        showResult(json.data.fileId, state.sha256, null);
+        startBtn.disabled = false;
+        return;
+      }
+
+      state.uploadId = json.data.uploadId;
+      state.totalChunks = json.data.totalChunks;
+      sessionStorage.setItem(storeKey, JSON.stringify({
+        uploadId: state.uploadId, fileName: state.file.name, totalSize: state.file.size
+      }));
+      log(`任务已创建 uploadId=${state.uploadId}，共 ${state.totalChunks} 片`);
+      updateProgress();
+      await uploadLoop();
+    });
+
+    async function uploadLoop() {
+      state.running = true;
+      pauseBtn.disabled = false;
+      pauseBtn.textContent = '暂停';
+
+      for (let i = 0; i < state.totalChunks; i++) {
+        if (state.paused) { log('已暂停，完成分片 ' + state.uploaded.size + '/' + state.totalChunks); break; }
+        if (state.uploaded.has(i)) continue;
+
+        const start = i * state.chunkSize;
+        const end = Math.min(start + state.chunkSize, state.file.size);
+        const blob = state.file.slice(start, end);
+        try {
+          const resp = await fetch(`${API}/uploads/${state.uploadId}/chunks/${i}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: blob
+          });
+          const json = await resp.json();
+          if (json.code !== 0) throw new Error(json.message);
+          state.uploaded.add(i);
+          log(`分片 ${i + 1}/${state.totalChunks} 上传成功`);
+          updateProgress();
+        } catch (e) {
+          log('分片 ' + i + ' 失败：' + e.message + '（可点"继续"重试）', 'fail');
+          state.paused = true;
+          break;
+        }
+      }
+
+      state.running = false;
+      startBtn.disabled = false;
+      pauseBtn.disabled = true;
+      updateProgress();
+      if (state.uploaded.size === state.totalChunks && state.totalChunks > 0) {
+        log('全部分片上传完成，可以合并', 'ok');
+      }
+    }
+
+    pauseBtn.addEventListener('click', () => {
+      state.paused = !state.paused;
+      pauseBtn.textContent = state.paused ? '已暂停' : '暂停';
+      if (!state.paused) {
+        pauseBtn.disabled = true;
+        uploadLoop();
+      }
+    });
+
+    resumeBtn.addEventListener('click', async () => {
+      const saved = JSON.parse(sessionStorage.getItem(storeKey) || 'null');
+      if (!saved || !state.file) return;
+      state.uploadId = saved.uploadId;
+      state.chunkSize = parseInt(chunkSelect.value, 10);
+
+      const json = await fetch(`${API}/uploads/${state.uploadId}`).then(r => r.json());
+      if (json.code !== 0) { log('查询进度失败：' + json.message, 'fail'); return; }
+
+      state.totalChunks = json.data.totalChunks;
+      state.uploaded = new Set(json.data.uploaded);
+      state.paused = false;
+      log(`已恢复任务 uploadId=${state.uploadId}，已传 ${state.uploaded.size}/${state.totalChunks}`);
+      updateProgress();
+      await uploadLoop();
+    });
+
+    mergeBtn.addEventListener('click', async () => {
+      if (!state.uploadId) return;
+      mergeBtn.disabled = true;
+      log('正在合并分片…');
+      const json = await postJson(`${API}/uploads/${state.uploadId}/merge`, { version: 0 });
+      if (json.code !== 0) { log('合并失败：' + json.message, 'fail'); mergeBtn.disabled = false; return; }
+
+      const same = state.sha256 && state.sha256 === json.data.sha256;
+      log('合并完成：fileId=' + json.data.fileId + '，SHA-256=' + json.data.sha256, 'ok');
+      log(same ? '校验通过：与本地 SHA-256 一致' : '请在本地核对 SHA-256', same ? 'ok' : '');
+      showResult(json.data.fileId, json.data.sha256, json.data.path);
+      sessionStorage.removeItem(storeKey);
+    });
+
+    function showResult(fileId, sha256, path) {
+      resultRow.style.display = 'flex';
+      resultText.textContent = `fileId=${fileId}，SHA-256=${sha256 || '-'}，路径=${path || '-'}`;
+      downloadLink.href = `${API}/files/${fileId}/content`;
+    }
+
+    clearBtn.addEventListener('click', () => {
+      state.uploadId = null;
+      state.uploaded = new Set();
+      state.totalChunks = 0;
+      sessionStorage.removeItem(storeKey);
+      resultRow.style.display = 'none';
+      logEl.innerHTML = '';
+      updateProgress();
+    });
+
+    updateProgress();
+  </script>
+</body>
+</html>
