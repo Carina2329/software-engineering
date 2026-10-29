@@ -105,7 +105,13 @@
 
     function savedTask() {
       try {
-        return JSON.parse(localStorage.getItem(storeKey) || 'null');
+        let raw = localStorage.getItem(storeKey);
+        if (!raw) {
+          // 兼容旧版本：把当前标签页里的任务记录迁移到 localStorage
+          raw = sessionStorage.getItem(storeKey);
+          if (raw) localStorage.setItem(storeKey, raw);
+        }
+        return JSON.parse(raw || 'null');
       } catch (e) {
         return null;
       }
@@ -122,6 +128,7 @@
 
     function dropTask() {
       localStorage.removeItem(storeKey);
+      sessionStorage.removeItem(storeKey);
     }
 
     function log(msg, cls) {
