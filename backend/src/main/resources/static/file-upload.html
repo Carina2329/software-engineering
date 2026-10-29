@@ -44,7 +44,7 @@
     <div class="row">
       <button id="start" type="button" disabled>开始上传</button>
       <button id="pause" class="ghost" type="button" disabled>暂停</button>
-      <button id="resumeBtn" class="ghost" type="button" disabled>继续（同一文件）</button>
+      <button id="resumeBtn" class="ghost" type="button" disabled>刷新后续传</button>
       <button id="mergeBtn" class="ghost" type="button" disabled>合并分片</button>
       <button id="clearBtn" class="ghost" type="button">重置</button>
     </div>
@@ -190,7 +190,7 @@
     async function uploadLoop() {
       state.running = true;
       pauseBtn.disabled = false;
-      pauseBtn.textContent = '暂停';
+      pauseBtn.textContent = state.paused ? '继续' : '暂停';
 
       for (let i = 0; i < state.totalChunks; i++) {
         if (state.paused) { log('已暂停，完成分片 ' + state.uploaded.size + '/' + state.totalChunks); break; }
@@ -219,19 +219,27 @@
 
       state.running = false;
       startBtn.disabled = false;
-      pauseBtn.disabled = true;
+      // 只有全部传完才禁用暂停按钮；暂停状态下要能点"继续"
+      pauseBtn.disabled = state.uploaded.size >= state.totalChunks && state.totalChunks > 0;
+      pauseBtn.textContent = state.paused ? '继续' : '暂停';
       updateProgress();
       if (state.uploaded.size === state.totalChunks && state.totalChunks > 0) {
         log('全部分片上传完成，可以合并', 'ok');
       }
     }
 
-    pauseBtn.addEventListener('click', () => {
-      state.paused = !state.paused;
-      pauseBtn.textContent = state.paused ? '已暂停' : '暂停';
-      if (!state.paused) {
-        pauseBtn.disabled = true;
-        uploadLoop();
+    pauseBtn.addEventListener('click', async () => {
+      if (state.paused) {
+        // 继续：从断点接着传
+        state.paused = false;
+        pauseBtn.textContent = '暂停';
+        log('继续上传，剩余分片 ' + (state.totalChunks - state.uploaded.size));
+        await uploadLoop();
+      } else {
+        // 暂停：当前这片传完后停止
+        state.paused = true;
+        pauseBtn.textContent = '暂停中…';
+        log('正在暂停（当前分片完成后停止）');
       }
     });
 
