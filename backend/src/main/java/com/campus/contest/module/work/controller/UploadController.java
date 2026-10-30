@@ -29,8 +29,9 @@ public class UploadController {
     public Result<UploadDtos.ChunkResponse> uploadChunk(
             @PathVariable Long uploadId,
             @PathVariable Integer chunkIndex,
+            @RequestHeader(value = "X-Chunk-SHA256", required = false) String expectedSha256,
             @RequestBody byte[] body) {
-        return Result.ok(uploadService.uploadChunk(uploadId, chunkIndex, body));
+        return Result.ok(uploadService.uploadChunk(uploadId, chunkIndex, expectedSha256, body));
     }
 
     @GetMapping("/{uploadId}")

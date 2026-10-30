@@ -18,11 +18,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.security.DigestInputStream;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -100,6 +104,7 @@ public class UploadServiceImpl implements UploadService {
         task.setChunkSize(chunkSize);
         task.setTotalChunks(totalChunks);
         task.setUploadedChunks(0);
+        task.setExpectedSha256(sha256 == null ? null : sha256.toLowerCase());
         task.setStatus(STATUS_UPLOADING);
         task.setExpireAt(LocalDateTime.now().plusDays(1));
         task.setUploaderId(DEMO_USER_ID);
@@ -116,7 +121,8 @@ public class UploadServiceImpl implements UploadService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public UploadDtos.ChunkResponse uploadChunk(Long uploadId, Integer chunkIndex, byte[] body) {
+    public UploadDtos.ChunkResponse uploadChunk(Long uploadId, Integer chunkIndex,
+                                                String expectedSha256, byte[] body) {
         UploadTaskDO task = requireTask(uploadId);
         if (task.getStatus() == null || task.getStatus() != STATUS_UPLOADING) {
             throw new BizException(409, "当前任务不在上传中状态");
@@ -130,10 +136,23 @@ public class UploadServiceImpl implements UploadService {
         if (body.length > task.getChunkSize()) {
             throw new BizException("分片大小超过限制");
         }
+        if (expectedSha256 != null && !expectedSha256.matches("[0-9a-fA-F]{64}")) {
+            throw new BizException("分片 SHA-256 格式不正确");
+        }
+
+        String actualSha256 = sha256(body);
+        if (expectedSha256 != null && !actualSha256.equalsIgnoreCase(expectedSha256)) {
+            Map<String, Object> detail = Map.of(
+                    "invalidChunks", List.of(chunkIndex),
+                    "reason", "chunk-sha256-mismatch",
+                    "expectedSha256", expectedSha256.toLowerCase(),
+                    "actualSha256", actualSha256
+            );
+            throw new BizException(422, "分片 " + chunkIndex + " 校验失败，请重新上传该分片", detail);
+        }
 
         String relative = chunkPath(uploadId, chunkIndex);
         storageService.write(relative, new ByteArrayInputStream(body));
-        String sha256 = sha256(body);
 
         FileChunkDO chunk = fileChunkMapper.selectOne(Wrappers.<FileChunkDO>lambdaQuery()
                 .eq(FileChunkDO::getUploadId, uploadId)
@@ -145,7 +164,7 @@ public class UploadServiceImpl implements UploadService {
             chunk.setChunkIndex(chunkIndex);
             chunk.setChunkSize(body.length);
             chunk.setChunkPath(relative);
-            chunk.setSha256(sha256);
+            chunk.setSha256(actualSha256);
             chunk.setStatus(1);
             chunk.setCreatedAt(LocalDateTime.now());
             chunk.setCreatedBy(DEMO_USER_ID);
@@ -155,7 +174,7 @@ public class UploadServiceImpl implements UploadService {
         } else {
             chunk.setChunkSize(body.length);
             chunk.setChunkPath(relative);
-            chunk.setSha256(sha256);
+            chunk.setSha256(actualSha256);
             chunk.setStatus(1);
             fileChunkMapper.updateById(chunk);
         }
@@ -209,8 +228,17 @@ public class UploadServiceImpl implements UploadService {
                 .eq(FileChunkDO::getUploadId, uploadId)
                 .eq(FileChunkDO::getStatus, 1)
                 .orderByAsc(FileChunkDO::getChunkIndex));
-        if (chunks.size() != task.getTotalChunks()) {
-            throw new BizException(409, "分片不完整：" + chunks.size() + "/" + task.getTotalChunks());
+        List<Integer> missingChunks = findMissingChunks(task.getTotalChunks(), chunks);
+        List<Integer> invalidChunks = verifyChunkChecksums(chunks);
+        if (!missingChunks.isEmpty() || !invalidChunks.isEmpty()) {
+            Set<Integer> retryChunks = new LinkedHashSet<>(missingChunks);
+            retryChunks.addAll(invalidChunks);
+            Map<String, Object> detail = Map.of(
+                    "missingChunks", missingChunks,
+                    "invalidChunks", invalidChunks,
+                    "retryChunks", new ArrayList<>(retryChunks)
+            );
+            throw new BizException(409, "分片校验未通过，请重传 retryChunks 中的分片", detail);
         }
 
         task.setStatus(STATUS_MERGING);
@@ -233,6 +261,20 @@ public class UploadServiceImpl implements UploadService {
             uploadTaskMapper.updateById(task);
             log.error("合并分片失败，uploadId={}", uploadId, e);
             throw new BizException(500, "合并分片失败：" + e.getMessage());
+        }
+
+        if (task.getExpectedSha256() != null && !sha256.equalsIgnoreCase(task.getExpectedSha256())) {
+            try {
+                storageService.delete(relative);
+            } catch (Exception e) {
+                log.warn("删除整文件校验失败的合并结果时出错：{}", relative, e);
+            }
+            Map<String, Object> detail = Map.of(
+                    "reason", "file-sha256-mismatch",
+                    "expectedSha256", task.getExpectedSha256(),
+                    "actualSha256", sha256
+            );
+            throw new BizException(422, "整文件 SHA-256 校验失败，请重新上传", detail);
         }
 
         FileDO file = new FileDO();
@@ -296,6 +338,49 @@ public class UploadServiceImpl implements UploadService {
 
     private String chunkPath(Long uploadId, Integer index) {
         return "chunks/" + uploadId + "/" + index + ".chunk";
+    }
+
+    private List<Integer> findMissingChunks(int totalChunks, List<FileChunkDO> chunks) {
+        Set<Integer> received = new LinkedHashSet<>();
+        for (FileChunkDO chunk : chunks) {
+            received.add(chunk.getChunkIndex());
+        }
+        List<Integer> missing = new ArrayList<>();
+        for (int i = 0; i < totalChunks; i++) {
+            if (!received.contains(i)) {
+                missing.add(i);
+            }
+        }
+        return missing;
+    }
+
+    private List<Integer> verifyChunkChecksums(List<FileChunkDO> chunks) {
+        List<Integer> invalid = new ArrayList<>();
+        for (FileChunkDO chunk : chunks) {
+            if (!chunkChecksumMatches(chunk)) {
+                invalid.add(chunk.getChunkIndex());
+            }
+        }
+        return invalid;
+    }
+
+    private boolean chunkChecksumMatches(FileChunkDO chunk) {
+        if (chunk.getSha256() == null || chunk.getChunkPath() == null) {
+            return false;
+        }
+        try (InputStream in = storageService.open(chunk.getChunkPath())) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (DigestInputStream dis = new DigestInputStream(in, digest)) {
+                byte[] buffer = new byte[8192];
+                while (dis.read(buffer) != -1) {
+                    // 摘要由 DigestInputStream 计算
+                }
+            }
+            return toHex(digest.digest()).equalsIgnoreCase(chunk.getSha256());
+        } catch (Exception e) {
+            log.warn("校验分片失败：uploadId={}, chunkIndex={}", chunk.getUploadId(), chunk.getChunkIndex(), e);
+            return false;
+        }
     }
 
     private String extensionOf(String fileName) {

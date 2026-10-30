@@ -6,7 +6,7 @@ public interface UploadService {
 
     UploadDtos.InitResponse init(UploadDtos.InitRequest request);
 
-    UploadDtos.ChunkResponse uploadChunk(Long uploadId, Integer chunkIndex, byte[] body);
+    UploadDtos.ChunkResponse uploadChunk(Long uploadId, Integer chunkIndex, String expectedSha256, byte[] body);
 
     UploadDtos.ProgressResponse progress(Long uploadId);
 

@@ -30,6 +30,7 @@
     <p class="hint">
       流程：选择文件 → 计算 SHA-256（秒传判断）→ 初始化上传 → 分片上传 → 暂停/继续 → 合并 → 校验 → 下载。
       刷新页面后，如果上次任务没传完，页面上会显示它；重新选择同一个文件即可续传。
+      勾选“模拟坏片”后，第 2 个分片会先被服务端判定校验失败，页面随后自动重传。
     </p>
 
     <div class="row">
@@ -40,6 +41,10 @@
           <option value="2097152">2 MB</option>
           <option value="5242880">5 MB</option>
         </select>
+      </label>
+      <label class="stat">
+        <input type="checkbox" id="simulateCorrupt">
+        模拟第 2 片损坏一次
       </label>
     </div>
 
@@ -69,6 +74,18 @@
       <a id="downloadLink" href="#" target="_blank">下载合并结果</a>
     </div>
 
+    <div class="row" id="downloadButtons" style="display:none">
+      <button id="downloadProgressBtn" type="button">开始 / 继续下载</button>
+      <button id="pauseDownloadBtn" class="ghost" type="button" disabled>暂停下载</button>
+      <button id="concurrentBtn" class="ghost" type="button">三路并发下载测试</button>
+      <button id="resetDownloadBtn" class="ghost" type="button">重置下载</button>
+    </div>
+
+    <div class="row" id="downloadProgressRow" style="display:none">
+      <div class="bar"><div id="downloadBar"></div></div>
+      <span class="stat" id="downloadText">等待下载</span>
+    </div>
+
     <div id="log"></div>
   </div>
 
@@ -78,6 +95,7 @@
 
     const fileInput = document.getElementById('file');
     const chunkSelect = document.getElementById('chunkSize');
+    const simulateCorrupt = document.getElementById('simulateCorrupt');
     const startBtn = document.getElementById('start');
     const pauseBtn = document.getElementById('pause');
     const resumeBtn = document.getElementById('resumeBtn');
@@ -90,6 +108,14 @@
     const resultRow = document.getElementById('resultRow');
     const resultText = document.getElementById('resultText');
     const downloadLink = document.getElementById('downloadLink');
+    const downloadButtons = document.getElementById('downloadButtons');
+    const downloadProgressRow = document.getElementById('downloadProgressRow');
+    const downloadProgressBtn = document.getElementById('downloadProgressBtn');
+    const pauseDownloadBtn = document.getElementById('pauseDownloadBtn');
+    const concurrentBtn = document.getElementById('concurrentBtn');
+    const resetDownloadBtn = document.getElementById('resetDownloadBtn');
+    const downloadBar = document.getElementById('downloadBar');
+    const downloadText = document.getElementById('downloadText');
     const logEl = document.getElementById('log');
 
     const state = {
@@ -100,7 +126,15 @@
       uploaded: new Set(),
       paused: false,
       running: false,
-      sha256: null
+      sha256: null,
+      simulateCorrupted: false,
+      simulatedCorruptFired: false,
+      downloadFileId: null,
+      downloadTotal: 0,
+      downloadReceived: 0,
+      downloadParts: [],
+      downloadPaused: false,
+      downloading: false
     };
 
     function savedTask() {
@@ -122,7 +156,8 @@
       localStorage.setItem(storeKey, JSON.stringify({
         uploadId: state.uploadId,
         fileName: state.file.name,
-        totalSize: state.file.size
+        totalSize: state.file.size,
+        sha256: state.sha256
       }));
     }
 
@@ -156,13 +191,17 @@
       mergeBtn.disabled = !state.uploadId || done !== total || total === 0;
     }
 
-    async function sha256Hex(file) {
-      // 超大文件跳过浏览器端摘要（服务端合并后会返回摘要）
-      if (file.size > 200 * 1024 * 1024) return null;
-      const buf = await file.arrayBuffer();
+    async function sha256Blob(blob) {
+      const buf = await blob.arrayBuffer();
       const digest = await crypto.subtle.digest('SHA-256', buf);
       return Array.from(new Uint8Array(digest))
         .map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function sha256Hex(file) {
+      // 超大文件跳过浏览器端摘要（服务端合并后仍会校验）
+      if (file.size > 200 * 1024 * 1024) return null;
+      return sha256Blob(file);
     }
 
     async function postJson(url, body) {
@@ -227,7 +266,11 @@
       state.totalChunks = 0;
       state.uploadId = null;
       state.paused = false;
+      state.simulatedCorruptFired = false;
+      state.simulateCorrupted = simulateCorrupt.checked;
       dropTask();
+      resetDownload();
+      resultRow.style.display = 'none';
       updateProgress();
 
       startBtn.disabled = true;
@@ -245,7 +288,7 @@
 
       if (json.data.instant) {
         log('秒传命中：fileId=' + json.data.fileId, 'ok');
-        showResult(json.data.fileId, state.sha256, null);
+        showResult(json.data.fileId, state.sha256, null, state.file.size);
         startBtn.disabled = false;
         return;
       }
@@ -267,17 +310,8 @@
         if (state.paused) { log('已暂停，完成分片 ' + state.uploaded.size + '/' + state.totalChunks); break; }
         if (state.uploaded.has(i)) continue;
 
-        const start = i * state.chunkSize;
-        const end = Math.min(start + state.chunkSize, state.file.size);
-        const blob = state.file.slice(start, end);
         try {
-          const resp = await fetch(`${API}/uploads/${state.uploadId}/chunks/${i}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/octet-stream' },
-            body: blob
-          });
-          const json = await resp.json();
-          if (json.code !== 0) throw new Error(json.message);
+          await uploadOneChunk(i);
           state.uploaded.add(i);
           log(`分片 ${i + 1}/${state.totalChunks} 上传成功`);
           updateProgress();
@@ -297,6 +331,47 @@
       if (state.uploaded.size === state.totalChunks && state.totalChunks > 0) {
         log('全部分片上传完成，可以合并', 'ok');
       }
+    }
+
+    async function sendChunk(chunkIndex, advertisedSha256) {
+      const start = chunkIndex * state.chunkSize;
+      const end = Math.min(start + state.chunkSize, state.file.size);
+      const blob = state.file.slice(start, end);
+      const actualSha256 = await sha256Blob(blob);
+      const resp = await fetch(`${API}/uploads/${state.uploadId}/chunks/${chunkIndex}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-Chunk-SHA256': advertisedSha256 || actualSha256
+        },
+        body: blob
+      });
+      return { json: await resp.json(), actualSha256 };
+    }
+
+    async function uploadOneChunk(chunkIndex) {
+      let advertisedSha256 = null;
+      if (state.simulateCorrupted && chunkIndex === 1 && !state.simulatedCorruptFired) {
+        advertisedSha256 = '0'.repeat(64);
+        state.simulatedCorruptFired = true;
+        log('演示：故意把第 2 片声明为错误 SHA-256', 'warn');
+      }
+
+      let result = await sendChunk(chunkIndex, advertisedSha256);
+      if (result.json.code === 0) return;
+
+      const retryChunks = result.json.data
+        ? (result.json.data.retryChunks || result.json.data.invalidChunks || [])
+        : [];
+      if (result.json.code === 422 && retryChunks.includes(chunkIndex)) {
+        log(`服务端通知分片 ${chunkIndex + 1} 损坏，正在自动重传`, 'warn');
+        result = await sendChunk(chunkIndex, result.actualSha256);
+        if (result.json.code === 0) {
+          log(`分片 ${chunkIndex + 1} 重传成功`, 'ok');
+          return;
+        }
+      }
+      throw new Error(result.json.message || '分片上传失败');
     }
 
     pauseBtn.addEventListener('click', async () => {
@@ -326,6 +401,15 @@
         log('选择的文件与任务不一致，无法续传', 'fail');
         return;
       }
+      const currentSha256 = await sha256Hex(state.file);
+      if (saved.sha256 && currentSha256 && saved.sha256 !== currentSha256) {
+        log('文件名和大小相同，但内容 SHA-256 不一致，无法续传', 'fail');
+        resumeHint.textContent = '文件内容与未完成任务不一致，请选择原文件。';
+        return;
+      }
+      state.sha256 = currentSha256 || saved.sha256;
+      state.simulateCorrupted = simulateCorrupt.checked;
+      state.simulatedCorruptFired = false;
 
       const json = await fetch(`${API}/uploads/${saved.uploadId}`).then(r => r.json());
       if (json.code !== 0) {
@@ -350,22 +434,166 @@
       mergeBtn.disabled = true;
       log('正在合并分片…');
       const json = await postJson(`${API}/uploads/${state.uploadId}/merge`, { version: 0 });
-      if (json.code !== 0) { log('合并失败：' + json.message, 'fail'); mergeBtn.disabled = false; return; }
+      if (json.code !== 0) {
+        const retryChunks = json.data && json.data.retryChunks ? json.data.retryChunks : [];
+        if (retryChunks.length) {
+          retryChunks.forEach(index => state.uploaded.delete(index));
+          updateProgress();
+          log('服务端要求重传分片：' + retryChunks.map(i => i + 1).join('、'), 'warn');
+          await uploadLoop();
+        }
+        log('合并失败：' + json.message, 'fail');
+        mergeBtn.disabled = false;
+        return;
+      }
 
       const same = state.sha256 && state.sha256 === json.data.sha256;
       log('合并完成：fileId=' + json.data.fileId + '，SHA-256=' + json.data.sha256, 'ok');
       log(same ? '校验通过：与本地 SHA-256 一致' : '请在本地核对 SHA-256', same ? 'ok' : '');
-      showResult(json.data.fileId, json.data.sha256, json.data.path);
+      showResult(json.data.fileId, json.data.sha256, json.data.path, json.data.size);
       dropTask();
       resumeBtn.disabled = true;
       resumeHint.textContent = '';
     });
 
-    function showResult(fileId, sha256, path) {
+    function showResult(fileId, sha256, path, size) {
+      resetDownload(false);
       resultRow.style.display = 'flex';
       resultText.textContent = `fileId=${fileId}，SHA-256=${sha256 || '-'}，路径=${path || '-'}`;
       downloadLink.href = `${API}/files/${fileId}/content`;
+      state.downloadFileId = fileId;
+      state.downloadTotal = size || 0;
+      downloadButtons.style.display = 'flex';
+      downloadProgressRow.style.display = 'flex';
+      downloadProgressBtn.disabled = false;
+      updateDownloadProgress();
     }
+
+    function updateDownloadProgress() {
+      const total = state.downloadTotal || 0;
+      const received = state.downloadReceived || 0;
+      const pct = total ? Math.min(100, Math.round(received * 100 / total)) : 0;
+      downloadBar.style.width = pct + '%';
+      downloadText.textContent = total
+        ? `${fmt(received)} / ${fmt(total)}（${pct}%）`
+        : '等待下载';
+      const complete = total > 0 && received >= total;
+      pauseDownloadBtn.disabled = !state.downloading || state.downloadPaused || complete;
+      pauseDownloadBtn.textContent = state.downloadPaused ? '已暂停' : '暂停下载';
+      downloadProgressBtn.textContent = complete ? '重新下载' : '开始 / 继续下载';
+    }
+
+    async function startOrResumeDownload() {
+      if (!state.downloadFileId || state.downloadTotal <= 0) {
+        log('暂无可下载文件', 'fail');
+        return;
+      }
+      if (state.downloadReceived >= state.downloadTotal) {
+        state.downloadReceived = 0;
+        state.downloadParts = [];
+      }
+      if (state.downloading) return;
+
+      state.downloading = true;
+      state.downloadPaused = false;
+      updateDownloadProgress();
+      log('开始断点下载，从字节 ' + state.downloadReceived + ' 继续');
+
+      try {
+        while (state.downloadReceived < state.downloadTotal) {
+          if (state.downloadPaused) {
+            log('下载已暂停，已接收 ' + fmt(state.downloadReceived), 'warn');
+            break;
+          }
+          const start = state.downloadReceived;
+          const end = Math.min(start + 1024 * 1024 - 1, state.downloadTotal - 1);
+          const response = await fetch(
+            `${API}/files/${state.downloadFileId}/content`,
+            { headers: { Range: `bytes=${start}-${end}` } }
+          );
+          if (response.status !== 206) {
+            throw new Error('服务端未返回 206，状态码=' + response.status);
+          }
+          const bytes = await response.arrayBuffer();
+          if (!bytes.byteLength) break;
+          state.downloadParts.push(new Uint8Array(bytes));
+          state.downloadReceived += bytes.byteLength;
+          updateDownloadProgress();
+        }
+
+        if (state.downloadReceived >= state.downloadTotal) {
+          const blob = new Blob(state.downloadParts, { type: 'application/octet-stream' });
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = state.file ? state.file.name : 'download';
+          anchor.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          log('下载完成，文件大小=' + fmt(state.downloadTotal), 'ok');
+        }
+      } catch (e) {
+        state.downloadPaused = true;
+        log('下载失败，可稍后继续：' + e.message, 'fail');
+      } finally {
+        state.downloading = false;
+        updateDownloadProgress();
+      }
+    }
+
+    downloadProgressBtn.addEventListener('click', startOrResumeDownload);
+
+    pauseDownloadBtn.addEventListener('click', () => {
+      if (!state.downloading) return;
+      state.downloadPaused = true;
+      pauseDownloadBtn.disabled = true;
+      log('正在暂停下载（当前 1 MB 数据块完成后停止）');
+    });
+
+    resetDownloadBtn.addEventListener('click', () => {
+      if (state.downloading) {
+        state.downloadPaused = true;
+        log('请等待当前 1 MB 数据块结束后再重置', 'warn');
+        return;
+      }
+      resetDownload(true);
+    });
+
+    function resetDownload(hidePanel) {
+      state.downloadReceived = 0;
+      state.downloadParts = [];
+      state.downloadPaused = false;
+      state.downloading = false;
+      updateDownloadProgress();
+      if (hidePanel) {
+        downloadButtons.style.display = 'none';
+        downloadProgressRow.style.display = 'none';
+      }
+    }
+
+    concurrentBtn.addEventListener('click', async () => {
+      if (!state.downloadFileId || state.downloadTotal <= 0) {
+        log('请先完成一个文件上传再测试并发下载', 'fail');
+        return;
+      }
+      const probeSize = Math.min(1024 * 1024, Math.max(1, Math.floor(state.downloadTotal / 3)));
+      const starts = [0, Math.floor(state.downloadTotal / 3), Math.floor(state.downloadTotal * 2 / 3)];
+      log('同时发起 3 个 Range 下载请求…');
+      try {
+        const results = await Promise.all(starts.map(async (start, index) => {
+          const end = Math.min(start + probeSize - 1, state.downloadTotal - 1);
+          const response = await fetch(
+            `${API}/files/${state.downloadFileId}/content`,
+            { headers: { Range: `bytes=${start}-${end}` } }
+          );
+          const data = await response.arrayBuffer();
+          return `请求${index + 1}: HTTP ${response.status}, ${data.byteLength} 字节`;
+        }));
+        results.forEach(result => log(result, 'ok'));
+        log('三路并发下载全部完成', 'ok');
+      } catch (e) {
+        log('并发下载测试失败：' + e.message, 'fail');
+      }
+    });
 
     clearBtn.addEventListener('click', async () => {
       const saved = savedTask();
@@ -382,6 +610,7 @@
       state.uploaded = new Set();
       state.totalChunks = 0;
       resultRow.style.display = 'none';
+      resetDownload(true);
       resumeHint.textContent = '';
       resumeBtn.disabled = true;
       updateProgress();

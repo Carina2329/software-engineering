@@ -24,6 +24,8 @@ public class UploadTaskDO {
     private Integer chunkSize;
     private Integer totalChunks;
     private Integer uploadedChunks;
+    /** 客户端提供的完整文件 SHA-256，用于合并后校验 */
+    private String expectedSha256;
 
     /** 1 上传中 2 合并中 3 完成 4 失败 */
     private Integer status;

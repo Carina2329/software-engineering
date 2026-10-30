@@ -12,8 +12,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BizException.class)
-    public Result<Void> handleBiz(BizException e) {
-        return Result.fail(e.getCode(), e.getMessage());
+    public Result<Object> handleBiz(BizException e) {
+        Result<Object> result = Result.fail(e.getCode(), e.getMessage());
+        result.setData(e.getData());
+        return result;
     }
 
     @ExceptionHandler(Exception.class)
