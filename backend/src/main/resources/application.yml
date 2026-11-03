@@ -3,6 +3,23 @@ spring:
     active: dev
   application:
     name: contest-agent-platform
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
 
 server:
   port: 8080
+
+storage:
+  # local：本地磁盘；seaweedfs：SeaweedFS 对象存储
+  type: seaweedfs
+  root: D:/codex/storage
+  seaweedfs:
+    endpoint: http://127.0.0.1:8333
+    bucket: contest-files
+    region: us-east-1
+    # 本地 SeaweedFS 未开启身份认证时留空，使用匿名连接
+    access-key:
+    secret-key:
+    temp-dir: D:/codex/storage/seaweed-temp
