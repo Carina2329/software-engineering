@@ -16,6 +16,8 @@ docs/api/openapi-v1.json
 
 数据库规则均以 `docs/db/rbac-auth-delta.md` 和 `docs/sql/2026-11-03-rbac-auth-foundation.sql` 为准，不在任务卡中复制字段定义。
 
+公共数字错误码沿用完整既有清单；新增 `50003` 仅表示“认证或幂等依赖暂不可用”，HTTP 503，可重试。不得占用或改变 `50001`、`50002`、`20001`、`40002` 及其他错误码含义。
+
 ## 通用提交要求
 
 每位组员都必须从远程集成分支拉出自己的分支：
@@ -41,6 +43,18 @@ feature/rbac-auth
 4. 测试截图或接口响应；
 5. 使用的 EP 编号和公共能力；
 6. 未解决问题及需要段欣懿协调的事项。
+
+## 公共接口优先合入检查点
+
+跨模块接口定义必须先于业务实现合入集成分支：
+
+1. 同学 2 提供 `EmailOtpScene` 和 `EmailOtpVerifier`；
+2. 同学 1 提供 `SessionRevocationService` 和 `CurrentUserProvider`；
+3. 段欣懿将接口定义合入 `feature/rbac-auth`；
+4. 后端完成编译检查；
+5. 各组再基于同一接口基线并行实现。
+
+已合入的接口签名不得由模块实现分支擅自修改。
 
 ## 同学 1：认证核心后端
 
@@ -68,10 +82,10 @@ feature/auth-core
 
 - `backend/src/main/java/com/campus/contest/security/`
 - `backend/src/main/java/com/campus/contest/module/system/controller/` 下只属于登录、退出、续期的 Controller
-- `backend/src/main/java/com/campus/contest/module/system/` 下只属于认证核心的 Service、Mapper、Entity、DTO 和 VO
+- `backend/src/main/java/com/campus/contest/module/system/` 下只属于认证核心的 Service、DTO 和 VO
 - `backend/src/test/java/com/campus/contest/` 下对应的认证测试
 
-可以新增认证所需的包和文件，但不得创建第二个项目或另一个登录入口。
+可以新增认证所需的 Service 和 Controller，但不得创建第二个项目、第二个登录入口或重复的数据访问层。
 
 ### 禁止修改
 
@@ -82,14 +96,15 @@ feature/auth-core
 - `backend/src/main/resources/application.yml`
 - `backend/src/main/resources/application-dev.yml`
 - 公共 `Result`、`BizException`、`GlobalExceptionHandler`、`CorsConfig`
+- 段欣懿提供的六张系统表 Entity、Mapper、权限快照、审计和幂等服务
 - OpenAPI、接口汇总、公共 SQL 和其他冻结文档
 
 如需要 Spring Security、OAuth2 Resource Server 或其他新依赖，在任务结果中写明依赖坐标和用途，交给段欣懿处理。
 
 ### 依赖的公共能力
 
-- 同学 2：图片验证码校验和邮箱 OTP 校验结果；
-- 段欣懿：用户、角色和权限表结构，公共错误码及配置；
+- 同学 2：已合入的 `EmailOtpVerifier` 和 `EmailOtpScene`；
+- 段欣懿：六张系统表 Entity/Mapper、`AuthorizationSnapshotService`、审计和幂等服务；
 - 同学 3：权限编码和 `@PreAuthorize` 接入所需资源清单。
 
 不得自行创建第二套用户、会话或 Email OTP 逻辑。
@@ -125,6 +140,7 @@ feature/auth-core
 - 需要新增依赖；
 - 发现 OpenAPI 的登录、退出或续期字段不能实现；
 - 需要修改数据库表；
+- 需要自行创建六张系统表的 Entity 或 Mapper；
 - 需要改变统一登录入口的路径或请求结构；
 - 同学 2 的 OTP 接口尚未提供且准备自行重写。
 
@@ -152,7 +168,6 @@ feature/auth-verification
 
 - `backend/src/main/java/com/campus/contest/module/system/controller/` 下验证码、注册和找回密码 Controller
 - `backend/src/main/java/com/campus/contest/module/system/` 下验证码、邮件 OTP、注册和找回密码 Service、DTO 和 VO
-- 本模块所需 Mapper，但不得重复定义已有共享 Entity 和 Mapper
 - `backend/src/test/java/com/campus/contest/` 下对应的验证码、注册和找回密码测试
 
 ### 禁止修改
@@ -161,6 +176,7 @@ feature/auth-verification
 - Spring Security 核心配置、JWT 和 Redis 会话签发逻辑
 - 角色、权限资源和角色授权实现
 - 同学 1 的会话撤销实现
+- 段欣懿提供的六张系统表 Entity、Mapper、权限快照、审计和幂等服务
 - 前端文件
 - `backend/pom.xml`
 - `backend/src/main/resources/application.yml`
@@ -170,8 +186,8 @@ feature/auth-verification
 
 ### 依赖的公共能力
 
-- 同学 1：统一用户查询、JWT/会话基础能力、撤销用户全部会话；
-- 段欣懿：Spring Mail 依赖、Mailpit 配置、数据库字段和增量 SQL；
+- 同学 1：实现已合入的 `SessionRevocationService` 和当前用户能力；
+- 段欣懿：Spring Mail 依赖、Mailpit 配置、数据库字段、共享 Mapper、审计和幂等服务；
 - 同学 3：角色关联能力，用于注册后默认分配 `STUDENT`。
 
 如 Spring Mail 依赖或 Mailpit 配置尚不存在，先提交所需配置说明，不得自行修改公共构建和环境文件。
@@ -211,6 +227,7 @@ feature/auth-verification
 - 需要改变邮件 OTP、验证码或找回密码的契约字段；
 - 需要修改 `/auth/login` Controller；
 - 需要自行实现会话撤销；
+- 需要自行创建六张系统表的 Entity 或 Mapper；
 - Mailpit 配置或邮件依赖尚未提供。
 
 ## 同学 3：RBAC 与越权后端
@@ -235,7 +252,7 @@ feature/rbac-backend
 
 ### 允许修改或新增
 
-- `backend/src/main/java/com/campus/contest/module/system/` 下角色、权限资源和用户角色分配的 Controller、Service、Mapper、Entity、DTO 和 VO
+- `backend/src/main/java/com/campus/contest/module/system/` 下角色、权限资源和用户角色分配的 Controller、Service、DTO 和 VO
 - `backend/src/main/java/com/campus/contest/module/work/controller/FileController.java`
 - `backend/src/main/java/com/campus/contest/module/work/service/` 下文件权限和归属检查相关实现
 - `backend/src/test/java/com/campus/contest/` 下 RBAC 和越权测试
@@ -244,6 +261,7 @@ feature/rbac-backend
 
 - Spring Security 登录流程、JWT 和 Redis 会话实现
 - 同学 1 的会话撤销实现
+- 段欣懿提供的六张系统表 Entity、Mapper、权限快照、审计和幂等服务
 - 同学 2 的验证码、OTP、注册和找回密码实现
 - 前端文件
 - `backend/pom.xml`
@@ -255,7 +273,7 @@ feature/rbac-backend
 ### 依赖的公共能力
 
 - 同学 1：当前登录用户信息和统一会话撤销能力；
-- 段欣懿：冻结权限编码、数据库增量和种子数据；
+- 段欣懿：冻结权限编码、数据库增量、种子数据、共享 Mapper、权限快照、审计和幂等服务；
 - 现有文件模块：`FileController` 和 `FileService` 中的上传人信息。
 
 ### 对应接口
@@ -291,6 +309,7 @@ feature/rbac-backend
 - 需要修改 OpenAPI、公共 SQL 或错误码；
 - 需要新增数据库表；
 - 找不到同学 1 提供的当前用户或会话撤销能力；
+- 需要自行创建六张系统表的 Entity 或 Mapper；
 - 需要复制另一套 Redis 会话撤销；
 - 需要改变冻结的 RBAC 接口路径或请求字段。
 

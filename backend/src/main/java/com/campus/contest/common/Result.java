@@ -1,5 +1,7 @@
 package com.campus.contest.common;
 
+import com.campus.contest.common.trace.TraceContext;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 /**
@@ -15,11 +17,15 @@ public class Result<T> {
 
     private T data;
 
+    @JsonProperty("trace_id")
+    private String traceId;
+
     public static <T> Result<T> ok(T data) {
         Result<T> r = new Result<>();
         r.code = 0;
         r.message = "success";
         r.data = data;
+        r.traceId = TraceContext.currentTraceId();
         return r;
     }
 
@@ -31,6 +37,17 @@ public class Result<T> {
         Result<T> r = new Result<>();
         r.code = code;
         r.message = message;
+        r.traceId = TraceContext.currentTraceId();
         return r;
+    }
+
+    public static <T> Result<T> fail(ErrorCode errorCode) {
+        return fail(errorCode.getCode(), errorCode.getMessage());
+    }
+
+    public static <T> Result<T> fail(ErrorCode errorCode, T data) {
+        Result<T> result = fail(errorCode);
+        result.setData(data);
+        return result;
     }
 }

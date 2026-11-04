@@ -1,6 +1,8 @@
 # 认证与 RBAC 数据库增量设计
 
-- 冻结日期：2026-11-03
+- 文档版本：0.2.0
+- 初版日期：2026-11-03
+- 本次修订：2026-11-04
 - 适用分支：`feature/rbac-auth`
 - 数据库：MySQL 8.0
 - 基线：现有《6组 数据库设计》的 26 张表
@@ -81,6 +83,7 @@ ASSIGNED
 ### `sys_oper_log`
 
 - 将 `user_id` 改为可空，支持账号不存在的失败登录审计；
+- 增加 `trace_id VARCHAR(64) NULL`，保留请求追踪号；
 - 增加 `idx_sys_oper_log_user_created (user_id, created_at)`。
 
 `params` 只能保存脱敏后的请求摘要，不能包含密码、OTP、JWT 或 Refresh Token。

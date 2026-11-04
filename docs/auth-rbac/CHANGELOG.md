@@ -1,0 +1,50 @@
+# 认证与 RBAC 变更记录
+
+## 2026-11-04 - 公共基础 v0.2.0
+
+### 新增
+
+- 跨模块接口定义：
+  - `EmailOtpScene`
+  - `EmailOtpVerifier`
+  - `SessionRevocationService`
+  - `CurrentUserProvider`
+- 公共业务错误码 `50003`：认证或幂等依赖暂不可用，HTTP 503，可重试。
+- 请求级 `trace_id` 生成、响应头返回和 MDC 清理。
+- `sys_user`、`sys_role`、`sys_user_role`、`sys_menu`、`sys_role_menu`、`sys_oper_log` 的 Entity 和 Mapper。
+- 只读 RBAC 权限快照服务。
+- 公共审计日志服务，自动脱敏敏感字段。
+- 带 USER 或 SESSION 作用域的 Redis 幂等服务。
+- Mailpit 开发服务配置。
+
+### 修改
+
+- `Result` 增加兼容 OpenAPI 的 `trace_id` 字段。
+- 全局异常处理按既有数字业务码返回对应 HTTP 状态。
+- MyBatis-Plus 注册乐观锁插件，使实体 `version` 字段实际参与更新校验。
+- CORS 不再允许任意来源。
+- Spring Security OAuth2 Resource Server、Spring Security Test 和 Spring Mail 依赖加入公共构建。
+- `sys_oper_log` 增加 `trace_id VARCHAR(64) NULL`。
+
+### 约束
+
+- `20001` 继续表示业务状态或乐观锁冲突。
+- `40002` 继续表示重复请求、重放或幂等冲突。
+- `50001` 继续表示 AI 服务不可用。
+- `50002` 继续表示对象存储不可用。
+- 不新增数据库表。
+
+### 验证记录
+
+- `RUN_REDIS_TESTS=true mvn -B clean test`：18 个测试通过。
+- 原有小文件上传返回 201，下载文件 SHA-256 与源文件一致。
+- 成功响应、参数错误响应和响应头使用相同 `X-Trace-Id`。
+- 缺少上传文件参数返回 HTTP 400 和业务码 `10001`。
+- CORS 只回显配置允许的前端来源。
+- 真实 Redis 集成测试覆盖并发同请求、不同用户同幂等键和 Redis 断连失败关闭。
+
+## 2026-11-03 - 初始契约 v0.1.0
+
+- 建立两种登录方式、图片验证码、邮件 OTP、JWT＋Redis 会话和 RBAC 方案。
+- 冻结 12 个新增接口和 78 个接口操作。
+- 明确不新增数据库表，只扩展现有系统表。

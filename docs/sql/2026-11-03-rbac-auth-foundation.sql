@@ -1,5 +1,6 @@
 -- 认证与 RBAC 数据库增量草案
 -- 目标：MySQL 8.0
+-- 文档版本：0.2.0（2026-11-04）
 -- 状态：尚未执行；执行前先核对真实库结构并备份数据。
 -- 本脚本不新增数据库表。
 
@@ -33,6 +34,9 @@ CREATE UNIQUE INDEX uk_sys_role_menu_role_menu
 -- 6. 失败的未知账号登录也需要审计
 ALTER TABLE sys_oper_log
     MODIFY COLUMN user_id BIGINT NULL COMMENT '操作人；未知账号失败登录时可为空';
+
+ALTER TABLE sys_oper_log
+    ADD COLUMN trace_id VARCHAR(64) NULL COMMENT '请求追踪号';
 
 CREATE INDEX idx_sys_oper_log_user_created ON sys_oper_log (user_id, created_at);
 

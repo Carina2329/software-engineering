@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AI学科竞赛全流程智能服务平台接口",
-    "version": "1.1.0",
-    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。",
+    "version": "1.1.1",
+    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。",
     "contact": {
       "name": "第6组",
       "email": "group6@example.edu"
@@ -125,6 +125,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-001",
@@ -239,7 +242,7 @@
             "$ref": "#/components/responses/InternalError"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-002",
@@ -1026,7 +1029,7 @@
             "$ref": "#/components/responses/InternalError"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-007",
@@ -9736,6 +9739,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-067",
@@ -9805,7 +9811,7 @@
             "$ref": "#/components/responses/InternalError"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-068",
@@ -9899,6 +9905,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-069",
@@ -10013,7 +10022,7 @@
             "$ref": "#/components/responses/InternalError"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-070",
@@ -10082,7 +10091,7 @@
             "$ref": "#/components/responses/InternalError"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-071",
@@ -10167,7 +10176,7 @@
             "$ref": "#/components/responses/InternalError"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-072",
@@ -10254,6 +10263,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-073",
@@ -10340,6 +10352,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-074",
@@ -10465,7 +10480,7 @@
             "$ref": "#/components/responses/InternalError"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-075",
@@ -10553,6 +10568,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-076",
@@ -10664,6 +10682,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-077",
@@ -10778,7 +10799,7 @@
             "$ref": "#/components/responses/InternalError"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-078",
@@ -11525,6 +11546,25 @@
               "message": "示例错误",
               "data": {
                 "retryable": false,
+                "details": []
+              },
+              "trace_id": "01J8F8M4V8V2K4B6S2Y4H9Q7P1"
+            }
+          }
+        }
+      },
+      "AuthDependencyUnavailable": {
+        "description": "认证或幂等依赖暂不可用",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            },
+            "example": {
+              "code": 50003,
+              "message": "认证或幂等依赖暂不可用",
+              "data": {
+                "retryable": true,
                 "details": []
               },
               "trace_id": "01J8F8M4V8V2K4B6S2Y4H9Q7P1"
