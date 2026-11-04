@@ -14,9 +14,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -96,7 +100,7 @@ public class AuthController {
     public Result<Void> logout(
             @CookieValue(name = AuthCookieService.REFRESH_COOKIE_NAME, required = false)
             String refreshToken,
-            @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(name = "Idempotency-Key", required = true) String idempotencyKey,
             HttpServletRequest servletRequest,
             HttpServletResponse response
     ) {
@@ -128,6 +132,12 @@ public class AuthController {
             );
             throw e;
         }
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<Result<Void>> handleMissingHeader(MissingRequestHeaderException ignored) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Result.<Void>fail(ErrorCode.INVALID_PARAM));
     }
 
     private void refreshCsrfCookie(

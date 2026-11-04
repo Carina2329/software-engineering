@@ -132,6 +132,10 @@ class RedisIdempotencyStoreIntegrationTest {
 
     private LettuceConnectionFactory connectionFactory(int port) {
         LettuceConnectionFactory factory = new LettuceConnectionFactory("127.0.0.1", port);
+        String password = System.getenv("REDIS_PASSWORD");
+        if (password != null && !password.isBlank()) {
+            factory.setPassword(password);
+        }
         factory.afterPropertiesSet();
         return factory;
     }

@@ -199,6 +199,33 @@ class AuthHttpEndToEndTest {
         assertEquals(HttpStatus.OK, duplicateLogout.getStatusCode(), duplicateLogout.getBody());
     }
 
+
+    @Test
+    void logoutWithoutIdempotencyKeyReturnsBadRequest() throws Exception {
+        String loginJson = objectMapper.writeValueAsString(Map.of(
+                "login_type", "USERNAME_PASSWORD",
+                "username", username,
+                "password", PASSWORD,
+                "captcha_id", "captcha-http-2",
+                "captcha_code", "AB12"
+        ));
+        ResponseEntity<String> login = postJson("/api/v1/auth/login", loginJson, new HttpHeaders());
+        assertEquals(HttpStatus.OK, login.getStatusCode(), login.getBody());
+
+        Map<String, String> loginCookies = cookies(login.getHeaders());
+        HttpHeaders logoutHeaders = cookieHeaders(loginCookies);
+        logoutHeaders.add("X-XSRF-TOKEN", loginCookies.get("XSRF-TOKEN"));
+
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/api/v1/auth/logout",
+                HttpMethod.POST,
+                new HttpEntity<>(logoutHeaders),
+                String.class
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode(), response.getBody());
+        assertEquals(ErrorCode.INVALID_PARAM.getCode(), json(response).path("code").asInt());
+    }
     private ResponseEntity<String> postJson(
             String path,
             String json,

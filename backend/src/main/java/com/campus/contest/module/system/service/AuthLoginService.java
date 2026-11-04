@@ -28,8 +28,8 @@ public class AuthLoginService {
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
     private static final Pattern EMAIL_CODE_PATTERN = Pattern.compile("^[0-9]{6}$");
-    private static final String FAKE_PASSWORD_HASH =
-            "$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG";
+    public static final String FAKE_PASSWORD_HASH =
+            "$2a$12$WGbPDHU0mYJ5ueQDbzMGUurHrpHhPSjTSa/YooZKZDdAHa7N2GLsq";
 
     private final ObjectProvider<LoginCaptchaVerifier> captchaVerifierProvider;
     private final ObjectProvider<EmailOtpVerifier> emailOtpVerifierProvider;

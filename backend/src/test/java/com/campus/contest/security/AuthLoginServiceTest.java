@@ -23,6 +23,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -134,5 +135,10 @@ class AuthLoginServiceTest {
         user.setEmail("student_a@example.edu");
         user.setStatus(1);
         return user;
+    }
+
+    @Test
+    void fakePasswordHashUsesCost12() {
+        assertTrue(AuthLoginService.FAKE_PASSWORD_HASH.startsWith("$2a$12$"));
     }
 }
