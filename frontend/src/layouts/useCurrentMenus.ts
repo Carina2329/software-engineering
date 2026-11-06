@@ -10,6 +10,8 @@ export interface MenuNode {
   path: string | null
   perms: string | null
   sortNo: number
+  visible: number
+  status: number
   children: MenuNode[]
 }
 
@@ -46,6 +48,8 @@ export const normalizeCurrentMenus = (nodes: PermissionResource[]): MenuNode[] =
     path: node.path ?? null,
     perms: node.perms ?? null,
     sortNo: node.sort_no ?? 0,
+    visible: node.visible ?? 1,
+    status: node.status ?? 1,
     children: normalizeCurrentMenus(node.children ?? []),
   }))
   sortTree(result)
@@ -69,6 +73,15 @@ export const ensureCurrentMenus = async (force = false): Promise<void> => {
   return loadingPromise
 }
 
+/** 登录切换、退出或 401 时清空缓存，避免同一 SPA 内残留上一个账号的菜单和按钮权限 */
+export const resetCurrentMenus = (): void => {
+  menuTree.value = []
+  permissions.value = []
+  loaded = false
+  loadingPromise = null
+  loading.value = false
+}
+
 /** 菜单与按钮只做展示控制，真实授权仍由后端 @PreAuthorize 完成 */
 export const hasPermission = (perm: string): boolean => permissions.value.includes(perm)
 
@@ -77,5 +90,6 @@ export const useCurrentMenus = () => ({
   permissions,
   loading,
   ensureCurrentMenus,
+  resetCurrentMenus,
   hasPermission,
 })

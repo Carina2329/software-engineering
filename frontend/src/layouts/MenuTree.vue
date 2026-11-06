@@ -3,11 +3,14 @@ import type { MenuNode } from './useCurrentMenus'
 
 defineProps<{ nodes: MenuNode[] }>()
 
-const visibleChildren = (node: MenuNode): MenuNode[] => node.children.filter((child) => child.type !== 'BUTTON')
+const isNavigable = (node: MenuNode): boolean =>
+  node.type !== 'BUTTON' && node.visible === 1 && node.status === 1
+
+const visibleChildren = (node: MenuNode): MenuNode[] => node.children.filter(isNavigable)
 </script>
 
 <template>
-  <template v-for="node in nodes" :key="node.id">
+  <template v-for="node in nodes.filter(isNavigable)" :key="node.id">
     <el-sub-menu v-if="node.type === 'DIRECTORY' && visibleChildren(node).length > 0" :index="node.id">
       <template #title>
         <span>{{ node.name }}</span>
