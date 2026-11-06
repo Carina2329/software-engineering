@@ -1,8 +1,8 @@
 # 认证与 RBAC 契约冻结稿
 
-- 文档版本：0.2.0
+- 文档版本：0.2.1
 - 初版日期：2026-11-03
-- 本次修订：2026-11-04
+- 本次修订：2026-11-06
 - 适用分支：`feature/rbac-auth`
 - 接口前缀：`/api/v1`
 - 状态：公共基础已冻结，供组内并行开发
@@ -182,6 +182,9 @@ POST /api/v1/auth/password-reset/confirm
 - 每个 OTP 最多错误 5 次；
 - 场景仅允许 `REGISTER`、`LOGIN`、`RESET_PASSWORD`；
 - 开发环境通过 Spring Mail 发送到 Mailpit；
+- 邮件发件人通过 `app.mail.from` 读取，环境变量为 `MAIL_FROM`；
+- EP-068 仅在 `REGISTER`（邮箱未占用）或 `LOGIN`（账号存在且启用）时实际发信；`RESET_PASSWORD` 只允许通过 EP-071 发送；
+- 不实际发信时仍返回结构一致的 `challengeId`，避免账号枚举；
 - OTP 不写普通日志，不通过接口返回。
 
 ## 六、登录限流

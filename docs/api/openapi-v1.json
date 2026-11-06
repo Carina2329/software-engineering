@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AI学科竞赛全流程智能服务平台接口",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。",
     "contact": {
       "name": "第6组",
@@ -9760,7 +9760,7 @@
           "认证与用户"
         ],
         "summary": "发送邮件验证码",
-        "description": "校验图片人机验证码后，通过 Spring Mail/Mailpit 发送 6 位 OTP，并返回绑定邮箱和场景的 challenge_id。OTP 只保存在 Redis，不写入普通日志。",
+        "description": "校验图片人机验证码后，按 scene 控制是否实际发送 6 位 OTP：REGISTER 仅在邮箱未占用时发送，LOGIN 仅在账号存在且启用时发送，RESET_PASSWORD 只能通过 EP-071 发送。无论是否实际发送，均返回相同结构和 challenge_id，避免账号枚举。OTP 只保存在 Redis，不写入普通日志。",
         "operationId": "ep_068",
         "security": [],
         "parameters": [],
@@ -9914,7 +9914,7 @@
         "x-permission": "匿名",
         "x-data-scope": "仅当前注册挑战",
         "x-idempotency": "否",
-        "x-rate-limit": "按 IP 与邮箱限流；超限 HTTP 429，业务码 40001",
+        "x-rate-limit": "同 IP 20 次/小时；超限 HTTP 429，业务码 40001",
         "x-audit": true,
         "x-tables": [
           "sys_user",
