@@ -11,6 +11,8 @@ import com.campus.contest.security.LoginCaptchaVerifier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -21,12 +23,13 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 图片验证码实现：答案仅存 Redis，2 分钟过期，最多错误 5 次，校验成功后立即删除。
@@ -40,6 +43,44 @@ public class CaptchaServiceImpl implements CaptchaService, LoginCaptchaVerifier 
     private static final int MAX_ATTEMPTS = 5;
     private static final int CODE_LENGTH = 4;
     private static final char[] CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+    /**
+     * 原子校验：1=成功，0=不存在，2=场景不匹配，3=已超次数，4=错误次数达上限，5=错误未达上限。
+     */
+    private static final RedisScript<Long> VERIFY_SCRIPT = new DefaultRedisScript<>(
+            """
+            local stored = redis.call('HGETALL', KEYS[1])
+            if #stored == 0 then
+              return 0
+            end
+            local fields = {}
+            for i = 1, #stored, 2 do
+              fields[stored[i]] = stored[i + 1]
+            end
+            if fields['scene'] ~= ARGV[1] then
+              redis.call('DEL', KEYS[1])
+              return 2
+            end
+            local attempts = tonumber(fields['attempts'] or '0')
+            if attempts >= tonumber(ARGV[3]) then
+              redis.call('DEL', KEYS[1])
+              return 3
+            end
+            if fields['answerHash'] == ARGV[2] then
+              redis.call('DEL', KEYS[1])
+              return 1
+            end
+            attempts = attempts + 1
+            if attempts >= tonumber(ARGV[3]) then
+              redis.call('DEL', KEYS[1])
+              return 4
+            end
+            redis.call('HSET', KEYS[1], 'attempts', tostring(attempts))
+            return 5
+            """,
+            Long.class
+    );
 
     private final StringRedisTemplate redisTemplate;
     private final VerificationRateLimiter rateLimiter;
@@ -74,29 +115,18 @@ public class CaptchaServiceImpl implements CaptchaService, LoginCaptchaVerifier 
                 || scene == null) {
             throw invalidCaptcha();
         }
-        String key = KEY_PREFIX + captchaId;
+        String normalizedCode = captchaCode.trim().toUpperCase(Locale.ROOT);
         try {
-            Map<Object, Object> fields = redisTemplate.opsForHash().entries(key);
-            if (fields == null || fields.isEmpty()) {
+            Long result = redisTemplate.execute(
+                    VERIFY_SCRIPT,
+                    List.of(KEY_PREFIX + captchaId),
+                    scene.name(),
+                    VerificationTokens.sha256Hex(normalizedCode),
+                    String.valueOf(MAX_ATTEMPTS)
+            );
+            if (result == null || result != 1L) {
                 throw invalidCaptcha();
             }
-            String storedScene = str(fields.get("scene"));
-            String answerHash = str(fields.get("answerHash"));
-            int attempts = parseInt(str(fields.get("attempts")));
-            if (!scene.name().equals(storedScene) || attempts >= MAX_ATTEMPTS) {
-                redisTemplate.delete(key);
-                throw invalidCaptcha();
-            }
-            String normalizedCode = captchaCode.trim().toUpperCase(Locale.ROOT);
-            if (VerificationTokens.matches(normalizedCode, answerHash)) {
-                redisTemplate.delete(key);
-                return;
-            }
-            long next = redisTemplate.opsForHash().increment(key, "attempts", 1);
-            if (next >= MAX_ATTEMPTS) {
-                redisTemplate.delete(key);
-            }
-            throw invalidCaptcha();
         } catch (DataAccessException e) {
             throw unavailable();
         }
@@ -110,7 +140,7 @@ public class CaptchaServiceImpl implements CaptchaService, LoginCaptchaVerifier 
     private String randomCode() {
         StringBuilder code = new StringBuilder(CODE_LENGTH);
         for (int i = 0; i < CODE_LENGTH; i++) {
-            code.append(CHARSET[ThreadLocalRandom.current().nextInt(CHARSET.length)]);
+            code.append(CHARSET[SECURE_RANDOM.nextInt(CHARSET.length)]);
         }
         return code.toString();
     }
@@ -127,25 +157,25 @@ public class CaptchaServiceImpl implements CaptchaService, LoginCaptchaVerifier 
             graphics.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
             for (int i = 0; i < CODE_LENGTH; i++) {
                 graphics.setColor(new Color(
-                        ThreadLocalRandom.current().nextInt(30, 130),
-                        ThreadLocalRandom.current().nextInt(30, 130),
-                        ThreadLocalRandom.current().nextInt(30, 130)
+                        SECURE_RANDOM.nextInt(161) + 30,
+                        SECURE_RANDOM.nextInt(161) + 30,
+                        SECURE_RANDOM.nextInt(161) + 30
                 ));
-                int x = 14 + i * 24 + ThreadLocalRandom.current().nextInt(-3, 4);
-                int y = 28 + ThreadLocalRandom.current().nextInt(-4, 5);
+                int x = 14 + i * 24 + SECURE_RANDOM.nextInt(7) - 3;
+                int y = 28 + SECURE_RANDOM.nextInt(9) - 4;
                 graphics.drawString(String.valueOf(code.charAt(i)), x, y);
             }
             for (int i = 0; i < 5; i++) {
                 graphics.setColor(new Color(
-                        ThreadLocalRandom.current().nextInt(120, 200),
-                        ThreadLocalRandom.current().nextInt(120, 200),
-                        ThreadLocalRandom.current().nextInt(120, 200)
+                        SECURE_RANDOM.nextInt(81) + 120,
+                        SECURE_RANDOM.nextInt(81) + 120,
+                        SECURE_RANDOM.nextInt(81) + 120
                 ));
                 graphics.drawLine(
-                        ThreadLocalRandom.current().nextInt(0, width),
-                        ThreadLocalRandom.current().nextInt(0, height),
-                        ThreadLocalRandom.current().nextInt(0, width),
-                        ThreadLocalRandom.current().nextInt(0, height)
+                        SECURE_RANDOM.nextInt(width),
+                        SECURE_RANDOM.nextInt(height),
+                        SECURE_RANDOM.nextInt(width),
+                        SECURE_RANDOM.nextInt(height)
                 );
             }
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -155,21 +185,6 @@ public class CaptchaServiceImpl implements CaptchaService, LoginCaptchaVerifier 
             throw new IllegalStateException("验证码图片生成失败", e);
         } finally {
             graphics.dispose();
-        }
-    }
-
-    private String str(Object value) {
-        return value == null ? null : String.valueOf(value);
-    }
-
-    private int parseInt(String value) {
-        if (value == null || value.isBlank()) {
-            return 0;
-        }
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            return 0;
         }
     }
 

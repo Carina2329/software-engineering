@@ -3,24 +3,23 @@ package com.campus.contest.module.system.service.impl;
 import com.campus.contest.common.BizException;
 import com.campus.contest.module.system.enums.CaptchaScene;
 import com.campus.contest.module.system.service.VerificationRateLimiter;
-import com.campus.contest.module.system.service.VerificationTokens;
 import com.campus.contest.module.system.vo.CaptchaChallengeVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CaptchaServiceImplTest {
@@ -49,34 +48,26 @@ class CaptchaServiceImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void verifySuccessConsumesCaptcha() {
-        String captchaId = "captcha-1";
-        String code = "ABCD";
-        Map<Object, Object> fields = new HashMap<>();
-        fields.put("scene", CaptchaScene.LOGIN.name());
-        fields.put("answerHash", VerificationTokens.sha256Hex(code));
-        fields.put("attempts", "0");
-        when(hashOps.entries("auth:captcha:" + captchaId)).thenReturn(fields);
+        when(redisTemplate.execute(
+                any(RedisScript.class), anyList(), any(Object[].class)
+        )).thenReturn(1L);
 
-        captchaService.verify(captchaId, code, CaptchaScene.LOGIN);
-
-        verify(redisTemplate).delete("auth:captcha:" + captchaId);
+        captchaService.verify("captcha-1", "ABCD", CaptchaScene.LOGIN);
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void verifyRejectsSceneMismatch() {
-        String captchaId = "captcha-2";
-        Map<Object, Object> fields = new HashMap<>();
-        fields.put("scene", CaptchaScene.REGISTER.name());
-        fields.put("answerHash", VerificationTokens.sha256Hex("ABCD"));
-        fields.put("attempts", "0");
-        when(hashOps.entries("auth:captcha:" + captchaId)).thenReturn(fields);
+        when(redisTemplate.execute(
+                any(RedisScript.class), anyList(), any(Object[].class)
+        )).thenReturn(2L);
 
         BizException exception = assertThrows(
                 BizException.class,
-                () -> captchaService.verify(captchaId, "ABCD", CaptchaScene.LOGIN)
+                () -> captchaService.verify("captcha-2", "ABCD", CaptchaScene.LOGIN)
         );
         assertEquals(10001, exception.getCode());
-        verify(redisTemplate).delete("auth:captcha:" + captchaId);
     }
 }
