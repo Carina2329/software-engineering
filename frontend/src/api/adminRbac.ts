@@ -1,5 +1,5 @@
 import type { AxiosRequestConfig } from 'axios'
-import request from './request'
+import request, { ApiError, getApiErrorMessage } from './request'
 import type {
   PermissionResource,
   Role,
@@ -22,78 +22,7 @@ import type {
  */
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
-/** 业务错误：保留业务码、HTTP 状态、trace_id 与 data，便于页面区分 20001/40002 */
-export class ApiError extends Error {
-  readonly code: number | null
-  readonly httpStatus: number | null
-  readonly traceId: string | null
-  readonly data: unknown
-
-  constructor(
-    message: string,
-    code: number | null = null,
-    httpStatus: number | null = null,
-    traceId: string | null = null,
-    data: unknown = null,
-  ) {
-    super(message)
-    this.name = 'ApiError'
-    this.code = code
-    this.httpStatus = httpStatus
-    this.traceId = traceId
-    this.data = data
-  }
-}
-
-interface ErrorPayload {
-  code?: unknown
-  message?: unknown
-  trace_id?: unknown
-  data?: unknown
-}
-
-interface ErrorCandidate {
-  message?: unknown
-  response?: {
-    status?: unknown
-    data?: ErrorPayload
-  }
-}
-
-const toNumberOrNull = (value: unknown): number | null => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    if (!Number.isNaN(parsed)) return parsed
-  }
-  return null
-}
-
-/** 将 Axios 异常或未知异常统一为 ApiError */
-export const normalizeApiError = (error: unknown, fallback = '操作失败'): ApiError => {
-  if (error instanceof ApiError) return error
-
-  const candidate = typeof error === 'object' && error !== null ? (error as ErrorCandidate) : null
-  const payload = candidate?.response?.data
-  const code = toNumberOrNull(payload?.code)
-  const httpStatus = toNumberOrNull(candidate?.response?.status)
-  const traceId = typeof payload?.trace_id === 'string' ? payload.trace_id : null
-  const data = payload?.data ?? null
-  const message =
-    (typeof payload?.message === 'string' && payload.message) ||
-    (typeof candidate?.message === 'string' && candidate.message) ||
-    fallback
-
-  return new ApiError(message, code, httpStatus, traceId, data)
-}
-
-/** 页面统一错误文案：20001 提示刷新，40002 提示不要重复提交 */
-export const getErrorMessage = (error: unknown, fallback = '操作失败'): string => {
-  const normalized = normalizeApiError(error, fallback)
-  if (normalized.code === 20001) return '数据已被他人修改，请刷新后重试'
-  if (normalized.code === 40002) return '请求正在处理中，请勿重复提交'
-  return normalized.message
-}
+export const getErrorMessage = getApiErrorMessage
 
 const get = <T>(url: string, config?: AxiosRequestConfig): Promise<T> =>
   request.get(url, config) as unknown as Promise<T>
@@ -111,7 +40,10 @@ const respond = async <T>(action: () => T | Promise<T>): Promise<T> => {
   try {
     return await action()
   } catch (error) {
-    throw normalizeApiError(error)
+    if (error instanceof ApiError) {
+      throw error
+    }
+    throw new ApiError(getApiErrorMessage(error), { details: error })
   }
 }
 
@@ -123,11 +55,11 @@ const idempotencyConfig = (idempotencyKey: string): AxiosRequestConfig => ({
 })
 
 const mockConflict = (message: string): never => {
-  throw new ApiError(message, 20001, 409)
+  throw new ApiError(message, { code: 20001, status: 409 })
 }
 
 const mockNotFound = (message: string): never => {
-  throw new ApiError(message, null, 404)
+  throw new ApiError(message, { status: 404 })
 }
 
 // ---------------------------------------------------------------------------

@@ -220,8 +220,19 @@ export async function refreshAccessToken(notifyOnFailure = true): Promise<AuthTo
   }
 }
 
-export function getApiErrorMessage(error: unknown): string {
-  return normalizeError(error).message
+export function getApiErrorMessage(error: unknown, fallback = '操作失败'): string {
+  try {
+    const normalized = normalizeError(error)
+    if (normalized.code === 20001) {
+      return '数据已被他人修改，请刷新后重试'
+    }
+    if (normalized.code === 40002) {
+      return '请求正在处理中，请勿重复提交'
+    }
+    return normalized.message || fallback
+  } catch {
+    return fallback
+  }
 }
 
 http.interceptors.request.use((config) => {

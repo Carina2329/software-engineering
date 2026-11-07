@@ -12,6 +12,7 @@ import {
   authTokenData,
   clearAuthToken,
 } from '../auth/tokenManager'
+import { resetCurrentMenus } from '../layouts/useCurrentMenus'
 import type {
   AuthTokenData,
   LoginPayload,
@@ -98,6 +99,7 @@ export const useAuthStore = defineStore('auth', () => {
   function clearSessionState(): void {
     clearRefreshTimer()
     clearAuthToken()
+    resetCurrentMenus()
     user.value = null
     roles.value = []
     permissions.value = []
@@ -142,6 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(payload: LoginPayload): Promise<AuthTokenData> {
     const tokenData = await loginApi(payload)
+    resetCurrentMenus()
     applyTokenData(tokenData)
     await refreshProfile(true)
     initialized.value = true

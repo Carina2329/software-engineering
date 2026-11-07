@@ -8,6 +8,12 @@ import { useAuthStore } from '../../stores/auth'
 const router = useRouter()
 const auth = useAuthStore()
 const loggingOut = ref(false)
+const adminEntryPath = computed(() => {
+  if (auth.can('system:user:list')) return '/admin/users'
+  if (auth.can('system:role:list')) return '/admin/roles'
+  if (auth.can('system:menu:list')) return '/admin/menus'
+  return null
+})
 
 const profileInitial = computed(
   () => auth.displayName.trim().slice(0, 1).toUpperCase() || '用',
@@ -37,7 +43,12 @@ async function handleLogout(): Promise<void> {
           <small>学科竞赛协作平台</small>
         </div>
       </div>
-      <el-button :loading="loggingOut" plain @click="handleLogout">退出登录</el-button>
+      <div class="header-actions">
+        <el-button v-if="adminEntryPath" type="primary" plain @click="router.push(adminEntryPath)">
+          权限管理
+        </el-button>
+        <el-button :loading="loggingOut" plain @click="handleLogout">退出登录</el-button>
+      </div>
     </header>
 
     <section class="welcome">
@@ -140,6 +151,12 @@ async function handleLogout(): Promise<void> {
   margin: 0 auto;
   padding: 24px 28px;
   border-bottom: 1px solid rgba(23, 63, 53, 0.11);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .brand {

@@ -31,7 +31,12 @@ const sortTree = (nodes: MenuNode[]): void => {
 
 const collectPermissions = (nodes: MenuNode[], output: string[] = []): string[] => {
   for (const node of nodes) {
-    if (node.perms && !output.includes(node.perms)) output.push(node.perms)
+    if (node.status !== 1) {
+      continue
+    }
+    if (node.perms && !output.includes(node.perms)) {
+      output.push(node.perms)
+    }
     collectPermissions(node.children, output)
   }
   return output

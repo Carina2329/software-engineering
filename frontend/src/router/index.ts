@@ -5,6 +5,7 @@ declare module 'vue-router' {
   interface RouteMeta {
     requiresAuth?: boolean
     guestOnly?: boolean
+    permissions?: string[]
     title?: string
   }
 }
@@ -49,6 +50,58 @@ const router = createRouter({
       },
     },
     {
+      path: '/admin',
+      component: () => import('../layouts/AdminLayout.vue'),
+      meta: {
+        requiresAuth: true,
+        title: '权限管理',
+      },
+      redirect: {
+        name: 'admin-users',
+      },
+      children: [
+        {
+          path: 'users',
+          name: 'admin-users',
+          component: () => import('../views/admin/UserManagementPage.vue'),
+          meta: {
+            requiresAuth: true,
+            permissions: ['system:user:list'],
+            title: '用户管理',
+          },
+        },
+        {
+          path: 'roles',
+          name: 'admin-roles',
+          component: () => import('../views/admin/RoleManagementPage.vue'),
+          meta: {
+            requiresAuth: true,
+            permissions: ['system:role:list'],
+            title: '角色管理',
+          },
+        },
+        {
+          path: 'menus',
+          name: 'admin-menus',
+          component: () => import('../views/admin/PermissionResourcePage.vue'),
+          meta: {
+            requiresAuth: true,
+            permissions: ['system:menu:list'],
+            title: '权限资源',
+          },
+        },
+      ],
+    },
+    {
+      path: '/403',
+      name: 'forbidden',
+      component: () => import('../views/common/ForbiddenPage.vue'),
+      meta: {
+        requiresAuth: true,
+        title: '无权访问',
+      },
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/',
     },
@@ -71,6 +124,16 @@ router.beforeEach(async (to) => {
 
   if (to.meta.guestOnly && auth.isAuthenticated) {
     return { name: 'home' }
+  }
+
+  const requiredPermissions = to.meta.permissions ?? []
+  if (requiredPermissions.some((permission) => !auth.can(permission))) {
+    return {
+      name: 'forbidden',
+      query: {
+        from: to.fullPath,
+      },
+    }
   }
 
   return true

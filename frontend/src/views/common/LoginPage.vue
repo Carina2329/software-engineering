@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import AuthLayout from '../../components/auth/AuthLayout.vue'
@@ -134,8 +134,17 @@ async function sendCode(): Promise<void> {
     challengeId.value = ''
     ElMessage.error(getApiErrorMessage(error))
   } finally {
-    await captchaRef.value?.refresh()
+    if (!challengeId.value) {
+      await captchaRef.value?.refresh()
+    }
   }
+}
+
+async function prepareResend(): Promise<void> {
+  challengeId.value = ''
+  form.emailCode = ''
+  await nextTick()
+  await captchaRef.value?.refresh()
 }
 
 function redirectTarget(): string {
@@ -295,7 +304,7 @@ onBeforeUnmount(() => {
         </el-form-item>
       </template>
 
-      <el-form-item label="图片验证码" prop="captchaCode">
+      <el-form-item v-if="mode === 'password' || !challengeId" label="图片验证码" prop="captchaCode">
         <CaptchaField
           ref="captchaRef"
           v-model="form.captchaCode"
@@ -315,11 +324,19 @@ onBeforeUnmount(() => {
             @keyup.enter="challengeId && submit()"
           />
           <el-button
+            v-if="!challengeId"
             :loading="sendingCode"
             :disabled="resendSeconds > 0"
             @click="sendCode"
           >
-            {{ resendSeconds > 0 ? `${resendSeconds}s 后重发` : '发送验证码' }}
+            {{ resendSeconds > 0 ? `${resendSeconds}s 后发送` : '发送验证码' }}
+          </el-button>
+          <el-button
+            v-else
+            :disabled="resendSeconds > 0"
+            @click="prepareResend"
+          >
+            {{ resendSeconds > 0 ? `${resendSeconds}s 后重发` : '重新获取' }}
           </el-button>
         </div>
       </template>
