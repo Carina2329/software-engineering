@@ -260,9 +260,14 @@ http.interceptors.response.use(
       config._retry = true
       try {
         await refreshAccessToken()
-        return await http.request(config)
       } catch {
         return Promise.reject(normalizeError(error))
+      }
+
+      try {
+        return await http.request(config)
+      } catch (replayError) {
+        return Promise.reject(normalizeError(replayError))
       }
     }
 

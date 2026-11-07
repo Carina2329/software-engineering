@@ -66,9 +66,11 @@ const rules = computed<FormRules<LoginForm>>(() => {
       { required: true, message: '请输入邮箱', trigger: 'blur' },
       { type: 'email', message: '请输入有效邮箱地址', trigger: 'blur' },
     ],
-    captchaCode: [
-      { required: true, message: '发送验证码前请输入图片验证码', trigger: 'blur' },
-    ],
+    captchaCode: challengeId.value
+      ? []
+      : [
+          { required: true, message: '发送验证码前请输入图片验证码', trigger: 'blur' },
+        ],
     emailCode: challengeId.value
       ? [
           { required: true, message: '请输入邮件验证码', trigger: 'blur' },
