@@ -21,6 +21,8 @@ const loading = ref(false)
 
 let loaded = false
 let loadingPromise: Promise<void> | null = null
+// 请求代次：reset 后自增，旧请求返回时据此丢弃结果，避免跨账号回填旧菜单
+let requestGeneration = 0
 
 const sortTree = (nodes: MenuNode[]): void => {
   nodes.sort((left, right) => left.sortNo - right.sortNo || left.name.localeCompare(right.name))
@@ -59,14 +61,17 @@ export const normalizeCurrentMenus = (nodes: PermissionResource[]): MenuNode[] =
 export const ensureCurrentMenus = async (force = false): Promise<void> => {
   if (loaded && !force) return
   if (loadingPromise) return loadingPromise
+  const generation = requestGeneration
   loading.value = true
   loadingPromise = getCurrentMenus()
     .then((nodes) => {
+      if (generation !== requestGeneration) return
       menuTree.value = normalizeCurrentMenus(nodes)
       permissions.value = collectPermissions(menuTree.value)
       loaded = true
     })
     .finally(() => {
+      if (generation !== requestGeneration) return
       loading.value = false
       loadingPromise = null
     })
@@ -75,6 +80,7 @@ export const ensureCurrentMenus = async (force = false): Promise<void> => {
 
 /** 登录切换、退出或 401 时清空缓存，避免同一 SPA 内残留上一个账号的菜单和按钮权限 */
 export const resetCurrentMenus = (): void => {
+  requestGeneration += 1
   menuTree.value = []
   permissions.value = []
   loaded = false
