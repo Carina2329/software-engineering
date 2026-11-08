@@ -66,7 +66,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, FileDO> implements 
                     if (!Objects.equals(exist.getUploaderId(), uploaderId)) {
                         throw new BizException("相同内容的文件已归属其他账号，暂不支持秒传");
                     }
-                    result.setFileId(exist.getId());
+                    result.setFileId(String.valueOf(exist.getId()));
                     result.setPath(exist.getStoragePath());
                     result.setSuccess(true);
                     result.setDuplicated(true);
@@ -89,7 +89,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, FileDO> implements 
                 entity.setVersion(0);
                 save(entity);
 
-                result.setFileId(entity.getId());
+                result.setFileId(String.valueOf(entity.getId()));
                 result.setPath(relativePath);
                 result.setSuccess(true);
                 results.add(result);

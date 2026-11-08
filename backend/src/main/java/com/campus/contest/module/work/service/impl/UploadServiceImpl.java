@@ -139,12 +139,12 @@ public class UploadServiceImpl implements UploadService {
         if (body.length > task.getChunkSize()) {
             throw new BizException("分片大小超过限制");
         }
-        if (expectedSha256 != null && !expectedSha256.matches("[0-9a-fA-F]{64}")) {
-            throw new BizException("分片 SHA-256 格式不正确");
+        if (expectedSha256 == null || !expectedSha256.matches("[0-9a-fA-F]{64}")) {
+            throw new BizException("X-Chunk-SHA256 必须为 64 位十六进制字符串");
         }
 
         String actualSha256 = sha256(body);
-        if (expectedSha256 != null && !actualSha256.equalsIgnoreCase(expectedSha256)) {
+        if (!actualSha256.equalsIgnoreCase(expectedSha256)) {
             Map<String, Object> detail = Map.of(
                     "invalidChunks", List.of(chunkIndex),
                     "reason", "chunk-sha256-mismatch",
@@ -182,16 +182,20 @@ public class UploadServiceImpl implements UploadService {
             fileChunkMapper.updateById(chunk);
         }
 
-        Long uploaded = fileChunkMapper.selectCount(Wrappers.<FileChunkDO>lambdaQuery()
+        List<FileChunkDO> activeChunks = fileChunkMapper.selectList(Wrappers.<FileChunkDO>lambdaQuery()
                 .eq(FileChunkDO::getUploadId, uploadId)
                 .eq(FileChunkDO::getStatus, 1));
-        task.setUploadedChunks(uploaded == null ? 0 : uploaded.intValue());
+        task.setUploadedChunks(activeChunks == null ? 0 : activeChunks.size());
         uploadTaskMapper.updateById(task);
 
         UploadDtos.ChunkResponse response = new UploadDtos.ChunkResponse();
-        response.setUploadId(uploadId);
+        response.setUploadId(String.valueOf(uploadId));
         response.setChunkIndex(chunkIndex);
         response.setReceived(task.getUploadedChunks());
+        response.setMissingChunks(findMissingChunks(
+                task.getTotalChunks(),
+                activeChunks == null ? List.of() : activeChunks
+        ));
         return response;
     }
 
@@ -207,11 +211,18 @@ public class UploadServiceImpl implements UploadService {
         }
 
         UploadDtos.ProgressResponse response = new UploadDtos.ProgressResponse();
-        response.setUploadId(uploadId);
-        response.setStatus(task.getStatus());
+        response.setUploadId(String.valueOf(uploadId));
+        response.setStatus(statusName(task.getStatus()));
         response.setTotalChunks(task.getTotalChunks());
         response.setUploadedChunks(uploaded.size());
-        response.setUploaded(uploaded);
+        response.setMissingChunks(findMissingChunks(task.getTotalChunks(), fileChunkMapper.selectList(
+                Wrappers.<FileChunkDO>lambdaQuery()
+                        .eq(FileChunkDO::getUploadId, uploadId)
+                        .eq(FileChunkDO::getStatus, 1)
+        )));
+        response.setExpiresAt(task.getExpireAt() == null
+                ? null
+                : task.getExpireAt().atZone(java.time.ZoneId.systemDefault()).toInstant());
         return response;
     }
 
@@ -283,7 +294,7 @@ public class UploadServiceImpl implements UploadService {
                     .last("limit 1"));
             if (exist != null) {
                 response.setInstant(true);
-                response.setFileId(exist.getId());
+                response.setFileId(String.valueOf(exist.getId()));
                 response.setTotalChunks(0);
                 return response;
             }
@@ -306,7 +317,7 @@ public class UploadServiceImpl implements UploadService {
         task.setVersion(0);
         uploadTaskMapper.insert(task);
 
-        response.setUploadId(task.getId());
+        response.setUploadId(String.valueOf(task.getId()));
         response.setTotalChunks(totalChunks);
         return response;
     }
@@ -393,10 +404,9 @@ public class UploadServiceImpl implements UploadService {
         cleanChunks(uploadId, chunks);
 
         UploadDtos.MergeResponse response = new UploadDtos.MergeResponse();
-        response.setFileId(file.getId());
-        response.setPath(relative);
-        response.setSize(task.getTotalSize());
-        response.setSha256(sha256);
+        response.setUploadId(String.valueOf(uploadId));
+        response.setFileId(String.valueOf(file.getId()));
+        response.setStatus(statusName(task.getStatus()));
         return response;
     }
 
@@ -492,6 +502,18 @@ public class UploadServiceImpl implements UploadService {
             }
         }
         return missing;
+    }
+
+    private String statusName(Integer status) {
+        if (status == null) {
+            return "FAILED";
+        }
+        return switch (status) {
+            case STATUS_UPLOADING -> "UPLOADING";
+            case STATUS_MERGING -> "MERGING";
+            case STATUS_DONE -> "COMPLETED";
+            default -> "FAILED";
+        };
     }
 
     private List<Integer> verifyChunkChecksums(List<FileChunkDO> chunks) {

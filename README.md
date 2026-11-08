@@ -20,21 +20,28 @@ AI 大学生学科竞赛全流程智能服务平台。
 ## 启动步骤
 
 ```bash
-# 1. 启动 MySQL 和 Redis（首次会自动建库 contest_db）
+# 1. 启动 MySQL、Redis 和 Mailpit
 cd docker && docker compose up -d
 
-# 2. 启动后端：用 IDEA 打开 backend/，运行 ContestApplication
+# 2. 按顺序初始化数据库
+mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-08-contest-db-base.sql
+mysql -uroot -proot123 contest_db < ../docs/sql/2026-10-29-file-sha256-storage-unique.sql
+mysql -uroot -proot123 contest_db < ../docs/sql/2026-10-30-upload-task-expected-sha256.sql
+mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-03-rbac-auth-foundation.sql
+
+# 3. 启动后端：用 IDEA 打开 backend/，运行 ContestApplication
 #    或命令行：cd backend && mvn spring-boot:run
 
-# 3. 启动前端
+# 4. 启动前端
 cd frontend && pnpm install && pnpm dev
 ```
 
 ## 验证
 
-1. 浏览器访问 `http://localhost:8080/api/v1/test/ping`，返回 `{"code":0,"message":"success","data":"pong"}`；
-2. 接口文档：`http://localhost:8080/doc.html`；
-3. 前端页面点击"测试后端连通性"，显示 pong。
+1. 按“启动步骤”的顺序执行 `docs/sql` 下的完整基础结构和增量脚本；
+2. 浏览器访问 `http://localhost:8080/api/v1/auth/captcha?scene=LOGIN`，返回图片验证码和 `trace_id`；
+3. 接口文档：`http://localhost:8080/doc.html`；
+4. 打开 `http://localhost:5173/#/login`，登录页应能加载真实验证码。
 
 ## 目录说明
 

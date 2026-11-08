@@ -48,6 +48,8 @@ public class FileController {
         List<FileUploadResult> results = fileService.batchUpload(files, purpose);
         BatchUploadResponse response = new BatchUploadResponse();
         response.setResults(results);
+        response.setSuccessCount((int) results.stream().filter(FileUploadResult::isSuccess).count());
+        response.setFailureCount(results.size() - response.getSuccessCount());
         return Result.ok(response);
     }
 

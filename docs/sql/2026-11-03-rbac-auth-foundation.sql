@@ -1,7 +1,7 @@
 -- 认证与 RBAC 数据库增量草案
 -- 目标：MySQL 8.0
--- 文档版本：0.2.0（2026-11-04）
--- 状态：尚未执行；执行前先核对真实库结构并备份数据。
+-- 文档版本：0.2.4（2026-11-08）
+-- 状态：已在独立联调库验证；执行前先核对真实库结构并备份数据。
 -- 本脚本不新增数据库表。
 
 USE contest_db;
@@ -10,7 +10,6 @@ USE contest_db;
 ALTER TABLE sys_user
     ADD COLUMN email VARCHAR(128) NULL COMMENT '登录邮箱' AFTER password_hash;
 
-CREATE UNIQUE INDEX uk_sys_user_username ON sys_user (username);
 CREATE UNIQUE INDEX uk_sys_user_email ON sys_user (email);
 
 -- 2. 角色编码唯一

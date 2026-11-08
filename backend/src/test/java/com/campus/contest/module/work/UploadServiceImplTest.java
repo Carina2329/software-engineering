@@ -126,7 +126,7 @@ class UploadServiceImplTest {
 
         UploadDtos.ProgressResponse response = uploadService.progress(TASK_OF_B);
 
-        assertThat(response.getUploadId()).isEqualTo(TASK_OF_B);
+        assertThat(response.getUploadId()).isEqualTo(String.valueOf(TASK_OF_B));
         assertThat(response.getTotalChunks()).isEqualTo(2);
         assertThat(response.getUploadedChunks()).isZero();
     }
@@ -140,7 +140,7 @@ class UploadServiceImplTest {
 
         UploadDtos.ProgressResponse response = uploadService.progress(TASK_OF_B);
 
-        assertThat(response.getUploadId()).isEqualTo(TASK_OF_B);
+        assertThat(response.getUploadId()).isEqualTo(String.valueOf(TASK_OF_B));
     }
 
     @Test
