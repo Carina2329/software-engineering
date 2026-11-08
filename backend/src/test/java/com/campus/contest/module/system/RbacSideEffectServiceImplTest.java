@@ -74,6 +74,23 @@ class RbacSideEffectServiceImplTest {
     }
 
     @Test
+    @DisplayName("单个用户撤销失败不影响后续用户：其余目标仍被撤销，最后统一抛 503")
+    void continuesWithRemainingUsersWhenOneUserFails() {
+        doThrow(new BizException(ErrorCode.AUTH_IDEMPOTENCY_UNAVAILABLE.getCode(), "Redis 不可用"))
+                .when(sessionRevocationService).revokeAllSessions(11L);
+
+        assertThatThrownBy(() -> sideEffectService.revokeSessionsOfUsers(List.of(11L, 12L, 13L), "ROLE_AUTHORIZE"))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode())
+                                .isEqualTo(ErrorCode.AUTH_IDEMPOTENCY_UNAVAILABLE.getCode()));
+
+        // 11 重试三次仍失败，但 12、13 必须继续被撤销
+        verify(sessionRevocationService, times(3)).revokeAllSessions(11L);
+        verify(sessionRevocationService).revokeAllSessions(12L);
+        verify(sessionRevocationService).revokeAllSessions(13L);
+    }
+
+    @Test
     @DisplayName("审计写入异常不能打断业务返回")
     void auditFailureIsSwallowed() {
         doThrow(new RuntimeException("db down")).when(auditLogService).record(any());

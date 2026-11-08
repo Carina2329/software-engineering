@@ -8,6 +8,7 @@ import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
 import com.campus.contest.common.idempotency.IdempotencyScope;
 import com.campus.contest.common.idempotency.IdempotencyService;
+import com.campus.contest.module.system.dto.AuthorizationSnapshot;
 import com.campus.contest.module.system.dto.UserAccessUpdateRequest;
 import com.campus.contest.module.system.dto.UserPageQuery;
 import com.campus.contest.module.system.entity.SysRoleDO;
@@ -16,8 +17,10 @@ import com.campus.contest.module.system.entity.SysUserRoleDO;
 import com.campus.contest.module.system.mapper.SysRoleMapper;
 import com.campus.contest.module.system.mapper.SysUserMapper;
 import com.campus.contest.module.system.mapper.SysUserRoleMapper;
+import com.campus.contest.module.system.service.AuthorizationSnapshotService;
 import com.campus.contest.module.system.service.RbacSideEffectService;
 import com.campus.contest.module.system.service.UserAccessService;
+import com.campus.contest.module.system.vo.CurrentUserVO;
 import com.campus.contest.module.system.vo.IdVersionVO;
 import com.campus.contest.module.system.vo.UserItemVO;
 import com.campus.contest.module.system.vo.UserPageVO;
@@ -40,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -70,6 +74,43 @@ public class UserAccessServiceImpl implements UserAccessService {
     private final CurrentUserProvider currentUserProvider;
     private final TransactionTemplate transactionTemplate;
     private final ObjectMapper objectMapper;
+    private final AuthorizationSnapshotService authorizationSnapshotService;
+
+    // ------------------------------------------------------------------
+    // EP-003 当前用户
+    // ------------------------------------------------------------------
+
+    /**
+     * EP-003：返回登录用户档案、角色、数据范围与权限摘要。
+     *
+     * 档案字段取自 sys_user；角色、权限、数据范围统一取自 AuthorizationSnapshotService，
+     * 与登录时写进 Redis 会话的快照同源，避免前端展示的权限和后端实际授权不一致。
+     */
+    @Override
+    public CurrentUserVO currentUserProfile() {
+        Long userId = currentUserProvider.requireUserId();
+        // 角色、权限、数据范围统一走登录时使用的同一份快照实现，
+        // 避免这里再写一套 sys_user_role / sys_role_menu 的组装逻辑而和会话不一致。
+        AuthorizationSnapshot snapshot = authorizationSnapshotService.loadRequired(userId);
+        SysUserDO user = userMapper.selectById(snapshot.userId());
+        if (user == null) {
+            throw new BizException(ErrorCode.UNAUTHENTICATED.getCode(), "账号或凭证不正确");
+        }
+
+        CurrentUserVO vo = new CurrentUserVO();
+        vo.setId(String.valueOf(user.getId()));
+        vo.setUsername(user.getUsername());
+        vo.setRealName(user.getRealName());
+        vo.setUserType(deriveUserType(new ArrayList<>(snapshot.roleCodes())));
+        vo.setCollege(user.getCollege());
+        vo.setMajor(user.getMajor());
+        vo.setGrade(user.getGrade());
+        vo.setSkillTags(parseSkillTags(user.getSkillTags()));
+        vo.setRoles(new ArrayList<>(snapshot.roleCodes()));
+        vo.setDataScopes(new ArrayList<>(snapshot.dataScopes()));
+        vo.setPermissions(new ArrayList<>(snapshot.permissionCodes()));
+        return vo;
+    }
 
     @Override
     public UserPageVO pageUsers(UserPageQuery query) {
@@ -136,10 +177,13 @@ public class UserAccessServiceImpl implements UserAccessService {
                 : normalizeRoleCodes(request.getRoleCodes());
 
         Long operatorId = currentUserProvider.requireUserId();
+        // PATCH /users/{user_id} 在 OpenAPI 中 x-idempotency = 是，且 Idempotency-Key 为必填，
+        // 因此这里不再允许“缺 key 直接写库”，否则重试会重复改角色并重复撤会话。
         if (!StringUtils.hasText(idempotencyKey)) {
-            return doUpdateUserAccess(userId, status, roleCodes, request.getVersion(), operatorId);
+            throw invalidParam("缺少 Idempotency-Key 请求头");
         }
-        if (idempotencyKey.length() > 64) {
+        String key = idempotencyKey.trim();
+        if (key.length() > 64) {
             throw invalidParam("Idempotency-Key 必须为 1-64 位非空字符串");
         }
 
@@ -152,7 +196,7 @@ public class UserAccessServiceImpl implements UserAccessService {
         return idempotencyService.execute(
                 new IdempotencyScope(IdempotencyScope.PrincipalType.USER, String.valueOf(operatorId)),
                 OP_UPDATE,
-                idempotencyKey,
+                key,
                 fingerprint,
                 IDEMPOTENCY_TTL,
                 IdVersionVO.class,
@@ -288,6 +332,21 @@ public class UserAccessServiceImpl implements UserAccessService {
                 .toList();
     }
 
+    /** skill_tags 在库内是逗号分隔字符串，这里转成数组；空值返回空数组而不是 null */
+    private List<String> parseSkillTags(String skillTags) {
+        if (!StringUtils.hasText(skillTags)) {
+            return new ArrayList<>();
+        }
+        List<String> tags = new ArrayList<>();
+        for (String raw : skillTags.split("[,，;；]")) {
+            String tag = raw.trim();
+            if (!tag.isEmpty()) {
+                tags.add(tag);
+            }
+        }
+        return tags;
+    }
+
     private List<String> roleCodesOfUser(Long userId) {
         List<SysUserRoleDO> links = userRoleMapper.selectList(
                 Wrappers.<SysUserRoleDO>lambdaQuery().eq(SysUserRoleDO::getUserId, userId)
@@ -307,7 +366,9 @@ public class UserAccessServiceImpl implements UserAccessService {
         if (roleIds.isEmpty()) {
             return Map.of();
         }
-        Map<Long, SysRoleDO> roleById = roleMapper.selectBatchIds(roleIds).stream()
+        Map<Long, SysRoleDO> roleById = Optional.ofNullable(roleMapper.selectBatchIds(roleIds))
+                .orElseGet(List::of)
+                .stream()
                 .collect(Collectors.toMap(SysRoleDO::getId, role -> role, (left, right) -> left));
         Map<Long, List<Long>> roleIdsByUser = new LinkedHashMap<>();
         for (SysUserRoleDO link : links) {

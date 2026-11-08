@@ -2,6 +2,9 @@ package com.campus.contest.module.work.service.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.campus.contest.common.BizException;
+import com.campus.contest.common.ErrorCode;
+import com.campus.contest.common.idempotency.IdempotencyScope;
+import com.campus.contest.common.idempotency.IdempotencyService;
 import com.campus.contest.module.work.dto.UploadDtos;
 import com.campus.contest.module.work.entity.FileChunkDO;
 import com.campus.contest.module.work.entity.FileDO;
@@ -10,11 +13,16 @@ import com.campus.contest.module.work.mapper.FileChunkMapper;
 import com.campus.contest.module.work.mapper.FileMapper;
 import com.campus.contest.module.work.mapper.UploadTaskMapper;
 import com.campus.contest.module.work.service.UploadService;
+import com.campus.contest.security.AuthenticatedUser;
 import com.campus.contest.security.CurrentUserProvider;
 import com.campus.contest.storage.StorageService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -22,14 +30,29 @@ import java.io.OutputStream;
 import java.security.DigestInputStream;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * 分片上传实现。
+ *
+ * 越权防线两道：
+ * 1. Controller 上的 @PreAuthorize("hasAuthority('file:upload')") 负责功能权限；
+ * 2. 这里 requireTask 校验 uploaderId，非本人且非管理员一律按 404 处理，
+ *    不泄露他人上传任务是否存在，堵住上传任务的水平越权（EP-046 ~ EP-049 的 SELF / TEAM 数据范围）。
+ *
+ * 幂等：EP-046 与 EP-049 的 Idempotency-Key 是必填项，缺 key 直接 400 + 10001；
+ * 带 key 时走 IdempotencyService，同一 key 重试返回第一次的结果，不会重复建任务或重复合并。
+ * MySQL 事务由 TransactionTemplate 包住，Redis 幂等调用在事务之外，符合“MySQL 事务不含 Redis”的约定。
+ */
 @Slf4j
 @Service
 public class UploadServiceImpl implements UploadService {
@@ -46,82 +69,57 @@ public class UploadServiceImpl implements UploadService {
     private static final int STATUS_DONE = 3;
     private static final int STATUS_FAILED = 4;
 
+    private static final String ADMIN_ROLE = "ADMIN";
+    private static final String SCOPE_ALL = "ALL";
+    private static final String OP_INIT = "UPLOAD_INIT";
+    private static final String OP_MERGE = "UPLOAD_MERGE";
+    private static final Duration IDEMPOTENCY_TTL = Duration.ofHours(24);
+    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 64;
+
     private final UploadTaskMapper uploadTaskMapper;
     private final FileChunkMapper fileChunkMapper;
     private final FileMapper fileMapper;
     private final StorageService storageService;
     private final CurrentUserProvider currentUserProvider;
+    private final IdempotencyService idempotencyService;
+    private final TransactionTemplate transactionTemplate;
 
     public UploadServiceImpl(UploadTaskMapper uploadTaskMapper,
                              FileChunkMapper fileChunkMapper,
                              FileMapper fileMapper,
                              StorageService storageService,
-                             CurrentUserProvider currentUserProvider) {
+                             CurrentUserProvider currentUserProvider,
+                             IdempotencyService idempotencyService,
+                             TransactionTemplate transactionTemplate) {
         this.uploadTaskMapper = uploadTaskMapper;
         this.fileChunkMapper = fileChunkMapper;
         this.fileMapper = fileMapper;
         this.storageService = storageService;
         this.currentUserProvider = currentUserProvider;
+        this.idempotencyService = idempotencyService;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public UploadDtos.InitResponse init(UploadDtos.InitRequest request) {
-        if (request == null || request.getFileName() == null || request.getTotalSize() == null) {
-            throw new BizException("文件名和文件大小不能为空");
-        }
-        if (request.getTotalSize() <= 0 || request.getTotalSize() > MAX_FILE_SIZE) {
-            throw new BizException("文件大小不合法（最大 5 GiB）");
-        }
-        String sha256 = request.getSha256();
-        if (sha256 != null && !sha256.matches("[0-9a-fA-F]{64}")) {
-            throw new BizException("sha256 格式不正确");
-        }
-        int chunkSize = request.getChunkSize() == null ? DEFAULT_CHUNK_SIZE : request.getChunkSize();
-        if (chunkSize < MIN_CHUNK_SIZE || chunkSize > MAX_CHUNK_SIZE) {
-            throw new BizException("分片大小不合法（1 KiB ~ 20 MiB）");
-        }
-
-        UploadDtos.InitResponse response = new UploadDtos.InitResponse();
-        response.setChunkSize(chunkSize);
+    public UploadDtos.InitResponse init(UploadDtos.InitRequest request, String idempotencyKey) {
+        String key = requireIdempotencyKey(idempotencyKey);
         Long uploaderId = currentUserProvider.requireUserId();
 
-        // 秒传：本人已上传过同样内容的文件才直接返回，避免把他人 file_id 泄露给当前用户
-        if (sha256 != null) {
-            FileDO exist = fileMapper.selectOne(Wrappers.<FileDO>lambdaQuery()
-                    .eq(FileDO::getSha256, sha256.toLowerCase())
-                    .eq(FileDO::getStorageType, storageService.type())
-                    .eq(FileDO::getUploaderId, uploaderId)
-                    .eq(FileDO::getDeleted, 0)
-                    .last("limit 1"));
-            if (exist != null) {
-                response.setInstant(true);
-                response.setFileId(exist.getId());
-                response.setTotalChunks(0);
-                return response;
-            }
-        }
+        Map<String, Object> fingerprint = new LinkedHashMap<>();
+        fingerprint.put("file_name", request == null ? null : request.getFileName());
+        fingerprint.put("total_size", request == null ? null : request.getTotalSize());
+        fingerprint.put("sha256", request == null ? null : request.getSha256());
+        fingerprint.put("chunk_size", request == null ? null : request.getChunkSize());
 
-        int totalChunks = (int) ((request.getTotalSize() + chunkSize - 1) / chunkSize);
-        UploadTaskDO task = new UploadTaskDO();
-        task.setFileName(request.getFileName());
-        task.setTotalSize(request.getTotalSize());
-        task.setChunkSize(chunkSize);
-        task.setTotalChunks(totalChunks);
-        task.setUploadedChunks(0);
-        task.setExpectedSha256(sha256 == null ? null : sha256.toLowerCase());
-        task.setStatus(STATUS_UPLOADING);
-        task.setExpireAt(LocalDateTime.now().plusDays(1));
-        task.setUploaderId(uploaderId);
-        task.setCreatedAt(LocalDateTime.now());
-        task.setCreatedBy(uploaderId);
-        task.setDeleted(0);
-        task.setVersion(0);
-        uploadTaskMapper.insert(task);
-
-        response.setUploadId(task.getId());
-        response.setTotalChunks(totalChunks);
-        return response;
+        return idempotencyService.execute(
+                userScope(uploaderId),
+                OP_INIT,
+                key,
+                fingerprint,
+                IDEMPOTENCY_TTL,
+                UploadDtos.InitResponse.class,
+                () -> inTransaction(() -> doInit(request, uploaderId))
+        );
     }
 
     @Override
@@ -218,8 +216,102 @@ public class UploadServiceImpl implements UploadService {
     }
 
     @Override
+    public UploadDtos.MergeResponse merge(Long uploadId, UploadDtos.MergeRequest request, String idempotencyKey) {
+        String key = requireIdempotencyKey(idempotencyKey);
+        Long currentUserId = currentUserProvider.requireUserId();
+        // 先做一次归属校验，避免拿他人的 uploadId 去打幂等 key
+        requireTask(uploadId);
+
+        Map<String, Object> fingerprint = new LinkedHashMap<>();
+        fingerprint.put("upload_id", String.valueOf(uploadId));
+        fingerprint.put("version", request == null ? null : request.getVersion());
+
+        return idempotencyService.execute(
+                userScope(currentUserId),
+                OP_MERGE,
+                key,
+                fingerprint,
+                IDEMPOTENCY_TTL,
+                UploadDtos.MergeResponse.class,
+                () -> inTransaction(() -> doMerge(uploadId, request))
+        );
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
-    public UploadDtos.MergeResponse merge(Long uploadId, UploadDtos.MergeRequest request) {
+    public void abort(Long uploadId) {
+        UploadTaskDO task = requireTask(uploadId);
+        List<FileChunkDO> chunks = fileChunkMapper.selectList(Wrappers.<FileChunkDO>lambdaQuery()
+                .eq(FileChunkDO::getUploadId, uploadId));
+        cleanChunks(uploadId, chunks);
+        task.setStatus(STATUS_FAILED);
+        task.setDeleted(1);
+        task.setDeletedAt(LocalDateTime.now());
+        uploadTaskMapper.updateById(task);
+    }
+
+    // ------------------------------------------------------------------
+    // 事务内的业务本体
+    // ------------------------------------------------------------------
+
+    private UploadDtos.InitResponse doInit(UploadDtos.InitRequest request, Long uploaderId) {
+        if (request == null || request.getFileName() == null || request.getTotalSize() == null) {
+            throw new BizException("文件名和文件大小不能为空");
+        }
+        if (request.getTotalSize() <= 0 || request.getTotalSize() > MAX_FILE_SIZE) {
+            throw new BizException("文件大小不合法（最大 5 GiB）");
+        }
+        String sha256 = request.getSha256();
+        if (sha256 != null && !sha256.matches("[0-9a-fA-F]{64}")) {
+            throw new BizException("sha256 格式不正确");
+        }
+        int chunkSize = request.getChunkSize() == null ? DEFAULT_CHUNK_SIZE : request.getChunkSize();
+        if (chunkSize < MIN_CHUNK_SIZE || chunkSize > MAX_CHUNK_SIZE) {
+            throw new BizException("分片大小不合法（1 KiB ~ 20 MiB）");
+        }
+
+        UploadDtos.InitResponse response = new UploadDtos.InitResponse();
+        response.setChunkSize(chunkSize);
+
+        // 秒传：本人已上传过同样内容的文件才直接返回，避免把他人 file_id 泄露给当前用户
+        if (sha256 != null) {
+            FileDO exist = fileMapper.selectOne(Wrappers.<FileDO>lambdaQuery()
+                    .eq(FileDO::getSha256, sha256.toLowerCase())
+                    .eq(FileDO::getStorageType, storageService.type())
+                    .eq(FileDO::getUploaderId, uploaderId)
+                    .eq(FileDO::getDeleted, 0)
+                    .last("limit 1"));
+            if (exist != null) {
+                response.setInstant(true);
+                response.setFileId(exist.getId());
+                response.setTotalChunks(0);
+                return response;
+            }
+        }
+
+        int totalChunks = (int) ((request.getTotalSize() + chunkSize - 1) / chunkSize);
+        UploadTaskDO task = new UploadTaskDO();
+        task.setFileName(request.getFileName());
+        task.setTotalSize(request.getTotalSize());
+        task.setChunkSize(chunkSize);
+        task.setTotalChunks(totalChunks);
+        task.setUploadedChunks(0);
+        task.setExpectedSha256(sha256 == null ? null : sha256.toLowerCase());
+        task.setStatus(STATUS_UPLOADING);
+        task.setExpireAt(LocalDateTime.now().plusDays(1));
+        task.setUploaderId(uploaderId);
+        task.setCreatedAt(LocalDateTime.now());
+        task.setCreatedBy(uploaderId);
+        task.setDeleted(0);
+        task.setVersion(0);
+        uploadTaskMapper.insert(task);
+
+        response.setUploadId(task.getId());
+        response.setTotalChunks(totalChunks);
+        return response;
+    }
+
+    private UploadDtos.MergeResponse doMerge(Long uploadId, UploadDtos.MergeRequest request) {
         UploadTaskDO task = requireTask(uploadId);
         if (task.getStatus() == null || task.getStatus() != STATUS_UPLOADING) {
             throw new BizException(409, "当前任务不在上传中状态");
@@ -308,25 +400,68 @@ public class UploadServiceImpl implements UploadService {
         return response;
     }
 
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void abort(Long uploadId) {
-        UploadTaskDO task = requireTask(uploadId);
-        List<FileChunkDO> chunks = fileChunkMapper.selectList(Wrappers.<FileChunkDO>lambdaQuery()
-                .eq(FileChunkDO::getUploadId, uploadId));
-        cleanChunks(uploadId, chunks);
-        task.setStatus(STATUS_FAILED);
-        task.setDeleted(1);
-        task.setDeletedAt(LocalDateTime.now());
-        uploadTaskMapper.updateById(task);
-    }
+    // ------------------------------------------------------------------
+    // 归属、幂等与工具方法
+    // ------------------------------------------------------------------
 
+    /**
+     * 读取上传任务并校验归属：非上传人且非管理员时按 404 处理，避免通过状态码探测他人任务。
+     */
     private UploadTaskDO requireTask(Long uploadId) {
-        UploadTaskDO task = uploadTaskMapper.selectById(uploadId);
+        UploadTaskDO task = uploadId == null ? null : uploadTaskMapper.selectById(uploadId);
         if (task == null || Integer.valueOf(1).equals(task.getDeleted())) {
-            throw new BizException(404, "上传任务不存在");
+            throw notFound();
+        }
+        Long currentUserId = currentUserProvider.requireUserId();
+        if (!Objects.equals(currentUserId, task.getUploaderId()) && !isAdminOrAllScope()) {
+            log.warn("上传任务归属校验失败：uploadId={}, uploaderId={}, currentUserId={}",
+                    uploadId, task.getUploaderId(), currentUserId);
+            throw notFound();
         }
         return task;
+    }
+
+    private boolean isAdminOrAllScope() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal() instanceof AuthenticatedUser principal)) {
+            return false;
+        }
+        return principal.roleCodes().contains(ADMIN_ROLE) || principal.dataScopes().contains(SCOPE_ALL);
+    }
+
+    private BizException notFound() {
+        return new BizException(
+                ErrorCode.RESOURCE_NOT_FOUND.getCode(),
+                ErrorCode.RESOURCE_NOT_FOUND.getMessage()
+        );
+    }
+
+    private String requireIdempotencyKey(String idempotencyKey) {
+        if (!StringUtils.hasText(idempotencyKey)) {
+            throw new BizException(ErrorCode.INVALID_PARAM.getCode(), "缺少 Idempotency-Key 请求头");
+        }
+        String trimmed = idempotencyKey.trim();
+        if (trimmed.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
+            throw new BizException(
+                    ErrorCode.INVALID_PARAM.getCode(),
+                    "Idempotency-Key 必须为 1-" + MAX_IDEMPOTENCY_KEY_LENGTH + " 位非空字符串"
+            );
+        }
+        return trimmed;
+    }
+
+    private IdempotencyScope userScope(Long userId) {
+        return new IdempotencyScope(IdempotencyScope.PrincipalType.USER, String.valueOf(userId));
+    }
+
+    private <T> T inTransaction(java.util.function.Supplier<T> action) {
+        T result = transactionTemplate.execute(status -> action.get());
+        if (result == null) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR.getCode(), "事务未返回结果");
+        }
+        return result;
     }
 
     private void cleanChunks(Long uploadId, List<FileChunkDO> chunks) {

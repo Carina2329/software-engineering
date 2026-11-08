@@ -13,20 +13,31 @@ import com.campus.contest.module.system.controller.UserController;
 import com.campus.contest.module.system.entity.SysMenuDO;
 import com.campus.contest.module.system.entity.SysRoleDO;
 import com.campus.contest.module.system.entity.SysUserDO;
+import com.campus.contest.module.system.entity.SysUserRoleDO;
+import com.campus.contest.module.system.entity.SysRoleMenuDO;
 import com.campus.contest.module.system.mapper.SysMenuMapper;
 import com.campus.contest.module.system.mapper.SysRoleMapper;
 import com.campus.contest.module.system.mapper.SysRoleMenuMapper;
 import com.campus.contest.module.system.mapper.SysUserMapper;
 import com.campus.contest.module.system.mapper.SysUserRoleMapper;
 import com.campus.contest.module.system.service.AuditLogService;
+import com.campus.contest.module.system.service.AuthorizationSnapshotService;
+import com.campus.contest.module.system.service.impl.AuthorizationSnapshotServiceImpl;
 import com.campus.contest.module.system.service.impl.PermissionResourceServiceImpl;
 import com.campus.contest.module.system.service.impl.RbacSideEffectServiceImpl;
 import com.campus.contest.module.system.service.impl.RoleServiceImpl;
 import com.campus.contest.module.system.service.impl.UserAccessServiceImpl;
 import com.campus.contest.module.work.controller.FileController;
+import com.campus.contest.module.work.controller.UploadController;
 import com.campus.contest.module.work.entity.FileDO;
+import com.campus.contest.module.work.entity.UploadTaskDO;
+import com.campus.contest.module.work.mapper.FileAccessScopeMapper;
+import com.campus.contest.module.work.mapper.FileChunkMapper;
+import com.campus.contest.module.work.mapper.FileMapper;
+import com.campus.contest.module.work.mapper.UploadTaskMapper;
 import com.campus.contest.module.work.service.FileService;
 import com.campus.contest.module.work.service.impl.FileAccessGuardImpl;
+import com.campus.contest.module.work.service.impl.UploadServiceImpl;
 import com.campus.contest.storage.StorageService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +62,7 @@ import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
@@ -63,6 +75,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
@@ -104,6 +117,9 @@ class RbacHttpAccessTest {
 
     @Autowired
     private SysUserRoleMapper userRoleMapper;
+
+    @Autowired
+    private UploadTaskMapper uploadTaskMapper;
 
     @Autowired
     private FileService fileService;
@@ -259,6 +275,121 @@ class RbacHttpAccessTest {
     }
 
     // ------------------------------------------------------------------
+    // 上传接口：功能权限 + 任务归属 + 幂等必填
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("水平越权：学生 A 操作学生 B 的上传任务返回 HTTP 404 + 40404")
+    void studentCannotOperateOthersUploadTask() throws Exception {
+        UploadTaskDO taskOfB = new UploadTaskDO();
+        taskOfB.setId(77L);
+        taskOfB.setUploaderId(STUDENT_B_ID);
+        taskOfB.setStatus(1);
+        taskOfB.setTotalChunks(2);
+        taskOfB.setUploadedChunks(0);
+        taskOfB.setDeleted(0);
+        when(uploadTaskMapper.selectById(77L)).thenReturn(taskOfB);
+
+        MvcResult result = mockMvc.perform(get("/api/v1/uploads/77")
+                .with(authentication(studentAAuth()))).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(404);
+        assertThat(objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("code").asInt()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND.getCode());
+    }
+
+    @Test
+    @DisplayName("没有 file:upload 权限的登录用户访问上传接口返回 HTTP 403 + 30003")
+    void uploadEndpointsRequireUploadPermission() throws Exception {
+        AuthenticatedUser downloadOnly = new AuthenticatedUser(
+                4L, "session-d", Set.of("STUDENT"), Set.of("file:download"), Set.of("SELF"));
+        Authentication downloadOnlyAuth = new UsernamePasswordAuthenticationToken(
+                downloadOnly, null, downloadOnly.authorities());
+
+        MvcResult result = mockMvc.perform(get("/api/v1/uploads/78")
+                .with(authentication(downloadOnlyAuth))).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(403);
+        assertThat(objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("code").asInt()).isEqualTo(ErrorCode.FUNCTION_FORBIDDEN.getCode());
+    }
+
+    @Test
+    @DisplayName("EP-046 初始化缺少 Idempotency-Key 返回 HTTP 400 + 10001")
+    void initUploadRequiresIdempotencyKey() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/uploads")
+                .with(authentication(studentAAuth()))
+                .with(csrf())
+                .contentType("application/json")
+                .content("{}")
+        ).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("code").asInt()).isEqualTo(ErrorCode.INVALID_PARAM.getCode());
+    }
+
+    // ------------------------------------------------------------------
+    // EP-003 当前用户 + EP-007 幂等必填
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("EP-003 学生可以读取自己的档案、角色、数据范围与权限")
+    void currentUserProfileIsReadableForStudent() throws Exception {
+        SysUserDO student = new SysUserDO();
+        student.setId(STUDENT_A_ID);
+        student.setUsername("student_a");
+        student.setRealName("学生 A");
+        student.setCollege("计算机科学学院");
+        student.setMajor("计算机科学与技术");
+        student.setGrade("2024");
+        student.setSkillTags("Java,Spring Boot");
+        student.setStatus(1);
+
+        SysRoleDO studentRole = role("STUDENT", 40L, 0, "SELF");
+        SysMenuDO downloadMenu = menu(30L, null, "文件中心", 2, "/files", "file:download");
+        SysRoleMenuDO roleMenu = new SysRoleMenuDO();
+        roleMenu.setRoleId(40L);
+        roleMenu.setMenuId(30L);
+
+        when(userMapper.selectById(STUDENT_A_ID)).thenReturn(student);
+        when(userRoleMapper.selectList(any())).thenReturn(List.of(userRole(STUDENT_A_ID, 40L)));
+        when(roleMapper.selectBatchIds(any())).thenReturn(List.of(studentRole));
+        when(roleMenuMapper.selectList(any())).thenReturn(List.of(roleMenu));
+        when(menuMapper.selectBatchIds(any())).thenReturn(List.of(downloadMenu));
+
+        MvcResult result = mockMvc.perform(get("/api/v1/users/me")
+                .with(authentication(studentAAuth()))).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        JsonNode body = objectMapper.readTree(
+                result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertThat(body.path("code").asInt()).isZero();
+        assertThat(body.path("data").path("username").asText()).isEqualTo("student_a");
+        assertThat(body.path("data").path("real_name").asText()).isEqualTo("学生 A");
+        assertThat(body.path("data").path("user_type").asText()).isEqualTo("STUDENT");
+        assertThat(body.path("data").path("roles").get(0).asText()).isEqualTo("STUDENT");
+        assertThat(body.path("data").path("data_scopes").get(0).asText()).isEqualTo("SELF");
+        assertThat(body.path("data").path("permissions").get(0).asText()).isEqualTo("file:download");
+        assertThat(body.path("data").path("skill_tags").size()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("EP-007 修改用户缺少 Idempotency-Key 返回 HTTP 400 + 10001")
+    void patchUserAccessRequiresIdempotencyKey() throws Exception {
+        MvcResult result = mockMvc.perform(patch("/api/v1/users/" + STUDENT_B_ID)
+                .with(authentication(adminAuth()))
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"status\":1,\"version\":0}")
+        ).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("code").asInt()).isEqualTo(ErrorCode.INVALID_PARAM.getCode());
+    }
+
+    // ------------------------------------------------------------------
     // 测试数据与认证构造
     // ------------------------------------------------------------------
 
@@ -270,6 +401,13 @@ class RbacHttpAccessTest {
         role.setDataScope(dataScope);
         role.setVersion(version);
         return role;
+    }
+
+    private SysUserRoleDO userRole(Long userId, Long roleId) {
+        SysUserRoleDO relation = new SysUserRoleDO();
+        relation.setUserId(userId);
+        relation.setRoleId(roleId);
+        return relation;
     }
 
     private SysMenuDO menu(Long id, Long parentId, String name, Integer type, String path, String perms) {
@@ -345,11 +483,13 @@ class RbacHttpAccessTest {
             UserController.class,
             com.campus.contest.module.system.controller.support.RbacAccessDeniedAdvice.class,
             FileController.class,
+            UploadController.class,
             RoleServiceImpl.class,
             PermissionResourceServiceImpl.class,
             UserAccessServiceImpl.class,
             RbacSideEffectServiceImpl.class,
-            FileAccessGuardImpl.class
+            FileAccessGuardImpl.class,
+            UploadServiceImpl.class
     })
     static class TestApplication {
 
@@ -398,6 +538,22 @@ class RbacHttpAccessTest {
             return mock(AuditLogService.class);
         }
 
+        /**
+         * EP-003 复用登录时的同一份权限快照实现，因此这里装配真实实现 + 上面几个 mock mapper，
+         * 而不是再造一个 mock，避免接口行为和会话逻辑脱节。
+         */
+        @Bean
+        AuthorizationSnapshotService authorizationSnapshotService(
+                SysUserMapper userMapper,
+                SysRoleMapper roleMapper,
+                SysUserRoleMapper userRoleMapper,
+                SysMenuMapper menuMapper,
+                SysRoleMenuMapper roleMenuMapper
+        ) {
+            return new AuthorizationSnapshotServiceImpl(
+                    userMapper, roleMapper, userRoleMapper, menuMapper, roleMenuMapper);
+        }
+
         @Bean
         SessionRevocationService sessionRevocationService() {
             return mock(SessionRevocationService.class);
@@ -411,6 +567,26 @@ class RbacHttpAccessTest {
         @Bean
         StorageService storageService() {
             return mock(StorageService.class);
+        }
+
+        @Bean
+        UploadTaskMapper uploadTaskMapper() {
+            return mock(UploadTaskMapper.class);
+        }
+
+        @Bean
+        FileChunkMapper fileChunkMapper() {
+            return mock(FileChunkMapper.class);
+        }
+
+        @Bean
+        FileMapper fileMapper() {
+            return mock(FileMapper.class);
+        }
+
+        @Bean
+        FileAccessScopeMapper fileAccessScopeMapper() {
+            return mock(FileAccessScopeMapper.class);
         }
 
         @Bean

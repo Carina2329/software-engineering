@@ -4,6 +4,7 @@ import com.campus.contest.common.Result;
 import com.campus.contest.module.system.dto.UserAccessUpdateRequest;
 import com.campus.contest.module.system.dto.UserPageQuery;
 import com.campus.contest.module.system.service.UserAccessService;
+import com.campus.contest.module.system.vo.CurrentUserVO;
 import com.campus.contest.module.system.vo.IdVersionVO;
 import com.campus.contest.module.system.vo.UserPageVO;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * EP-005 查看用户、EP-007 修改用户状态和角色。
+ * EP-003 查询当前用户、EP-005 查看用户、EP-007 修改用户状态和角色。
  */
 @RestController
 @RequestMapping("/api/v1/users")
@@ -26,6 +27,13 @@ public class UserController {
 
     private final UserAccessService userAccessService;
 
+    /** EP-003 查询当前用户：档案、角色、数据范围与权限摘要 */
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public Result<CurrentUserVO> currentUser() {
+        return Result.ok(userAccessService.currentUserProfile());
+    }
+
     /** EP-005 用户列表 */
     @GetMapping
     @PreAuthorize("hasAuthority('system:user:list')")
@@ -33,7 +41,12 @@ public class UserController {
         return Result.ok(userAccessService.pageUsers(query));
     }
 
-    /** EP-007 修改用户状态和角色 */
+    /**
+     * EP-007 修改用户状态和角色。
+     *
+     * OpenAPI 把 Idempotency-Key 标为必填，所以这里仍然只声明为可选，
+     * 由 Service 统一校验后返回 400 + 10001，保持错误码风格一致（而不是框架层 400）。
+     */
     @PatchMapping("/{user_id}")
     @PreAuthorize("hasAuthority('system:user:update')")
     public Result<IdVersionVO> updateUserAccess(

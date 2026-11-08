@@ -13,6 +13,7 @@ import com.campus.contest.module.system.entity.SysUserRoleDO;
 import com.campus.contest.module.system.mapper.SysRoleMapper;
 import com.campus.contest.module.system.mapper.SysUserMapper;
 import com.campus.contest.module.system.mapper.SysUserRoleMapper;
+import com.campus.contest.module.system.service.AuthorizationSnapshotService;
 import com.campus.contest.module.system.service.RbacSideEffectService;
 import com.campus.contest.module.system.service.impl.UserAccessServiceImpl;
 import com.campus.contest.module.system.vo.IdVersionVO;
@@ -58,6 +59,8 @@ class UserAccessServiceImplTest {
     private RbacSideEffectService sideEffectService;
     @Mock
     private CurrentUserProvider currentUserProvider;
+    @Mock
+    private AuthorizationSnapshotService authorizationSnapshotService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -73,7 +76,8 @@ class UserAccessServiceImplTest {
                 sideEffectService,
                 currentUserProvider,
                 TestInfrastructure.transactionTemplate(),
-                objectMapper
+                objectMapper,
+                authorizationSnapshotService
         );
         lenient().when(currentUserProvider.requireUserId()).thenReturn(OPERATOR_ID);
     }

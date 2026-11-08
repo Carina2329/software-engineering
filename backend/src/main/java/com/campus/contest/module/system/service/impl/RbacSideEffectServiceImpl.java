@@ -22,6 +22,9 @@ import java.util.Objects;
  *
  * 顺序严格遵循 contract.md 第九节：MySQL 事务提交后再撤销 Redis 会话；
  * 撤销失败重试有限次，仍失败时以 50003/HTTP 503 返回并写入待重试审计记录。
+ *
+ * 关键修正：某个用户撤销失败后不能直接中断，否则后面的目标用户旧会话会继续有效。
+ * 现在的策略是“尽力撤销全部目标用户，最后统一以 503 报告失败”，保证不会有漏网会话。
  */
 @Service
 @RequiredArgsConstructor
@@ -63,28 +66,44 @@ public class RbacSideEffectServiceImpl implements RbacSideEffectService {
         }
         Collection<Long> targets = new LinkedHashSet<>(userIds);
         targets.removeIf(Objects::isNull);
+        if (targets.isEmpty()) {
+            return;
+        }
+
+        boolean anyFailure = false;
+        Long lastFailedUserId = null;
         for (Long userId : targets) {
-            revokeWithRetry(userId, operation);
+            if (!revokeWithRetry(userId, operation)) {
+                anyFailure = true;
+                lastFailedUserId = userId;
+            }
+        }
+        if (anyFailure) {
+            log.error("会话撤销存在失败用户，已尽力处理其余目标：lastFailedUserId={}, operation={}",
+                    lastFailedUserId, operation);
+            throw sessionRevocationUnavailable();
         }
     }
 
-    @Override
-    public String clientIp() {
-        HttpServletRequest request = currentRequest();
-        return request == null ? null : request.getRemoteAddr();
-    }
-
-    private void revokeWithRetry(Long userId, String operation) {
+    /**
+     * 单个用户最多重试 REVOKE_MAX_ATTEMPTS 次；失败返回 false，由调用方汇总后统一抛 503。
+     */
+    private boolean revokeWithRetry(Long userId, String operation) {
         for (int attempt = 1; attempt <= REVOKE_MAX_ATTEMPTS; attempt++) {
             try {
                 sessionRevocationService.revokeAllSessions(userId);
-                return;
+                return true;
             } catch (BizException e) {
                 log.warn("会话撤销失败，用户={}，第 {} 次尝试，code={}", userId, attempt, e.getCode());
                 recordRevocationFailure(userId, operation, e);
+            } catch (RuntimeException e) {
+                // Redis 连接类异常同样按可重试处理，不能让一个用户的异常吞掉后续用户
+                log.warn("会话撤销异常，用户={}，第 {} 次尝试，error={}",
+                        userId, attempt, e.getClass().getSimpleName());
+                recordRevocationFailure(userId, operation, null);
             }
         }
-        throw sessionRevocationUnavailable();
+        return false;
     }
 
     private void recordRevocationFailure(Long userId, String operation, BizException failure) {
@@ -123,6 +142,13 @@ public class RbacSideEffectServiceImpl implements RbacSideEffectService {
     private String requestMethod() {
         HttpServletRequest request = currentRequest();
         return request == null ? null : request.getMethod();
+    }
+
+    /** 与各 Controller 取 clientIp 的方式保持一致；非 Web 上下文返回 null */
+    @Override
+    public String clientIp() {
+        HttpServletRequest request = currentRequest();
+        return request == null ? null : request.getRemoteAddr();
     }
 
     private BizException sessionRevocationUnavailable() {
