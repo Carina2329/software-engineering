@@ -10,6 +10,7 @@ import com.campus.contest.module.work.mapper.FileChunkMapper;
 import com.campus.contest.module.work.mapper.FileMapper;
 import com.campus.contest.module.work.mapper.UploadTaskMapper;
 import com.campus.contest.module.work.service.UploadService;
+import com.campus.contest.security.CurrentUserProvider;
 import com.campus.contest.storage.StorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,7 +40,6 @@ public class UploadServiceImpl implements UploadService {
     private static final int MAX_CHUNK_SIZE = 20 * 1024 * 1024;
     /** 单文件上限 5 GiB */
     private static final long MAX_FILE_SIZE = 5L * 1024 * 1024 * 1024;
-    private static final long DEMO_USER_ID = 1L;
 
     private static final int STATUS_UPLOADING = 1;
     private static final int STATUS_MERGING = 2;
@@ -50,15 +50,18 @@ public class UploadServiceImpl implements UploadService {
     private final FileChunkMapper fileChunkMapper;
     private final FileMapper fileMapper;
     private final StorageService storageService;
+    private final CurrentUserProvider currentUserProvider;
 
     public UploadServiceImpl(UploadTaskMapper uploadTaskMapper,
                              FileChunkMapper fileChunkMapper,
                              FileMapper fileMapper,
-                             StorageService storageService) {
+                             StorageService storageService,
+                             CurrentUserProvider currentUserProvider) {
         this.uploadTaskMapper = uploadTaskMapper;
         this.fileChunkMapper = fileChunkMapper;
         this.fileMapper = fileMapper;
         this.storageService = storageService;
+        this.currentUserProvider = currentUserProvider;
     }
 
     @Override
@@ -81,12 +84,14 @@ public class UploadServiceImpl implements UploadService {
 
         UploadDtos.InitResponse response = new UploadDtos.InitResponse();
         response.setChunkSize(chunkSize);
+        Long uploaderId = currentUserProvider.requireUserId();
 
-        // 秒传：整个文件已存在，直接返回
+        // 秒传：本人已上传过同样内容的文件才直接返回，避免把他人 file_id 泄露给当前用户
         if (sha256 != null) {
             FileDO exist = fileMapper.selectOne(Wrappers.<FileDO>lambdaQuery()
                     .eq(FileDO::getSha256, sha256.toLowerCase())
                     .eq(FileDO::getStorageType, storageService.type())
+                    .eq(FileDO::getUploaderId, uploaderId)
                     .eq(FileDO::getDeleted, 0)
                     .last("limit 1"));
             if (exist != null) {
@@ -107,9 +112,9 @@ public class UploadServiceImpl implements UploadService {
         task.setExpectedSha256(sha256 == null ? null : sha256.toLowerCase());
         task.setStatus(STATUS_UPLOADING);
         task.setExpireAt(LocalDateTime.now().plusDays(1));
-        task.setUploaderId(DEMO_USER_ID);
+        task.setUploaderId(uploaderId);
         task.setCreatedAt(LocalDateTime.now());
-        task.setCreatedBy(DEMO_USER_ID);
+        task.setCreatedBy(uploaderId);
         task.setDeleted(0);
         task.setVersion(0);
         uploadTaskMapper.insert(task);
@@ -167,7 +172,7 @@ public class UploadServiceImpl implements UploadService {
             chunk.setSha256(actualSha256);
             chunk.setStatus(1);
             chunk.setCreatedAt(LocalDateTime.now());
-            chunk.setCreatedBy(DEMO_USER_ID);
+            chunk.setCreatedBy(currentUserProvider.requireUserId());
             chunk.setDeleted(0);
             chunk.setVersion(0);
             fileChunkMapper.insert(chunk);
@@ -283,9 +288,9 @@ public class UploadServiceImpl implements UploadService {
         file.setStorageType(storageService.type());
         file.setStoragePath(relative);
         file.setSha256(sha256);
-        file.setUploaderId(DEMO_USER_ID);
+        file.setUploaderId(task.getUploaderId());
         file.setCreatedAt(LocalDateTime.now());
-        file.setCreatedBy(DEMO_USER_ID);
+        file.setCreatedBy(task.getUploaderId());
         file.setDeleted(0);
         file.setVersion(0);
         fileMapper.insert(file);

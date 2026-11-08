@@ -7,6 +7,7 @@ import com.campus.contest.module.work.dto.FileUploadResult;
 import com.campus.contest.module.work.entity.FileDO;
 import com.campus.contest.module.work.mapper.FileMapper;
 import com.campus.contest.module.work.service.FileService;
+import com.campus.contest.security.CurrentUserProvider;
 import com.campus.contest.storage.StorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -26,12 +28,13 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, FileDO> implements 
 
     /** 接口文档规定单次最多 20 个文件 */
     private static final int MAX_BATCH = 20;
-    /** 演示阶段固定上传人，接入登录后改为当前登录用户 */
-    private static final long DEMO_USER_ID = 1L;
     private final StorageService storageService;
+    /** 上传人取当前登录用户，禁止再用固定的演示账号 */
+    private final CurrentUserProvider currentUserProvider;
 
-    public FileServiceImpl(StorageService storageService) {
+    public FileServiceImpl(StorageService storageService, CurrentUserProvider currentUserProvider) {
         this.storageService = storageService;
+        this.currentUserProvider = currentUserProvider;
     }
 
     @Override
@@ -44,6 +47,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, FileDO> implements 
             throw new BizException("一次最多上传 " + MAX_BATCH + " 个文件");
         }
         log.info("批量上传开始：{} 个文件，用途={}", files.size(), purpose);
+        Long uploaderId = currentUserProvider.requireUserId();
 
         List<FileUploadResult> results = new ArrayList<>(files.size());
         for (MultipartFile file : files) {
@@ -58,6 +62,10 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, FileDO> implements 
                         .eq(FileDO::getDeleted, 0)
                         .last("limit 1"), false);
                 if (exist != null) {
+                    // 秒传只允许复用本人文件：复用他人文件会把 file_id 和存储路径泄露给其他账号
+                    if (!Objects.equals(exist.getUploaderId(), uploaderId)) {
+                        throw new BizException("相同内容的文件已归属其他账号，暂不支持秒传");
+                    }
                     result.setFileId(exist.getId());
                     result.setPath(exist.getStoragePath());
                     result.setSuccess(true);
@@ -74,9 +82,9 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, FileDO> implements 
                 entity.setStorageType(storageService.type());
                 entity.setStoragePath(relativePath);
                 entity.setSha256(sha256);
-                entity.setUploaderId(DEMO_USER_ID);
+                entity.setUploaderId(uploaderId);
                 entity.setCreatedAt(LocalDateTime.now());
-                entity.setCreatedBy(DEMO_USER_ID);
+                entity.setCreatedBy(uploaderId);
                 entity.setDeleted(0);
                 entity.setVersion(0);
                 save(entity);
