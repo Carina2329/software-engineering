@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getErrorMessage } from '../api/adminRbac'
 import MenuTree from './MenuTree.vue'
 import { useCurrentMenus } from './useCurrentMenus'
 
 const route = useRoute()
+const router = useRouter()
 const { menuTree, loading, ensureCurrentMenus } = useCurrentMenus()
 
 onMounted(() => {
@@ -25,6 +26,9 @@ onMounted(() => {
       </el-menu>
     </el-aside>
     <el-main v-loading="loading" class="admin-main">
+      <div class="admin-toolbar">
+        <el-button plain @click="router.push('/')">返回账号中心</el-button>
+      </div>
       <router-view />
     </el-main>
   </el-container>
@@ -56,5 +60,11 @@ onMounted(() => {
 
 .admin-main {
   background: #f5f7fa;
+}
+
+.admin-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 </style>
