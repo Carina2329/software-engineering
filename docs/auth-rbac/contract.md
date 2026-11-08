@@ -1,8 +1,8 @@
 # 认证与 RBAC 契约冻结稿
 
-- 文档版本：0.2.1
+- 文档版本：0.2.3
 - 初版日期：2026-11-03
-- 本次修订：2026-11-06
+- 本次修订：2026-11-08
 - 适用分支：`feature/rbac-auth`
 - 接口前缀：`/api/v1`
 - 状态：公共基础已冻结，供组内并行开发
@@ -316,7 +316,7 @@ sys_role_menu → sys_menu
 - `POST /api/v1/roles`：必须携带 `Idempotency-Key`，`role_code` 唯一；
 - `PATCH /api/v1/roles/{role_id}`：必须携带 `role.version` 和 `Idempotency-Key`；
 - `PUT /api/v1/roles/{role_id}/menus`：必须携带 `role.version` 和 `Idempotency-Key`；
-- `PATCH /api/v1/users/{user_id}`：沿用原有规则，必须携带 `user.version`，前端同时提供 `Idempotency-Key`。
+- `PATCH /api/v1/users/{user_id}`：必须携带 `user.version` 和 `Idempotency-Key`；缺少幂等键返回 HTTP `400` 和业务码 `10001`。
 
 `PUT /api/v1/roles/{role_id}/menus` 必须在 MySQL 事务中替换 `sys_role_menu` 并递增 `sys_role.version`。
 
