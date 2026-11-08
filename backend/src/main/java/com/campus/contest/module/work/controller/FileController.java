@@ -1,13 +1,17 @@
 package com.campus.contest.module.work.controller;
 
+import com.campus.contest.common.BizException;
+import com.campus.contest.common.ErrorCode;
 import com.campus.contest.common.Result;
 import com.campus.contest.module.work.dto.BatchUploadResponse;
 import com.campus.contest.module.work.dto.FileUploadResult;
 import com.campus.contest.module.work.entity.FileDO;
+import com.campus.contest.module.work.service.FileAccessGuard;
 import com.campus.contest.module.work.service.FileService;
 import com.campus.contest.storage.StorageService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,14 +29,19 @@ public class FileController {
 
     private final FileService fileService;
     private final StorageService storageService;
+    private final FileAccessGuard fileAccessGuard;
 
-    public FileController(FileService fileService, StorageService storageService) {
+    public FileController(FileService fileService,
+                          StorageService storageService,
+                          FileAccessGuard fileAccessGuard) {
         this.fileService = fileService;
         this.storageService = storageService;
+        this.fileAccessGuard = fileAccessGuard;
     }
 
     @PostMapping("/batch")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('file:upload')")
     public Result<BatchUploadResponse> batchUpload(
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "purpose", required = false) String purpose) {
@@ -46,19 +55,21 @@ public class FileController {
      * 断点续传下载：支持 Range 请求，返回 206 与 Content-Range。
      */
     @GetMapping("/{fileId}/content")
+    @PreAuthorize("hasAuthority('file:download')")
     public void download(@PathVariable Long fileId,
                          @RequestHeader(value = "Range", required = false) String rangeHeader,
                          HttpServletResponse response) {
         FileDO file = fileService.getById(fileId);
         if (file == null || Integer.valueOf(1).equals(file.getDeleted())) {
-            response.setStatus(HttpStatus.NOT_FOUND.value());
-            return;
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND.getCode(), "资源不存在或对当前用户不可见");
         }
+
+        // EP-050 资源归属检查：非上传人且非管理员访问他人文件按不可见处理
+        fileAccessGuard.requireDownloadable(file);
 
         long length = file.getFileSize() == null ? 0L : file.getFileSize();
         if (length <= 0) {
-            response.setStatus(HttpStatus.NOT_FOUND.value());
-            return;
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND.getCode(), "资源不存在或对当前用户不可见");
         }
 
         long start = 0;
