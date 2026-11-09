@@ -43,6 +43,23 @@ cd frontend && pnpm install && pnpm dev
 3. 接口文档：`http://localhost:8080/doc.html`；
 4. 打开 `http://localhost:5173/#/login`，登录页应能加载真实验证码。
 
+## 真实邮箱（可选）
+
+开发环境默认使用 Mailpit，不会向外部邮箱发信。需要在演示时发送真实邮件时，在启动后端前设置 SMTP 环境变量。QQ 邮箱示例：
+
+```powershell
+$env:MAIL_HOST='smtp.qq.com'
+$env:MAIL_PORT='465'
+$env:MAIL_USERNAME='你的QQ邮箱'
+$env:MAIL_PASSWORD='QQ邮箱生成的SMTP授权码'
+$env:MAIL_FROM='你的QQ邮箱'
+$env:MAIL_SMTP_AUTH='true'
+$env:MAIL_SMTP_STARTTLS='false'
+$env:MAIL_SMTP_SSL_ENABLE='true'
+```
+
+`MAIL_PASSWORD` 必须是邮箱服务商生成的授权码，不是 QQ 登录密码。授权码只应通过本机环境变量或服务器密钥提供，不得提交 Git。
+
 ## 目录说明
 
 | 目录 | 说明 |
