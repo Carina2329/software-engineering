@@ -154,6 +154,11 @@ class AuthHttpEndToEndTest {
 
         ResponseEntity<String> protectedResponse = getWithBearer("/api/v1/test-auth/whoami", accessToken);
         assertEquals(HttpStatus.OK, protectedResponse.getStatusCode(), protectedResponse.getBody());
+        assertFalse(
+                protectedResponse.getHeaders().getOrDefault(HttpHeaders.SET_COOKIE, List.of()).stream()
+                        .anyMatch(cookie -> cookie.startsWith("XSRF-TOKEN=;")),
+                "Bearer 认证请求不能清除 Refresh 流程所需的 XSRF Cookie"
+        );
         JsonNode whoami = json(protectedResponse).path("data");
         assertEquals(String.valueOf(userId), whoami.path("user_id").asText());
         assertFalse(whoami.path("session_id").asText().isBlank());

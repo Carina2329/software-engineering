@@ -111,7 +111,12 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
-  await auth.ensureInitialized()
+
+  // 登录、注册、找回密码等公开页面不主动恢复旧会话。
+  // 否则用户明确打开登录页时，会被 Refresh Cookie 再次送回旧账号页面。
+  if (!to.meta.guestOnly) {
+    await auth.ensureInitialized()
+  }
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return {

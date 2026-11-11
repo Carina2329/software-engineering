@@ -71,6 +71,16 @@ const http = axios.create({
   withCredentials: true,
 })
 
+const REFRESH_LOCK_NAME = 'contest-agent-platform:auth-refresh'
+
+interface CrossTabLockManager {
+  request<T>(
+    name: string,
+    options: { mode: 'exclusive' },
+    callback: () => Promise<T>,
+  ): Promise<T>
+}
+
 let refreshPromise: Promise<AuthTokenData> | null = null
 
 const UNSAFE_METHODS = new Set(['post', 'put', 'patch', 'delete'])
@@ -202,9 +212,31 @@ async function performRefresh(): Promise<AuthTokenData> {
   return tokenData
 }
 
+function withCrossTabRefreshLock<T>(action: () => Promise<T>): Promise<T> {
+  if (typeof navigator === 'undefined') {
+    return action()
+  }
+
+  const lockManager = (navigator as Navigator & {
+    locks?: CrossTabLockManager
+  }).locks
+
+  if (!lockManager) {
+    return action()
+  }
+
+  return lockManager.request(
+    REFRESH_LOCK_NAME,
+    { mode: 'exclusive' },
+    action,
+  )
+}
+
 export async function refreshAccessToken(notifyOnFailure = true): Promise<AuthTokenData> {
   if (!refreshPromise) {
-    refreshPromise = performRefresh().finally(() => {
+    // Refresh Token 会在服务端轮换。Web Locks 让多个标签页串行刷新，
+    // 避免它们同时消费同一个旧 Refresh Token。
+    refreshPromise = withCrossTabRefreshLock(performRefresh).finally(() => {
       refreshPromise = null
     })
   }
