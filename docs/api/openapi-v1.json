@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AI学科竞赛全流程智能服务平台接口",
-    "version": "1.1.4",
+    "version": "1.2.0",
     "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。",
     "contact": {
       "name": "第6组",
@@ -17,6 +17,21 @@
     {
       "url": "https://api.example.edu/api/v1",
       "description": "部署环境占位地址（接口统一前缀 /api/v1）"
+    }
+  ],
+  "x-changelog": [
+    {
+      "version": "1.2.0",
+      "date": "2026-11-12",
+      "changes": [
+        "届次赛题模式改为 PRESET_UNLIMITED、PRESET_LIMITED、SELF_PROPOSED、NO_TOPIC 四选一，不支持混合模式。",
+        "contest_topic.max_teams 允许为空，空值表示不限队伍数量。",
+        "自拟项目增加名称、方向、简介等必需字段，默认需要管理员审核。",
+        "限额赛题默认采用 REVIEW 分配，FIRST_COME 仅在主办方明确启用时使用。",
+        "教师指导申请采用单活动申请和确认占用机制，不采用先到先得。",
+        "届次增加选题/项目默认最多更换一次及审核、容量再校验规则。",
+        "新增赛题/项目审核、教师申请撤回和队伍邀请相关接口。"
+      ]
     }
   ],
   "tags": [
@@ -2451,13 +2466,45 @@
                     "description": "最多队伍人数",
                     "minimum": 1,
                     "maximum": 5
+          },
+          "topic_mode": {
+            "type": "string",
+            "description": "赛题模式；同一届次只能四选一，不支持统一赛题与自拟项目混合",
+            "enum": [
+              "PRESET_UNLIMITED",
+              "PRESET_LIMITED",
+              "SELF_PROPOSED",
+              "NO_TOPIC"
+            ]
+          },
+          "topic_review_required": {
+            "type": "boolean",
+            "description": "选题或自拟项目是否需要管理员审核；自拟项目默认 true，主办方可按届次关闭",
+            "default": true
+          },
+          "topic_allocation_mode": {
+            "type": "string",
+            "description": "限额赛题的分配方式；默认 REVIEW，只有主办方明确启用时才允许 FIRST_COME",
+            "enum": [
+              "REVIEW",
+              "FIRST_COME"
+            ],
+            "default": "REVIEW"
+          },
+          "topic_change_limit": {
+            "type": "integer",
+            "description": "报名截止前允许更换赛题或自拟项目的次数，默认 1",
+            "minimum": 0,
+            "maximum": 3,
+            "default": 1
                   }
                 },
                 "required": [
                   "edition_name",
                   "year",
                   "min_team_size",
-                  "max_team_size"
+          "max_team_size",
+          "topic_mode"
                 ]
               }
             }
@@ -2544,6 +2591,32 @@
                             "ARCHIVED"
                           ]
                         },
+            "topic_mode": {
+              "type": "string",
+              "description": "赛题模式",
+              "enum": [
+                "PRESET_UNLIMITED",
+                "PRESET_LIMITED",
+                "SELF_PROPOSED",
+                "NO_TOPIC"
+              ]
+            },
+            "topic_review_required": {
+              "type": "boolean",
+              "description": "选题或自拟项目是否需要管理员审核"
+            },
+            "topic_allocation_mode": {
+              "type": "string",
+              "description": "限额赛题分配方式",
+              "enum": [
+                "REVIEW",
+                "FIRST_COME"
+              ]
+            },
+            "topic_change_limit": {
+              "type": "integer",
+              "description": "报名截止前允许更换赛题或项目的次数"
+            },
                         "register_deadline": {
                           "type": "string",
                           "description": "报名截止时间",
@@ -2754,6 +2827,34 @@
                     "type": "integer",
                     "description": "最多队伍人数"
                   },
+          "topic_mode": {
+            "type": "string",
+            "description": "赛题模式；赛题或项目产生后修改需校验兼容性，且仍不允许混合模式",
+            "enum": [
+              "PRESET_UNLIMITED",
+              "PRESET_LIMITED",
+              "SELF_PROPOSED",
+              "NO_TOPIC"
+            ]
+          },
+          "topic_review_required": {
+            "type": "boolean",
+            "description": "选题或自拟项目是否需要管理员审核"
+          },
+          "topic_allocation_mode": {
+            "type": "string",
+            "description": "限额赛题分配方式",
+            "enum": [
+              "REVIEW",
+              "FIRST_COME"
+            ]
+          },
+          "topic_change_limit": {
+            "type": "integer",
+            "description": "报名截止前允许更换赛题或项目的次数",
+            "minimum": 0,
+            "maximum": 3
+          },
                   "version": {
                     "type": "integer",
                     "description": "乐观锁版本号"
@@ -3323,7 +3424,7 @@
           "竞赛与赛程"
         ],
         "summary": "查询赛题",
-        "description": "查询届次赛题及剩余容量，支持方向和难度过滤。",
+        "description": "查询届次统一赛题及可选容量。SELF_PROPOSED 和 NO_TOPIC 届次不提供预设赛题目录；只有 PRESET_LIMITED 返回非空 max_teams。",
         "operationId": "ep_023",
         "security": [
           {
@@ -3397,7 +3498,7 @@
             "name": "has_remaining",
             "in": "query",
             "required": false,
-            "description": "是否只看剩余容量大于 0 的赛题",
+            "description": "是否只看剩余容量大于 0 的限额赛题；不限量赛题不受此参数影响",
             "schema": {
               "type": "boolean"
             }
@@ -3460,7 +3561,8 @@
                               },
                               "max_teams": {
                                 "type": "integer",
-                                "description": "容量"
+                          "description": "可报名队伍数；null 表示不限队伍数量，仅 PRESET_LIMITED 模式使用",
+                          "nullable": true
                               },
                               "chosen_count": {
                                 "type": "integer",
@@ -3528,7 +3630,7 @@
           "竞赛与赛程"
         ],
         "summary": "新增赛题",
-        "description": "管理员在届次下新增赛题并设置可报名队伍数。",
+        "description": "管理员在统一赛题模式届次下新增赛题。max_teams 为空表示不限队伍数量；只有 PRESET_LIMITED 模式才要求正整数容量。",
         "operationId": "ep_024",
         "security": [
           {
@@ -3654,14 +3756,14 @@
                   },
                   "max_teams": {
                     "type": "integer",
-                    "description": "可报名队伍数",
+            "description": "可报名队伍数；PRESET_UNLIMITED 或自拟模式下应为 null，PRESET_LIMITED 模式下必须为正整数",
                     "minimum": 1,
-                    "maximum": 50
+            "maximum": 50,
+            "nullable": true
                   }
                 },
                 "required": [
-                  "topic_name",
-                  "max_teams"
+          "topic_name"
                 ]
               }
             }
@@ -3675,7 +3777,7 @@
           "竞赛与赛程"
         ],
         "summary": "修改赛题",
-        "description": "管理员修改赛题；已选题队伍存在时不得降低容量到已选数量以下。",
+        "description": "管理员修改赛题；max_teams 为空表示不限量。启用容量时，不得降低到已确认队伍数量以下；赛题模式切换需校验届次现有数据。",
         "operationId": "ep_025",
         "security": [
           {
@@ -3805,9 +3907,10 @@
                   },
                   "max_teams": {
                     "type": "integer",
-                    "description": "可报名队伍数",
+            "description": "可报名队伍数；null 表示改为不限队伍数量，不得低于当前已确认数量",
                     "minimum": 1,
-                    "maximum": 50
+            "maximum": 50,
+            "nullable": true
                   },
                   "version": {
                     "type": "integer",
@@ -4846,7 +4949,7 @@
           "报名与组队"
         ],
         "summary": "提交报名材料",
-        "description": "队长选择指导教师并提交报名材料，进入指导教师确认阶段。",
+        "description": "队长提交指导教师申请和报名材料。同一队伍同时只能有一个有效教师申请；被拒绝或撤回后才能申请其他教师，不采用先到先得。",
         "operationId": "ep_033",
         "security": [
           {
@@ -4951,6 +5054,7 @@
         "x-audit": true,
         "x-tables": [
           "team",
+          "team_teacher_application",
           "work_file",
           "file",
           "sys_oper_log"
@@ -5000,7 +5104,7 @@
           "报名与组队"
         ],
         "summary": "审核报名",
-        "description": "指导教师确认指导关系，管理员执行终审。驳回必须填写原因。",
+        "description": "指导教师处理指导申请，管理员执行终审。教师接受时校验最大指导队伍数并在同一事务中占用名额；不限制待处理申请数量。驳回必须填写原因。",
         "operationId": "ep_034",
         "security": [
           {
@@ -5104,6 +5208,7 @@
         "x-audit": true,
         "x-tables": [
           "team",
+          "team_teacher_application",
           "team_member",
           "sys_user",
           "sys_oper_log"
@@ -5157,8 +5262,8 @@
         "tags": [
           "报名与组队"
         ],
-        "summary": "选择或更换赛题",
-        "description": "队长在报名截止前选择赛题；同一队伍只能选择一个赛题，更换需管理员审核。",
+        "summary": "选择赛题或申报自拟项目",
+        "description": "队长按届次 topic_mode 选择预设赛题或申报自拟项目。不限量赛题不校验容量；限额赛题默认进入审核，FIRST_COME 仅用于明确启用的届次。报名截止前默认最多更换一次，需审核时重新进入待审核状态。",
         "operationId": "ep_035",
         "security": [
           {
@@ -5218,13 +5323,38 @@
                           "type": "string",
                           "description": "队伍 ID"
                         },
+                        "selection_type": {
+                          "type": "string",
+                          "description": "本次选择类型",
+                          "enum": [
+                            "PRESET",
+                            "SELF_PROPOSED"
+                          ]
+                        },
                         "topic_id": {
                           "type": "string",
-                          "description": "赛题 ID"
+                          "description": "预设赛题 ID；自拟项目时为 null",
+                          "nullable": true
+                        },
+                        "application_status": {
+                          "type": "string",
+                          "description": "选择或项目申报状态；需要审核时为 PENDING",
+                          "enum": [
+                            "DRAFT",
+                            "PENDING",
+                            "APPROVED",
+                            "REJECTED",
+                            "WITHDRAWN"
+                          ]
                         },
                         "chosen_count": {
                           "type": "integer",
-                          "description": "赛题已选数量"
+                          "description": "赛题已确认数量；不限量或自拟项目时为 null",
+                          "nullable": true
+                        },
+                        "change_count": {
+                          "type": "integer",
+                          "description": "队伍已使用更换次数"
                         },
                         "version": {
                           "type": "integer",
@@ -5266,6 +5396,7 @@
         "x-audit": true,
         "x-tables": [
           "team",
+          "team_topic_application",
           "contest_topic",
           "contest_edition",
           "sys_oper_log"
@@ -5278,13 +5409,58 @@
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {
+                  "selection_type": {
+                    "type": "string",
+                    "description": "按届次 topic_mode 选择 PRESET 或 SELF_PROPOSED；同一届次不支持混合模式",
+                    "enum": [
+                      "PRESET",
+                      "SELF_PROPOSED"
+                    ]
+                  },
                   "topic_id": {
                     "type": "string",
-                    "description": "赛题 ID"
+                    "description": "预设赛题 ID；selection_type=PRESET 时必填，自拟项目时必须为空",
+                    "nullable": true
+                  },
+                  "project": {
+                    "type": "object",
+                    "description": "自拟项目内容；selection_type=SELF_PROPOSED 时必填",
+                    "additionalProperties": false,
+                    "properties": {
+                      "project_name": {
+                        "type": "string",
+                        "description": "项目名称，1-128 字"
+                      },
+                      "direction": {
+                        "type": "string",
+                        "description": "项目方向"
+                      },
+                      "summary": {
+                        "type": "string",
+                        "description": "项目简介，建议 300-500 字"
+                      },
+                      "tech_keywords": {
+                        "type": "array",
+                        "description": "技术关键字，可选",
+                        "items": {
+                          "type": "string"
+                        },
+                        "maxItems": 8
+                      },
+                      "innovation": {
+                        "type": "string",
+                        "description": "创新点简述，可选"
+                      }
+                    },
+                    "required": [
+                      "project_name",
+                      "direction",
+                      "summary"
+                    ]
                   },
                   "action": {
                     "type": "string",
-                    "description": "操作类型",
+                    "description": "首次选择或提交使用 SELECT；更换使用 CHANGE，默认最多更换一次",
                     "enum": [
                       "SELECT",
                       "CHANGE"
@@ -5300,7 +5476,7 @@
                   }
                 },
                 "required": [
-                  "topic_id",
+                  "selection_type",
                   "action",
                   "version"
                 ]
@@ -5308,6 +5484,660 @@
             }
           }
         }
+      }
+    },
+    "/teams/{team_id}/topic-selection/review": {
+      "post": {
+        "tags": [
+          "报名与组队"
+        ],
+        "summary": "审核赛题选择或自拟项目",
+        "description": "管理员审核需要审核的赛题选择或自拟项目。限额赛题通过时在同一事务内校验并占用容量；不通过必须填写原因。",
+        "operationId": "ep_079",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "description": "队伍 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "客户端生成的请求唯一键；重试时必须复用。",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "APPROVE",
+                      "REJECT"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "description": "审核说明；REJECT 时必填"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "description": "选题申请版本号"
+                  }
+                },
+                "required": [
+                  "decision",
+                  "version"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "team_id": {
+                          "type": "string"
+                        },
+                        "application_status": {
+                          "type": "string",
+                          "enum": [
+                            "APPROVED",
+                            "REJECTED"
+                          ]
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-079",
+        "x-permission": "team:topic:review",
+        "x-data-scope": "ALL",
+        "x-idempotency": "是，重复审核返回当前状态",
+        "x-audit": true,
+        "x-tables": [
+          "team_topic_application",
+          "contest_topic",
+          "contest_edition",
+          "sys_oper_log"
+        ]
+      }
+    },
+    "/teams/{team_id}/teacher-application": {
+      "delete": {
+        "tags": [
+          "报名与组队"
+        ],
+        "summary": "撤回指导教师申请",
+        "description": "队伍撤回当前待处理的教师申请；撤回后可重新申请其他教师，不占指导名额。",
+        "operationId": "ep_080",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": true,
+            "description": "队伍版本号",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "team_id": {
+                          "type": "string"
+                        },
+                        "teacher_application_status": {
+                          "type": "string",
+                          "enum": [
+                            "WITHDRAWN"
+                          ]
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-080",
+        "x-permission": "team:registration:submit",
+        "x-data-scope": "TEAM",
+        "x-idempotency": "是，重复撤回返回当前状态",
+        "x-audit": true,
+        "x-tables": [
+          "team_teacher_application",
+          "team",
+          "sys_oper_log"
+        ]
+      }
+    },
+    "/teams/{team_id}/invitations": {
+      "post": {
+        "tags": [
+          "报名与组队"
+        ],
+        "summary": "邀请学生加入队伍",
+        "description": "队长邀请学生加入队伍；邀请需被邀请人确认后才写入正式成员关系，不采用抢占队员逻辑。",
+        "operationId": "ep_081",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "invitee_user_id": {
+                    "type": "string"
+                  },
+                  "expire_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  },
+                  "version": {
+                    "type": "integer",
+                    "description": "队伍版本号"
+                  }
+                },
+                "required": [
+                  "invitee_user_id",
+                  "version"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "已创建邀请",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "invitation_id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PENDING"
+                          ]
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-081",
+        "x-permission": "team:member:invite",
+        "x-data-scope": "TEAM",
+        "x-idempotency": "是，(team_id, invitee_user_id, PENDING) 唯一",
+        "x-audit": true,
+        "x-tables": [
+          "team_invitation",
+          "team_member",
+          "team"
+        ]
+      },
+      "get": {
+        "tags": [
+          "报名与组队"
+        ],
+        "summary": "查询队伍发出的邀请",
+        "description": "队长或指导教师查看本队邀请记录及待处理状态。",
+        "operationId": "ep_082",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-082",
+        "x-permission": "team:member:list",
+        "x-data-scope": "TEAM / GUIDED",
+        "x-tables": [
+          "team_invitation",
+          "team_member"
+        ]
+      }
+    },
+    "/users/me/team-invitations": {
+      "get": {
+        "tags": [
+          "报名与组队"
+        ],
+        "summary": "查询当前用户收到的入队邀请",
+        "description": "只返回当前用户自己的待处理或历史邀请，不返回其他学生数据。",
+        "operationId": "ep_083",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "ACCEPTED",
+                "REJECTED",
+                "CANCELLED",
+                "EXPIRED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-083",
+        "x-permission": "登录用户",
+        "x-data-scope": "SELF",
+        "x-tables": [
+          "team_invitation"
+        ]
+      }
+    },
+    "/team-invitations/{invitation_id}/respond": {
+      "post": {
+        "tags": [
+          "报名与组队"
+        ],
+        "summary": "接受或拒绝入队邀请",
+        "description": "被邀请学生处理自己的邀请。接受时重新校验届次唯一性、队伍人数上限和邀请有效期；并发确认不得突破队伍上限。",
+        "operationId": "ep_084",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "ACCEPT",
+                      "REJECT"
+                    ]
+                  },
+                  "version": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "decision",
+                  "version"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "trace_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-084",
+        "x-permission": "team:invitation:respond",
+        "x-data-scope": "SELF",
+        "x-idempotency": "是，重复相同决定返回当前状态",
+        "x-audit": true,
+        "x-tables": [
+          "team_invitation",
+          "team_member",
+          "team"
+        ]
       }
     },
     "/editions/{edition_id}/submissions": {
@@ -5514,7 +6344,7 @@
           "作品与预审"
         ],
         "summary": "创建作品提交版本",
-        "description": "通过终审并已选题的队伍创建新版本。版本号由服务端递增生成。",
+        "description": "通过终审并完成届次所要求赛题、自拟项目或其他必要配置的队伍创建新版本；NO_TOPIC 届次不得要求 topic_id。版本号由服务端递增生成。",
         "operationId": "ep_037",
         "security": [
           {
