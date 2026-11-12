@@ -74,7 +74,7 @@ class LoginRateLimiterTest {
                 any(RedisScript.class), anyList()
         )).thenReturn(1L);
 
-        limiter.clearAccountFailures("student_a");
+        limiter.clearAccountFailures("student_a", "127.0.0.1");
 
         verify(redisTemplate).execute(any(RedisScript.class), anyList());
     }

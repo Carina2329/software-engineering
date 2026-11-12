@@ -29,8 +29,8 @@ public class LoginRateLimiter {
     private static final String PREFIX = "auth:rate:login:";
 
     /**
-     * 原子预占尝试额度：锁定、账号上限、IP 上限全部通过后，才同时增加两个计数，
-     * 并记录本次 IP 供成功登录释放。1=允许，2=限流。
+     * 原子预占尝试额度：锁定、账号上限、IP 上限全部通过后，才同时增加两个计数。
+     * 1=允许，2=限流。
      */
     private static final RedisScript<Long> CHECK_SCRIPT = new DefaultRedisScript<>(
             """
@@ -54,7 +54,6 @@ public class LoginRateLimiter {
             if newIp == 1 then
               redis.call('PEXPIRE', KEYS[3], ARGV[4])
             end
-            redis.call('SET', KEYS[4], KEYS[3], 'PX', ARGV[4])
             return 1
             """,
             Long.class
@@ -75,29 +74,20 @@ public class LoginRateLimiter {
     );
 
     /**
-     * 成功登录后释放本次预占：清空账号计数和锁定，并递减最近一次预占的 IP 计数。
+     * 成功登录后：清空该账号全部失败计数和锁定，并只递减本次请求 IP 的预占。
+     * 其他 IP 或其他账号的失败计数不受影响。
      */
     private static final RedisScript<Long> CLEAR_SCRIPT = new DefaultRedisScript<>(
             """
-            local ipKey = redis.call('GET', KEYS[3])
-            local accountCount = tonumber(redis.call('GET', KEYS[1]) or '0')
-            if accountCount > 0 then
-              redis.call('DECR', KEYS[1])
-              if accountCount <= 1 then
-                redis.call('DEL', KEYS[1])
-              end
-            end
-            if ipKey then
-              local ipCount = tonumber(redis.call('GET', ipKey) or '0')
-              if ipCount > 0 then
-                redis.call('DECR', ipKey)
-                if ipCount <= 1 then
-                  redis.call('DEL', ipKey)
-                end
-              end
-              redis.call('DEL', KEYS[3])
-            end
+            redis.call('DEL', KEYS[1])
             redis.call('DEL', KEYS[2])
+            local ipCount = tonumber(redis.call('GET', KEYS[3]) or '0')
+            if ipCount > 0 then
+              redis.call('DECR', KEYS[3])
+              if ipCount <= 1 then
+                redis.call('DEL', KEYS[3])
+              end
+            end
             return 1
             """,
             Long.class
@@ -109,7 +99,7 @@ public class LoginRateLimiter {
         try {
             Long result = redisTemplate.execute(
                     CHECK_SCRIPT,
-                    List.of(accountKey(account), lockKey(account), ipKey(clientIp), lastIpKey(account)),
+                    List.of(accountKey(account), lockKey(account), ipKey(clientIp)),
                     String.valueOf(ACCOUNT_LIMIT),
                     String.valueOf(IP_LIMIT),
                     String.valueOf(LOCK.toMillis()),
@@ -142,11 +132,15 @@ public class LoginRateLimiter {
         }
     }
 
-    public void clearAccountFailures(String account) {
+    /**
+     * 成功登录后清空该账号全部失败计数和锁定，并释放本次请求 IP 的一个预占；
+     * 其他 IP 或其他账号的失败计数保持不变。
+     */
+    public void clearAccountFailures(String account, String clientIp) {
         try {
             Long result = redisTemplate.execute(
                     CLEAR_SCRIPT,
-                    List.of(accountKey(account), lockKey(account), lastIpKey(account))
+                    List.of(accountKey(account), lockKey(account), ipKey(clientIp))
             );
             if (result == null) {
                 throw unavailable();
@@ -166,10 +160,6 @@ public class LoginRateLimiter {
 
     private String ipKey(String clientIp) {
         return PREFIX + "ip:" + digest(normalize(clientIp));
-    }
-
-    private String lastIpKey(String account) {
-        return PREFIX + "last-ip:" + digest(normalize(account));
     }
 
     private String normalize(String value) {

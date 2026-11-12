@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -69,6 +70,64 @@ class LoginRateLimiterRedisTest {
             ) || redis.hasKey(
                     "auth:rate:login:lock:" + VerificationTokens.sha256Hex(account)
             ));
+        } finally {
+            factory.destroy();
+        }
+    }
+
+    @Test
+    void releaseWithGivenIpOnlyDecrementsThatIp() {
+        LettuceConnectionFactory factory = connectionFactory(6379);
+        try {
+            StringRedisTemplate redis = new StringRedisTemplate(factory);
+            LoginRateLimiter limiter = new LoginRateLimiter(redis);
+            String account = "dual-ip-" + UUID.randomUUID();
+            String ip1 = "198.51.100."
+                    + (Math.abs(UUID.randomUUID().getLeastSignificantBits() % 200) + 1);
+            String ip2 = "203.0.113."
+                    + (Math.abs(UUID.randomUUID().getLeastSignificantBits() % 200) + 1);
+            limiter.checkAllowed(account, ip1);
+            limiter.checkAllowed(account, ip2);
+
+            limiter.clearAccountFailures(account, ip1);
+
+            String accountKey = "auth:rate:login:account:"
+                    + VerificationTokens.sha256Hex(account);
+            String ip1Key = "auth:rate:login:ip:" + VerificationTokens.sha256Hex(ip1);
+            String ip2Key = "auth:rate:login:ip:" + VerificationTokens.sha256Hex(ip2);
+            assertFalse(redis.hasKey(accountKey));
+            assertFalse(redis.hasKey(ip1Key));
+            assertEquals("1", redis.opsForValue().get(ip2Key));
+        } finally {
+            factory.destroy();
+        }
+    }
+
+    @Test
+    void successClearsAccountFailuresButKeepsIpHistory() {
+        LettuceConnectionFactory factory = connectionFactory(6379);
+        try {
+            StringRedisTemplate redis = new StringRedisTemplate(factory);
+            LoginRateLimiter limiter = new LoginRateLimiter(redis);
+            String account = "history-" + UUID.randomUUID();
+            String ip = "192.0.2."
+                    + (Math.abs(UUID.randomUUID().getLeastSignificantBits() % 200) + 1);
+            String accountKey = "auth:rate:login:account:"
+                    + VerificationTokens.sha256Hex(account);
+            String lockKey = "auth:rate:login:lock:"
+                    + VerificationTokens.sha256Hex(account);
+            String ipKey = "auth:rate:login:ip:" + VerificationTokens.sha256Hex(ip);
+
+            for (int i = 0; i < 4; i++) {
+                limiter.checkAllowed(account, ip);
+                limiter.recordFailure(account, ip);
+            }
+            limiter.checkAllowed(account, ip);
+            limiter.clearAccountFailures(account, ip);
+
+            assertFalse(redis.hasKey(accountKey));
+            assertFalse(redis.hasKey(lockKey));
+            assertEquals("4", redis.opsForValue().get(ipKey));
         } finally {
             factory.destroy();
         }
