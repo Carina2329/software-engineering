@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AI学科竞赛全流程智能服务平台接口",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。",
     "contact": {
       "name": "第6组",
@@ -20,6 +20,18 @@
     }
   ],
   "x-changelog": [
+    {
+      "version": "1.2.1",
+      "date": "2026-11-12",
+      "changes": [
+        "邮件 OTP 发送的 HTTP 202 明确表示任务已成功入队，不表示邮件已送达。",
+        "认证邮件 OTP 仅允许使用 RabbitMQ，采用至少一次投递、有限重试和死信队列。",
+        "RabbitMQ 不可用只影响新 OTP 发送任务，不影响用户名密码登录或已有 OTP 的 Redis 校验。",
+        "重发 OTP 必须使旧 challenge 失效，失败回滚必须原子比较当前 challenge。",
+        "Nginx 429 必须返回统一结构，trace_id 使用真实 $request_id 并与 X-Trace-Id 一致。",
+        "50003 扩展为认证链路依赖暂不可用，包括 Redis、幂等或认证邮件队列。"
+      ]
+    },
     {
       "version": "1.2.0",
       "date": "2026-11-12",
@@ -80,7 +92,7 @@
           "认证与用户"
         ],
         "summary": "用户登录",
-        "description": "按 login_type 支持 USERNAME_PASSWORD 和 EMAIL_OTP 两种登录。用户名模式在本请求校验图片验证码；邮箱模式使用发送邮件 OTP 时获得的 challenge_id 和邮件验证码。失败不区分账号不存在、密码错误或 OTP 错误。成功时返回短期 Access JWT，并通过 Set-Cookie 设置 HttpOnly Refresh Token 和 CSRF Cookie。",
+        "description": "按 login_type 支持 USERNAME_PASSWORD 和 EMAIL_OTP 两种登录。用户名模式在本请求校验图片验证码，不依赖 RabbitMQ；邮箱模式使用已入队并送达的 OTP challenge，已有且未过期 OTP 的校验只依赖 Redis。失败不区分账号不存在、密码错误或 OTP 错误。成功时返回短期 Access JWT，并通过 Set-Cookie 设置 HttpOnly Refresh Token 和 CSRF Cookie。",
         "operationId": "ep_001",
         "security": [],
         "parameters": [],
@@ -10621,13 +10633,13 @@
           "认证与用户"
         ],
         "summary": "发送邮件验证码",
-        "description": "校验图片人机验证码后，按 scene 控制是否实际发送 6 位 OTP：REGISTER 仅在邮箱未占用时发送，LOGIN 仅在账号存在且启用时发送，RESET_PASSWORD 只能通过 EP-071 发送。无论是否实际发送，均返回相同结构和 challenge_id，避免账号枚举。OTP 只保存在 Redis，不写入普通日志。",
+        "description": "校验图片人机验证码并完成 Redis 原子限流后，创建或替换 challenge 并提交邮件 OTP 异步任务。REGISTER 仅在邮箱未占用时实际发送，LOGIN 仅在账号存在且启用时实际发送，RESET_PASSWORD 只能通过 EP-071 发送。无论是否实际发送，均返回相同结构和 challenge_id，避免账号枚举。RabbitMQ 不可用时只阻止新的发送任务并返回 503，不影响用户名密码登录或已有 OTP 校验。",
         "operationId": "ep_068",
         "security": [],
         "parameters": [],
         "responses": {
           "202": {
-            "description": "邮件发送请求已受理；无论账号是否存在均返回相同结构",
+            "description": "邮件发送任务已成功入队；无论账号是否存在均返回相同结构。202 不表示邮件已经送达。",
             "content": {
               "application/json": {
                 "schema": {
@@ -10679,7 +10691,8 @@
         "x-permission": "匿名",
         "x-data-scope": "仅当前邮箱挑战",
         "x-idempotency": "否",
-        "x-rate-limit": "同邮箱 60 秒间隔、5 次/小时；同 IP 20 次/小时；超限 HTTP 429，业务码 40001",
+        "x-rate-limit": "Nginx IP 级限流；Redis 原子执行同邮箱 60 秒间隔、5 次/小时和同 IP 20 次/小时；超限 HTTP 429，业务码 40001",
+        "x-queue": "RabbitMQ 仅用于认证邮件 OTP；至少一次投递，有限重试和 DLQ",
         "x-audit": false,
         "x-tables": [],
         "requestBody": {
@@ -10901,13 +10914,13 @@
           "认证与用户"
         ],
         "summary": "申请找回密码",
-        "description": "通过图片验证码校验后，无论邮箱账号是否存在都返回相同响应；账号存在时发送 RESET_PASSWORD 场景 OTP。",
+        "description": "通过图片验证码和 Redis 原子限流后，创建或替换 challenge 并提交邮件 OTP 异步任务。无论邮箱账号是否存在都返回相同响应；账号存在时实际发送 RESET_PASSWORD 场景 OTP。RabbitMQ 不可用时只阻止新发送任务并返回 503。",
         "operationId": "ep_071",
         "security": [],
         "parameters": [],
         "responses": {
           "202": {
-            "description": "请求已受理；不暴露邮箱是否已注册",
+            "description": "邮件发送任务已成功入队；不暴露邮箱是否已注册。202 不表示邮件已经送达。",
             "content": {
               "application/json": {
                 "schema": {
@@ -10959,7 +10972,8 @@
         "x-permission": "匿名",
         "x-data-scope": "仅当前邮箱挑战",
         "x-idempotency": "否",
-        "x-rate-limit": "同邮箱 60 秒间隔、5 次/小时；同 IP 20 次/小时；超限 HTTP 429，业务码 40001",
+        "x-rate-limit": "Nginx IP 级限流；Redis 原子执行同邮箱 60 秒间隔、5 次/小时和同 IP 20 次/小时；超限 HTTP 429，业务码 40001",
+        "x-queue": "RabbitMQ 仅用于认证邮件 OTP；至少一次投递，有限重试和 DLQ",
         "x-audit": true,
         "x-tables": [
           "sys_user",
@@ -10983,7 +10997,7 @@
           "认证与用户"
         ],
         "summary": "确认找回密码",
-        "description": "校验 challenge_id 的邮箱、RESET_PASSWORD 场景、有效期和一次性，验证 OTP 后更新 BCrypt 密码哈希，删除挑战并撤销该用户全部 Redis 会话。 Redis 撤销失败时返回 503，数据库已提交的变更通过 sys_oper_log 记录待重试。",
+        "description": "通过 Redis 校验 challenge_id 的邮箱、RESET_PASSWORD 场景、当前版本、有效期和一次性，该步骤不依赖 RabbitMQ。验证 OTP 后更新 BCrypt 密码哈希，删除挑战并撤销该用户全部 Redis 会话。Redis 撤销失败时返回 503，数据库已提交的变更通过 sys_oper_log 记录待重试。",
         "operationId": "ep_072",
         "security": [],
         "parameters": [],
@@ -12339,7 +12353,7 @@
         }
       },
       "TooManyRequests": {
-        "description": "请求频率超限",
+        "description": "请求频率超限。可由 Spring Boot 返回，也可由 Nginx 直接返回；Nginx trace_id 必须使用真实展开的 $request_id，并与 X-Trace-Id 响应头一致。",
         "content": {
           "application/json": {
             "schema": {
@@ -12347,11 +12361,8 @@
             },
             "example": {
               "code": 40001,
-              "message": "示例错误",
-              "data": {
-                "retryable": false,
-                "details": []
-              },
+              "message": "请求过于频繁，请稍后再试",
+              "data": null,
               "trace_id": "01J8F8M4V8V2K4B6S2Y4H9Q7P1"
             }
           }
@@ -12415,7 +12426,7 @@
         }
       },
       "AuthDependencyUnavailable": {
-        "description": "认证或幂等依赖暂不可用",
+        "description": "认证链路依赖暂不可用，包括 Redis、幂等或认证邮件队列。RabbitMQ 不可用时只影响新的邮件 OTP 发送任务。",
         "content": {
           "application/json": {
             "schema": {
@@ -12423,7 +12434,7 @@
             },
             "example": {
               "code": 50003,
-              "message": "认证或幂等依赖暂不可用",
+              "message": "认证链路依赖暂不可用",
               "data": {
                 "retryable": true,
                 "details": []
@@ -12439,5 +12450,5 @@
   "x-group": "第6组",
   "x-contract-source": "docs/api/openapi-v1.json",
   "x-database-tables": 26,
-  "x-endpoint-count": 66
+  "x-endpoint-count": 84
 }

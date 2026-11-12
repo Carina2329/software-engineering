@@ -156,3 +156,19 @@ feature/admin-frontend
 只有 AI 生成的代码、没有实际运行，不算完成。
 
 至少提前一天完成合并，并验证两种登录、注册、找回密码、角色授权、退出、会话失效、垂直越权和水平越权。
+
+## 八、本周高并发保护分工
+
+本周在认证主链路上增加高并发保护，详细任务边界见：
+
+- `docs/auth-rbac/high-concurrency-task-briefs.md`
+- `docs/auth-rbac/high-concurrency-integration-plan.md`
+
+| 负责人 | 分工 |
+| --- | --- |
+| 段欣懿 | 公共契约、配置、部署基础、跨模块接口冻结、合并和最终回归 |
+| 组员 A | Nginx 敏感接口限流、统一 429、前端异步受理文案、JMeter |
+| 组员 B | Redis Lua 原子限流、验证码/OTP 生命周期、原子回滚 |
+| 组员 C | RabbitMQ OTP 异步邮件、投递状态、重试、DLQ 和消费幂等 |
+
+集成分支为 `feature/high-concurrency`。组员分支只能向该分支提交 PR；RabbitMQ 仅用于认证邮件 OTP，不增加网关或其他业务场景。

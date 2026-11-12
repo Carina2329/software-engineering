@@ -20,6 +20,20 @@ spring:
           connectiontimeout: ${MAIL_CONNECTION_TIMEOUT_MS:5000}
           timeout: ${MAIL_TIMEOUT_MS:5000}
           writetimeout: ${MAIL_WRITE_TIMEOUT_MS:5000}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:}
+    password: ${RABBITMQ_PASSWORD:}
+    virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
+    connection-timeout: ${RABBITMQ_CONNECTION_TIMEOUT_MS:5000}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: ${RABBITMQ_PREFETCH:3}
+        default-requeue-rejected: false
   servlet:
     multipart:
       max-file-size: 2GB
@@ -31,6 +45,15 @@ server:
 app:
   mail:
     from: ${MAIL_FROM:no-reply@contest-agent-platform.local}
+    queue:
+      exchange: ${MAIL_OTP_EXCHANGE:auth.otp.exchange}
+      routing-key: ${MAIL_OTP_ROUTING_KEY:auth.otp.send}
+      send-queue: ${MAIL_OTP_SEND_QUEUE:auth.otp.send.queue}
+      retry-queue: ${MAIL_OTP_RETRY_QUEUE:auth.otp.retry.queue}
+      dead-letter-queue: ${MAIL_OTP_DLQ:auth.otp.dlq}
+      retry-delay-ms: ${MAIL_OTP_RETRY_DELAY_MS:30000}
+      max-retries: ${MAIL_OTP_MAX_RETRIES:3}
+      message-ttl-ms: ${MAIL_OTP_MESSAGE_TTL_MS:300000}
   auth:
     jwt:
       secret: ${AUTH_JWT_SECRET:}

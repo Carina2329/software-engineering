@@ -1,9 +1,9 @@
 # 认证与 RBAC 数据库增量设计
 
-- 文档版本：0.2.4
+- 文档版本：0.3.0
 - 初版日期：2026-11-03
-- 本次修订：2026-11-08
-- 适用分支：`feature/rbac-auth`
+- 本次修订：2026-11-12
+- 适用分支：`feature/high-concurrency`
 - 数据库：MySQL 8.0
 - 基线：现有《6组 数据库设计》的 26 张表
 - 新增表：0 张
@@ -96,10 +96,12 @@ ASSIGNED
 
 - `auth:captcha:{captchaId}`：图片验证码；
 - `auth:challenge:{challengeId}`：邮箱和 OTP 场景绑定；
+- `auth:challenge:current:{scene}:{emailHash}`：当前有效 OTP challenge 索引；
 - `auth:session:{sid}`：会话和 Refresh Token 哈希；
 - `auth:user-sessions:{userId}`：用户会话索引；
 - `auth:idempotency:*`：幂等键；
 - `auth:rate:*`：登录、验证码和 OTP 限流计数。
+- `auth:mail:delivery:{challengeId}`：邮件任务投递状态和正常重复消费防护。
 
 Redis 会话丢失时用户重新登录，不将瞬态会话数据落入 MySQL。
 
@@ -126,7 +128,7 @@ Redis 会话丢失时用户重新登录，不将瞬态会话数据落入 MySQL�
 4. Redis 撤销成功后才将操作视为完整成功；
 5. Redis 撤销失败时返回 HTTP 503，并在 `sys_oper_log` 标注 `SESSION_REVOCATION_FAILED` 供恢复后重试。
 
-不引入消息队列或 Outbox。
+认证邮件 OTP 使用 RabbitMQ，不新增 Outbox。RabbitMQ 任务不写入 MySQL，challenge 和投递状态保存在 Redis。RabbitMQ 故障只影响新的邮件发送任务，不影响用户名密码登录或已有 OTP 的 Redis 校验。
 
 ## 六、迁移前检查
 

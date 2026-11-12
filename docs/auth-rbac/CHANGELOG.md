@@ -1,5 +1,31 @@
 # 认证与 RBAC 变更记录
 
+## 2026-11-12 - 认证高并发保护公共基线
+
+### 契约
+
+- 认证邮件 OTP 是 RabbitMQ 的唯一允许场景；202 表示任务已入队，不表示邮件已送达。
+- RabbitMQ 不可用只阻止新的 OTP 发送任务，不影响用户名密码登录或已有 OTP 的 Redis 校验。
+- 50003 扩展为认证链路依赖暂不可用，包括 Redis、幂等和认证邮件队列。
+- 重发 OTP 使旧 challenge 失效；发布失败只允许原子清理本请求 challenge。
+- Nginx 429 必须返回统一结构，trace_id 真实展开 `$request_id` 并与 `X-Trace-Id` 一致。
+- RabbitMQ 采用至少一次投递，Redis 用于正常状态下的重复消费防护，不承诺 exactly-once。
+- OpenAPI 升级到 `1.2.1`，接口汇总同步版本；旧版 1.2.0 已归档。
+
+### 公共基础
+
+- 增加 Spring AMQP 依赖、RabbitMQ 环境配置和本地 Docker 服务。
+- 冻结 `EmailOtpDispatchCommand`、`EmailOtpPublisher`、`EmailOtpChallengeStore` 三个跨模块协作接口。
+- 本轮只完成公共基线和接口声明，不包含 Nginx 限流、Redis Lua、OTP 实现或 RabbitMQ 生产者/消费者。
+
+### 验证记录
+
+- 后端完整门控测试：131 个测试通过，0 失败、0 错误、0 跳过。
+- 前端 `pnpm build` 通过，1707 个模块成功转换。
+- OpenAPI 与接口汇总均为 84 个唯一 EP，版本分别为 `1.2.1` 和 `v1.2.1`。
+- `docker compose config`、Nginx `nginx -t` 和 `/nginx-health` 校验通过。
+- RabbitMQ 容器健康检查通过。
+
 ## 2026-11-11 - 登录刷新稳定性修复
 
 ### 修改
