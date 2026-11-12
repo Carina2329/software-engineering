@@ -52,23 +52,25 @@ public class VerificationRateLimiter {
      */
     private static final RedisScript<Long> OTP_SEND_SCRIPT = new DefaultRedisScript<>(
             """
-            local acquired = redis.call('SET', KEYS[1], '1', 'PX', ARGV[1], 'NX')
-            if not acquired then
+            if redis.call('EXISTS', KEYS[1]) == 1 then
               return 0
             end
-            local emailCount = redis.call('INCR', KEYS[2])
-            if emailCount == 1 then
+            local emailCount = tonumber(redis.call('GET', KEYS[2]) or '0')
+            if emailCount >= tonumber(ARGV[2]) then
+              return 0
+            end
+            local ipCount = tonumber(redis.call('GET', KEYS[3]) or '0')
+            if ipCount >= tonumber(ARGV[3]) then
+              return 0
+            end
+            redis.call('SET', KEYS[1], '1', 'PX', ARGV[1])
+            local newEmail = redis.call('INCR', KEYS[2])
+            if newEmail == 1 then
               redis.call('PEXPIRE', KEYS[2], ARGV[4])
             end
-            if emailCount > tonumber(ARGV[2]) then
-              return 0
-            end
-            local ipCount = redis.call('INCR', KEYS[3])
-            if ipCount == 1 then
+            local newIp = redis.call('INCR', KEYS[3])
+            if newIp == 1 then
               redis.call('PEXPIRE', KEYS[3], ARGV[4])
-            end
-            if ipCount > tonumber(ARGV[3]) then
-              return 0
             end
             return 1
             """,

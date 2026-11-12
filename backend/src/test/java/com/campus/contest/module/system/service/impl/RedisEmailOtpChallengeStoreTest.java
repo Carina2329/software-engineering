@@ -123,7 +123,12 @@ class RedisEmailOtpChallengeStoreTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void rollbackCallsAtomicScript() {
+        when(redisTemplate.execute(
+                any(RedisScript.class), anyList(), any(Object[].class)
+        )).thenReturn(1L);
+
         store.rollbackFailedDispatch("challenge-5", "Student@Example.edu", EmailOtpScene.LOGIN);
 
         verify(redisTemplate).execute(
@@ -131,6 +136,30 @@ class RedisEmailOtpChallengeStoreTest {
                 anyList(),
                 any(Object[].class)
         );
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void rollbackRejectsNullOrNonOne() {
+        when(redisTemplate.execute(
+                any(RedisScript.class), anyList(), any(Object[].class)
+        )).thenReturn(null, 0L);
+
+        BizException nullResult = assertThrows(
+                BizException.class,
+                () -> store.rollbackFailedDispatch(
+                        "challenge-6", "Student@Example.edu", EmailOtpScene.LOGIN
+                )
+        );
+        assertEquals(ErrorCode.AUTH_IDEMPOTENCY_UNAVAILABLE.getCode(), nullResult.getCode());
+
+        BizException zeroResult = assertThrows(
+                BizException.class,
+                () -> store.rollbackFailedDispatch(
+                        "challenge-7", "Student@Example.edu", EmailOtpScene.LOGIN
+                )
+        );
+        assertEquals(ErrorCode.AUTH_IDEMPOTENCY_UNAVAILABLE.getCode(), zeroResult.getCode());
     }
 
     @Test

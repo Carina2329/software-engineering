@@ -29,7 +29,8 @@ public class LoginRateLimiter {
     private static final String PREFIX = "auth:rate:login:";
 
     /**
-     * 1=允许，2=限流；锁定判断与账号/IP 计数读取在 Redis 内原子完成。
+     * 原子预占尝试额度：锁定、账号上限、IP 上限全部通过后，才同时增加两个计数，
+     * 并记录本次 IP 供成功登录释放。1=允许，2=限流。
      */
     private static final RedisScript<Long> CHECK_SCRIPT = new DefaultRedisScript<>(
             """
@@ -45,30 +46,58 @@ public class LoginRateLimiter {
             if ipCount >= tonumber(ARGV[2]) then
               return 2
             end
+            local newAccount = redis.call('INCR', KEYS[1])
+            if newAccount == 1 then
+              redis.call('PEXPIRE', KEYS[1], ARGV[4])
+            end
+            local newIp = redis.call('INCR', KEYS[3])
+            if newIp == 1 then
+              redis.call('PEXPIRE', KEYS[3], ARGV[4])
+            end
+            redis.call('SET', KEYS[4], KEYS[3], 'PX', ARGV[4])
             return 1
             """,
             Long.class
     );
 
     /**
-     * 原子增加账号/IP 失败计数，首次写入时设置 TTL，账号达到上限时设置锁定。
+     * 失败时只根据已预占的账号计数上锁，不再重复增加计数。
      */
     private static final RedisScript<Long> FAILURE_SCRIPT = new DefaultRedisScript<>(
             """
-            local windowMs = tonumber(ARGV[1])
-            local accountLimit = tonumber(ARGV[2])
-            local lockMs = tonumber(ARGV[3])
-            local accountCount = redis.call('INCR', KEYS[1])
-            if accountCount == 1 then
-              redis.call('PEXPIRE', KEYS[1], windowMs)
+            local accountCount = tonumber(redis.call('GET', KEYS[1]) or '0')
+            if accountCount >= tonumber(ARGV[1]) then
+              redis.call('SET', KEYS[2], '1', 'PX', ARGV[2])
             end
-            if accountCount >= accountLimit then
-              redis.call('SET', KEYS[2], '1', 'PX', lockMs)
+            return 1
+            """,
+            Long.class
+    );
+
+    /**
+     * 成功登录后释放本次预占：清空账号计数和锁定，并递减最近一次预占的 IP 计数。
+     */
+    private static final RedisScript<Long> CLEAR_SCRIPT = new DefaultRedisScript<>(
+            """
+            local ipKey = redis.call('GET', KEYS[3])
+            local accountCount = tonumber(redis.call('GET', KEYS[1]) or '0')
+            if accountCount > 0 then
+              redis.call('DECR', KEYS[1])
+              if accountCount <= 1 then
+                redis.call('DEL', KEYS[1])
+              end
             end
-            local ipCount = redis.call('INCR', KEYS[3])
-            if ipCount == 1 then
-              redis.call('PEXPIRE', KEYS[3], windowMs)
+            if ipKey then
+              local ipCount = tonumber(redis.call('GET', ipKey) or '0')
+              if ipCount > 0 then
+                redis.call('DECR', ipKey)
+                if ipCount <= 1 then
+                  redis.call('DEL', ipKey)
+                end
+              end
+              redis.call('DEL', KEYS[3])
             end
+            redis.call('DEL', KEYS[2])
             return 1
             """,
             Long.class
@@ -80,10 +109,11 @@ public class LoginRateLimiter {
         try {
             Long result = redisTemplate.execute(
                     CHECK_SCRIPT,
-                    List.of(accountKey(account), lockKey(account), ipKey(clientIp)),
+                    List.of(accountKey(account), lockKey(account), ipKey(clientIp), lastIpKey(account)),
                     String.valueOf(ACCOUNT_LIMIT),
                     String.valueOf(IP_LIMIT),
-                    String.valueOf(LOCK.toMillis())
+                    String.valueOf(LOCK.toMillis()),
+                    String.valueOf(WINDOW.toMillis())
             );
             if (result == null) {
                 throw unavailable();
@@ -100,8 +130,7 @@ public class LoginRateLimiter {
         try {
             Long result = redisTemplate.execute(
                     FAILURE_SCRIPT,
-                    List.of(accountKey(account), lockKey(account), ipKey(clientIp)),
-                    String.valueOf(WINDOW.toMillis()),
+                    List.of(accountKey(account), lockKey(account)),
                     String.valueOf(ACCOUNT_LIMIT),
                     String.valueOf(LOCK.toMillis())
             );
@@ -115,7 +144,13 @@ public class LoginRateLimiter {
 
     public void clearAccountFailures(String account) {
         try {
-            redisTemplate.delete(List.of(accountKey(account), lockKey(account)));
+            Long result = redisTemplate.execute(
+                    CLEAR_SCRIPT,
+                    List.of(accountKey(account), lockKey(account), lastIpKey(account))
+            );
+            if (result == null) {
+                throw unavailable();
+            }
         } catch (DataAccessException e) {
             throw unavailable();
         }
@@ -131,6 +166,10 @@ public class LoginRateLimiter {
 
     private String ipKey(String clientIp) {
         return PREFIX + "ip:" + digest(normalize(clientIp));
+    }
+
+    private String lastIpKey(String account) {
+        return PREFIX + "last-ip:" + digest(normalize(account));
     }
 
     private String normalize(String value) {

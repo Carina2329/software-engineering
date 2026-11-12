@@ -7,6 +7,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -109,6 +111,35 @@ class VerificationRateLimiterRedisTest {
                     () -> limiter.checkCaptchaGeneration(ip)
             );
             assertEquals(ErrorCode.RATE_LIMITED.getCode(), exception.getCode());
+        } finally {
+            factory.destroy();
+        }
+    }
+
+    @Test
+    void ipLimitDoesNotConsumeEmailQuota() {
+        LettuceConnectionFactory factory = connectionFactory(6379);
+        try {
+            StringRedisTemplate redis = new StringRedisTemplate(factory);
+            VerificationRateLimiter limiter = new VerificationRateLimiter(redis);
+            String email = "email-" + UUID.randomUUID() + "@example.edu";
+            String normalizedEmail = email.toLowerCase();
+            String ip = "198.51.100."
+                    + (Math.abs(UUID.randomUUID().getLeastSignificantBits() % 200) + 1);
+            String ipKey = "auth:rate:otp:ip:" + VerificationTokens.sha256Hex(ip);
+            String emailKey = "auth:rate:otp:email:" + VerificationTokens.sha256Hex(normalizedEmail);
+            String cooldownKey = "auth:rate:otp:cooldown:email:"
+                    + VerificationTokens.sha256Hex(normalizedEmail);
+            redis.opsForValue().set(ipKey, "20", Duration.ofHours(1));
+
+            BizException exception = assertThrows(
+                    BizException.class,
+                    () -> limiter.checkAndRecordOtpSend(email, ip)
+            );
+
+            assertEquals(ErrorCode.RATE_LIMITED.getCode(), exception.getCode());
+            assertFalse(redis.hasKey(emailKey));
+            assertFalse(redis.hasKey(cooldownKey));
         } finally {
             factory.destroy();
         }

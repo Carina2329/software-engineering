@@ -244,11 +244,14 @@ public class RedisEmailOtpChallengeStore implements EmailOtpChallengeStore {
         }
         String normalizedEmail = normalizeEmail(email);
         try {
-            redisTemplate.execute(
+            Long result = redisTemplate.execute(
                     ROLLBACK_SCRIPT,
                     List.of(challengeKey(challengeId), indexKey(normalizedEmail, scene)),
                     challengeId
             );
+            if (result == null || result != 1L) {
+                throw unavailable();
+            }
         } catch (DataAccessException e) {
             throw unavailable();
         }

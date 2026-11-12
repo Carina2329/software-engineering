@@ -68,9 +68,14 @@ class LoginRateLimiterTest {
     }
 
     @Test
-    void clearFailuresDeletesAccountAndLockKeys() {
+    @SuppressWarnings("unchecked")
+    void clearFailuresExecutesAtomicClearScript() {
+        when(redisTemplate.execute(
+                any(RedisScript.class), anyList()
+        )).thenReturn(1L);
+
         limiter.clearAccountFailures("student_a");
 
-        verify(redisTemplate).delete(anyList());
+        verify(redisTemplate).execute(any(RedisScript.class), anyList());
     }
 }
