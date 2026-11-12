@@ -29,7 +29,6 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * 图片验证码实现：答案仅存 Redis，2 分钟过期，最多错误 5 次，校验成功后立即删除。
@@ -44,6 +43,21 @@ public class CaptchaServiceImpl implements CaptchaService, LoginCaptchaVerifier 
     private static final int CODE_LENGTH = 4;
     private static final char[] CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+    /**
+     * 原子写入验证码答案和 TTL。
+     */
+    private static final RedisScript<Long> CREATE_SCRIPT = new DefaultRedisScript<>(
+            """
+            redis.call('HSET', KEYS[1],
+              'scene', ARGV[1],
+              'answerHash', ARGV[2],
+              'attempts', '0')
+            redis.call('PEXPIRE', KEYS[1], ARGV[3])
+            return 1
+            """,
+            Long.class
+    );
 
     /**
      * 原子校验：1=成功，0=不存在，2=场景不匹配，3=已超次数，4=错误次数达上限，5=错误未达上限。
@@ -96,12 +110,16 @@ public class CaptchaServiceImpl implements CaptchaService, LoginCaptchaVerifier 
         String captchaId = VerificationTokens.nextId();
         Instant expiresAt = Instant.now().plus(TTL);
         try {
-            redisTemplate.opsForHash().putAll(KEY_PREFIX + captchaId, Map.of(
-                    "scene", scene.name(),
-                    "answerHash", VerificationTokens.sha256Hex(code),
-                    "attempts", "0"
-            ));
-            redisTemplate.expire(KEY_PREFIX + captchaId, TTL);
+            Long result = redisTemplate.execute(
+                    CREATE_SCRIPT,
+                    List.of(KEY_PREFIX + captchaId),
+                    scene.name(),
+                    VerificationTokens.sha256Hex(code),
+                    String.valueOf(TTL.toMillis())
+            );
+            if (result == null || result != 1L) {
+                throw unavailable();
+            }
         } catch (DataAccessException e) {
             throw unavailable();
         }
