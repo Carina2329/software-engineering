@@ -5,11 +5,14 @@ import com.campus.contest.common.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -25,18 +28,67 @@ public class LoginRateLimiter {
     private static final int IP_LIMIT = 10;
     private static final String PREFIX = "auth:rate:login:";
 
+    /**
+     * 1=允许，2=限流；锁定判断与账号/IP 计数读取在 Redis 内原子完成。
+     */
+    private static final RedisScript<Long> CHECK_SCRIPT = new DefaultRedisScript<>(
+            """
+            if redis.call('EXISTS', KEYS[2]) == 1 then
+              return 2
+            end
+            local accountCount = tonumber(redis.call('GET', KEYS[1]) or '0')
+            if accountCount >= tonumber(ARGV[1]) then
+              redis.call('SET', KEYS[2], '1', 'PX', ARGV[3])
+              return 2
+            end
+            local ipCount = tonumber(redis.call('GET', KEYS[3]) or '0')
+            if ipCount >= tonumber(ARGV[2]) then
+              return 2
+            end
+            return 1
+            """,
+            Long.class
+    );
+
+    /**
+     * 原子增加账号/IP 失败计数，首次写入时设置 TTL，账号达到上限时设置锁定。
+     */
+    private static final RedisScript<Long> FAILURE_SCRIPT = new DefaultRedisScript<>(
+            """
+            local windowMs = tonumber(ARGV[1])
+            local accountLimit = tonumber(ARGV[2])
+            local lockMs = tonumber(ARGV[3])
+            local accountCount = redis.call('INCR', KEYS[1])
+            if accountCount == 1 then
+              redis.call('PEXPIRE', KEYS[1], windowMs)
+            end
+            if accountCount >= accountLimit then
+              redis.call('SET', KEYS[2], '1', 'PX', lockMs)
+            end
+            local ipCount = redis.call('INCR', KEYS[3])
+            if ipCount == 1 then
+              redis.call('PEXPIRE', KEYS[3], windowMs)
+            end
+            return 1
+            """,
+            Long.class
+    );
+
     private final StringRedisTemplate redisTemplate;
 
     public void checkAllowed(String account, String clientIp) {
         try {
-            String accountKey = accountKey(account);
-            String lockKey = lockKey(account);
-            if (Boolean.TRUE.equals(redisTemplate.hasKey(lockKey))
-                    || count(accountKey) >= ACCOUNT_LIMIT) {
-                redisTemplate.opsForValue().set(lockKey, "1", LOCK);
-                throw rateLimited();
+            Long result = redisTemplate.execute(
+                    CHECK_SCRIPT,
+                    List.of(accountKey(account), lockKey(account), ipKey(clientIp)),
+                    String.valueOf(ACCOUNT_LIMIT),
+                    String.valueOf(IP_LIMIT),
+                    String.valueOf(LOCK.toMillis())
+            );
+            if (result == null) {
+                throw unavailable();
             }
-            if (count(ipKey(clientIp)) >= IP_LIMIT) {
+            if (result != 1L) {
                 throw rateLimited();
             }
         } catch (DataAccessException e) {
@@ -46,22 +98,16 @@ public class LoginRateLimiter {
 
     public void recordFailure(String account, String clientIp) {
         try {
-            String accountKey = accountKey(account);
-            Long accountCount = redisTemplate.opsForValue().increment(accountKey);
-            if (accountCount == null) {
+            Long result = redisTemplate.execute(
+                    FAILURE_SCRIPT,
+                    List.of(accountKey(account), lockKey(account), ipKey(clientIp)),
+                    String.valueOf(WINDOW.toMillis()),
+                    String.valueOf(ACCOUNT_LIMIT),
+                    String.valueOf(LOCK.toMillis())
+            );
+            if (result == null) {
                 throw unavailable();
             }
-            redisTemplate.expire(accountKey, WINDOW);
-            if (accountCount >= ACCOUNT_LIMIT) {
-                redisTemplate.opsForValue().set(lockKey(account), "1", LOCK);
-            }
-
-            String ipKey = ipKey(clientIp);
-            Long ipCount = redisTemplate.opsForValue().increment(ipKey);
-            if (ipCount == null) {
-                throw unavailable();
-            }
-            redisTemplate.expire(ipKey, WINDOW);
         } catch (DataAccessException e) {
             throw unavailable();
         }
@@ -69,22 +115,9 @@ public class LoginRateLimiter {
 
     public void clearAccountFailures(String account) {
         try {
-            redisTemplate.delete(accountKey(account));
-            redisTemplate.delete(lockKey(account));
+            redisTemplate.delete(List.of(accountKey(account), lockKey(account)));
         } catch (DataAccessException e) {
             throw unavailable();
-        }
-    }
-
-    private long count(String key) {
-        String value = redisTemplate.opsForValue().get(key);
-        if (value == null || value.isBlank()) {
-            return 0;
-        }
-        try {
-            return Long.parseLong(value);
-        } catch (NumberFormatException e) {
-            return 0;
         }
     }
 
