@@ -17,6 +17,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,6 +26,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class RabbitEmailOtpPublisherTest {
@@ -99,8 +101,40 @@ class RabbitEmailOtpPublisherTest {
     }
 
     @Test
-    void invalidCommandDoesNotPublishOrRollback() {
-        assertThrows(BizException.class, () -> publisher.publish(command("")));
+    void everyRequiredFieldIsValidatedBeforePublishOrRollback() {
+        Instant future = Instant.now().plusSeconds(300);
+        List<EmailOtpDispatchCommand> invalidCommands = List.of(
+                new EmailOtpDispatchCommand("", "student@example.edu", EmailOtpScene.LOGIN,
+                        "123456", future, "trace-1", false),
+                new EmailOtpDispatchCommand("challenge-1", null, EmailOtpScene.LOGIN,
+                        "123456", future, "trace-1", false),
+                new EmailOtpDispatchCommand("challenge-1", "not-an-email", EmailOtpScene.LOGIN,
+                        "123456", future, "trace-1", false),
+                new EmailOtpDispatchCommand("challenge-1", "student@example.edu", null,
+                        "123456", future, "trace-1", false),
+                new EmailOtpDispatchCommand("challenge-1", "student@example.edu", EmailOtpScene.LOGIN,
+                        null, future, "trace-1", false),
+                new EmailOtpDispatchCommand("challenge-1", "student@example.edu", EmailOtpScene.LOGIN,
+                        "12345", future, "trace-1", false),
+                new EmailOtpDispatchCommand("challenge-1", "student@example.edu", EmailOtpScene.LOGIN,
+                        "123456", null, "trace-1", false),
+                new EmailOtpDispatchCommand("challenge-1", "student@example.edu", EmailOtpScene.LOGIN,
+                        "123456", Instant.now().minusSeconds(1), "trace-1", false),
+                new EmailOtpDispatchCommand("challenge-1", "student@example.edu", EmailOtpScene.LOGIN,
+                        "123456", future, null, false),
+                new EmailOtpDispatchCommand("challenge-1", "student@example.edu", EmailOtpScene.LOGIN,
+                        "123456", future, " ", false)
+        );
+
+        for (EmailOtpDispatchCommand invalidCommand : invalidCommands) {
+            BizException exception = assertThrows(
+                    BizException.class,
+                    () -> publisher.publish(invalidCommand)
+            );
+            assertEquals(ErrorCode.INVALID_PARAM.getCode(), exception.getCode());
+        }
+
+        verifyNoInteractions(rabbitTemplate, challengeStore);
     }
 
     private EmailOtpDispatchCommand command(String challengeId) {

@@ -20,7 +20,8 @@ class EmailOtpMessageTest {
                 Instant.parse("2026-11-13T10:00:00Z"),
                 "trace-1",
                 false,
-                2
+                2,
+                1
         );
 
         String text = message.toString();
@@ -28,5 +29,6 @@ class EmailOtpMessageTest {
         assertFalse(text.contains("123456"));
         assertTrue(text.contains("challenge-1"));
         assertTrue(text.contains("retryCount=2"));
+        assertTrue(text.contains("busyCheckCount=1"));
     }
 }

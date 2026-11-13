@@ -45,6 +45,9 @@ public class EmailOtpConsumer {
     @Value("${app.mail.queue.max-retries:3}")
     private int maxRetries;
 
+    @Value("${app.mail.queue.max-busy-rechecks:3}")
+    private int maxBusyRechecks;
+
     @RabbitListener(queues = "${app.mail.queue.send-queue:auth.otp.send.queue}")
     public void onMessage(
             EmailOtpMessage message,
@@ -62,6 +65,7 @@ public class EmailOtpConsumer {
             return;
         }
 
+        MailDeliveryStateService.LeaseAcquireResult lease = null;
         try {
             if (message.suppress() || !message.expiresAt().isAfter(Instant.now())) {
                 channel.basicAck(deliveryTag, false);
@@ -77,29 +81,36 @@ public class EmailOtpConsumer {
                 return;
             }
 
-            MailDeliveryStateService.AcquireResult acquired =
-                    deliveryStateService.acquireLease(message.challengeId());
-            if (acquired == MailDeliveryStateService.AcquireResult.ALREADY_SENT) {
+            lease = deliveryStateService.acquireLease(message.challengeId());
+            if (lease.result() == MailDeliveryStateService.AcquireResult.ALREADY_SENT) {
                 channel.basicAck(deliveryTag, false);
                 return;
             }
-            if (acquired == MailDeliveryStateService.AcquireResult.BUSY) {
-                // 原消息的 owner 会自行按 retryCount+1 重试；这里不能生成无限重复消息。
-                channel.basicAck(deliveryTag, false);
+            if (lease.result() == MailDeliveryStateService.AcquireResult.BUSY) {
+                // 有界延迟复查：避免原消费者崩溃时直接丢消息，也避免热循环。
+                if (message.busyCheckCount() >= maxBusyRechecks) {
+                    channel.basicNack(deliveryTag, false, false);
+                    return;
+                }
+                publishBusyRecheck(message, channel, deliveryTag);
                 return;
             }
 
             try {
                 sendMail(message);
-                deliveryStateService.markSent(message.challengeId(), message.expiresAt());
+                deliveryStateService.markSent(
+                        message.challengeId(),
+                        lease.ownerToken(),
+                        message.expiresAt()
+                );
                 channel.basicAck(deliveryTag, false);
             } catch (RuntimeException e) {
-                safeReleaseLease(message.challengeId());
+                safeReleaseLease(message.challengeId(), lease.ownerToken());
                 publishRetry(message, channel, deliveryTag);
             }
         } catch (RuntimeException e) {
-            // Redis/challenge/投递状态异常不能 requeue=true 热循环，统一进入延迟重试。
-            safeReleaseLease(message.challengeId());
+            // Redis/challenge/投递状态异常进入带 retryCount 的延迟重试，不能 requeue=true 热循环。
+            safeReleaseLease(message.challengeId(), lease == null ? null : lease.ownerToken());
             publishRetry(message, channel, deliveryTag);
         }
     }
@@ -121,6 +132,14 @@ public class EmailOtpConsumer {
         }
     }
 
+    private void publishBusyRecheck(
+            EmailOtpMessage message,
+            Channel channel,
+            long deliveryTag
+    ) throws IOException {
+        sendToRetry(message.withBusyCheckCount(message.busyCheckCount() + 1), channel, deliveryTag);
+    }
+
     private void publishRetry(
             EmailOtpMessage message,
             Channel channel,
@@ -131,19 +150,26 @@ public class EmailOtpConsumer {
             channel.basicNack(deliveryTag, false, false);
             return;
         }
+        sendToRetry(message.withRetryCount(nextRetryCount), channel, deliveryTag);
+    }
+
+    private void sendToRetry(
+            EmailOtpMessage retryMessage,
+            Channel channel,
+            long deliveryTag
+    ) throws IOException {
         try {
-            EmailOtpMessage retryMessage = message.withRetryCount(nextRetryCount);
             rabbitTemplate.convertAndSend(exchange, retryRoutingKey, retryMessage);
             channel.basicAck(deliveryTag, false);
         } catch (RuntimeException e) {
-            // 无法写入重试队列时不再 requeue=true，避免热循环；交给主队列 DLX。
+            // 无法写入重试队列时不再 requeue=true，交给主队列 DLX。
             channel.basicNack(deliveryTag, false, false);
         }
     }
 
-    private void safeReleaseLease(String challengeId) {
+    private void safeReleaseLease(String challengeId, String ownerToken) {
         try {
-            deliveryStateService.releaseLease(challengeId);
+            deliveryStateService.releaseLease(challengeId, ownerToken);
         } catch (RuntimeException ignored) {
             // 租约本身有 TTL；不能在日志中输出 challenge 以外的敏感信息。
         }

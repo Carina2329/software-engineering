@@ -10,7 +10,9 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 /**
  * C 负责的 OTP 异步发布器。
@@ -20,6 +22,10 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 public class RabbitEmailOtpPublisher implements EmailOtpPublisher {
+
+    private static final Pattern EMAIL_PATTERN =
+            Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+    private static final Pattern OTP_PATTERN = Pattern.compile("^[0-9]{6}$");
 
     private final RabbitTemplate rabbitTemplate;
     private final EmailOtpChallengeStore challengeStore;
@@ -38,7 +44,7 @@ public class RabbitEmailOtpPublisher implements EmailOtpPublisher {
 
     @Override
     public void publish(EmailOtpDispatchCommand command) {
-        if (command == null || command.challengeId() == null || command.challengeId().isBlank()) {
+        if (!valid(command)) {
             throw invalidCommand();
         }
 
@@ -50,6 +56,7 @@ public class RabbitEmailOtpPublisher implements EmailOtpPublisher {
                 command.expiresAt(),
                 command.traceId(),
                 command.suppress(),
+                0,
                 0
         );
         CorrelationData correlationData = new CorrelationData(command.challengeId());
@@ -84,6 +91,21 @@ public class RabbitEmailOtpPublisher implements EmailOtpPublisher {
         } catch (RuntimeException rollbackFailure) {
             throw unavailable();
         }
+    }
+
+    private boolean valid(EmailOtpDispatchCommand command) {
+        return command != null
+                && command.challengeId() != null
+                && !command.challengeId().isBlank()
+                && command.email() != null
+                && EMAIL_PATTERN.matcher(command.email().trim()).matches()
+                && command.scene() != null
+                && command.otpCode() != null
+                && OTP_PATTERN.matcher(command.otpCode()).matches()
+                && command.expiresAt() != null
+                && command.expiresAt().isAfter(Instant.now())
+                && command.traceId() != null
+                && !command.traceId().isBlank();
     }
 
     private BizException invalidCommand() {

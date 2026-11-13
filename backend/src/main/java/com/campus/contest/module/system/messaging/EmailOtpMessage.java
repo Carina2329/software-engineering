@@ -17,7 +17,8 @@ public record EmailOtpMessage(
         Instant expiresAt,
         String traceId,
         boolean suppress,
-        int retryCount
+        int retryCount,
+        int busyCheckCount
 ) {
 
     public EmailOtpMessage withRetryCount(int nextRetryCount) {
@@ -29,7 +30,22 @@ public record EmailOtpMessage(
                 expiresAt,
                 traceId,
                 suppress,
-                nextRetryCount
+                nextRetryCount,
+                busyCheckCount
+        );
+    }
+
+    public EmailOtpMessage withBusyCheckCount(int nextBusyCheckCount) {
+        return new EmailOtpMessage(
+                challengeId,
+                email,
+                scene,
+                otpCode,
+                expiresAt,
+                traceId,
+                suppress,
+                retryCount,
+                nextBusyCheckCount
         );
     }
 
@@ -40,6 +56,7 @@ public record EmailOtpMessage(
                 + ", scene=" + scene
                 + ", expiresAt=" + expiresAt
                 + ", retryCount=" + retryCount
+                + ", busyCheckCount=" + busyCheckCount
                 + ", suppress=" + suppress
                 + '}';
     }
