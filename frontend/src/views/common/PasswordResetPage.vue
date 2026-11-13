@@ -101,7 +101,7 @@ async function requestCode(): Promise<void> {
     challengeId.value = challenge.challenge_id
     form.emailCode = ''
     startCountdown()
-    ElMessage.success('请求已受理；若账号存在，重置验证码将发送至邮箱')
+    ElMessage.success('请求已受理，请稍后查收；若账号存在，请填写收到的重置验证码')
   } catch (error) {
     challengeId.value = ''
     ElMessage.error(getApiErrorMessage(error))
@@ -208,7 +208,7 @@ onBeforeUnmount(() => {
 
       <template v-else>
         <div class="sent-note">
-          请求已受理。若该邮箱已注册，6 位验证码将在几分钟内送达。
+          请求已受理，请稍后查收。若该邮箱已注册，请填写收到的 6 位验证码；受理不代表邮件已经送达。
           <button
             v-if="resendSeconds <= 0"
             type="button"

@@ -129,7 +129,7 @@ async function sendCode(): Promise<void> {
     challengeId.value = challenge.challenge_id
     form.emailCode = ''
     startCountdown()
-    ElMessage.success('若该邮箱可用于登录，验证码已发送')
+    ElMessage.success('请求已受理，请稍后查收；若该邮箱可用于登录，请填写收到的邮件验证码')
   } catch (error) {
     challengeId.value = ''
     ElMessage.error(getApiErrorMessage(error))

@@ -1,0 +1,687 @@
+timeStamp,elapsed,label,responseCode,responseMessage,threadName,dataType,success,failureMessage,bytes,sentBytes,grpThreads,allThreads,URL,Latency,IdleTime,Connect
+1794492557577,634,初始化线程安全计数器,200,OK,初始化验收计数器 1-1,text,true,,0,0,1,1,null,0,0,0
+1794492558384,105,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,28,http://localhost:8088/login,105,0,29
+1794492558385,104,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,28,http://localhost:8088/login,104,0,42
+1794492558385,77,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,28,http://localhost:8088/login,77,0,33
+1794492558386,93,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,28,http://localhost:8088/login,93,0,32
+1794492558713,11,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,11,0,0
+1794492558713,11,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,11,0,0
+1794492558713,11,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,11,0,0
+1794492558713,11,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,11,0,0
+1794492558725,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558725,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558725,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558725,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558746,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492558746,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492558746,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492558746,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492558753,5,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,5,0,0
+1794492558753,5,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,5,0,0
+1794492558753,5,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,5,0,0
+1794492558753,5,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,5,0,0
+1794492558765,21,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,28,http://localhost:8088/login,20,0,0
+1794492558765,22,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,28,http://localhost:8088/login,22,0,0
+1794492558765,25,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,28,http://localhost:8088/login,25,0,0
+1794492558787,5,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,5,0,0
+1794492558765,28,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,28,http://localhost:8088/login,28,0,0
+1794492558791,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,4,0,0
+1794492558789,5,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,5,0,0
+1794492558794,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,4,0,0
+1794492558794,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558796,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558796,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558800,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492558801,3,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,3,0,0
+1794492558801,3,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,3,0,0
+1794492558799,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,5,0,0
+1794492558806,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492558806,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492558806,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492558806,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492558813,5,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,5,0,0
+1794492558813,23,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,28,http://localhost:8088/login,23,0,0
+1794492558813,24,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,28,http://localhost:8088/login,24,0,0
+1794492558813,28,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,28,http://localhost:8088/login,28,0,0
+1794492558837,5,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,5,0,0
+1794492558839,3,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,3,0,0
+1794492558820,25,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,28,http://localhost:8088/login,25,0,0
+1794492558843,3,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,3,0,0
+1794492558843,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558843,3,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,3,0,0
+1794492558847,6,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,6,0,0
+1794492558851,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558851,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492558851,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492558854,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558856,3,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,3,0,0
+1794492558856,3,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,3,0,0
+1794492558856,3,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,3,0,0
+1794492558859,3,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,3,0,0
+1794492558861,3,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,3,0,0
+1794492558863,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492558861,14,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,28,http://localhost:8088/login,14,0,0
+1794492558861,15,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,28,http://localhost:8088/login,15,0,0
+1794492558876,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,4,0,0
+1794492558876,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,4,0,0
+1794492558882,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558882,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558868,19,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,28,http://localhost:8088/login,19,0,0
+1794492558866,26,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,28,http://localhost:8088/login,26,0,0
+1794492558888,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,4,0,0
+1794492558888,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492558888,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492558893,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558893,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,4,0,0
+1794492558893,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492558893,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492558899,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492558899,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492558384,81,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-8,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,81,0,46
+1794492558386,65,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,58,0,39
+1794492558385,75,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,75,0,31
+1794492558384,74,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,74,0,37
+1794492558385,78,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-14,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,78,0,42
+1794492558384,67,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,61,0,35
+1794492558384,63,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,59,0,29
+1794492558386,64,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,59,0,38
+1794492558386,61,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,58,0,39
+1794492558384,82,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-12,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,82,0,45
+1794492558384,67,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,60,0,39
+1794492558385,80,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-23,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,80,0,44
+1794492558386,75,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,75,0,42
+1794492558386,75,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,75,0,42
+1794492558905,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492558905,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492558910,6,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,6,0,0
+1794492558910,6,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,6,0,0
+1794492558910,6,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-12,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,6,0,0
+1794492558910,6,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,6,0,0
+1794492558910,8,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,8,0,0
+1794492558899,22,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,28,http://localhost:8088/login,22,0,0
+1794492558899,28,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,28,http://localhost:8088/login,28,0,0
+1794492558910,23,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-17,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,21,0,0
+1794492558910,23,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-8,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,21,0,0
+1794492558910,23,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-20,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,21,0,0
+1794492558910,23,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-14,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,22,0,0
+1794492558910,23,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-23,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,23,0,0
+1794492558910,23,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-9,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,21,0,0
+1794492558910,23,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-13,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,21,0,0
+1794492558918,16,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-12,text,true,,582,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,14,0,0
+1794492558910,24,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-2,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,21,0,0
+1794492558910,24,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-24,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,21,0,0
+1794492558910,27,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-4,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,27,0,0
+1794492558935,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-23,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558935,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-14,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558935,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-8,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492558935,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558917,25,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-19,text,true,,582,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,24,0,0
+1794492558920,21,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-7,text,true,,582,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,17,0,0
+1794492558930,12,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,12,0,0
+1794492558939,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492558937,5,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,5,0,0
+1794492558936,6,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,6,0,0
+1794492558923,19,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-11,text,true,,582,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,19,0,0
+1794492558910,36,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,28,http://localhost:8088/login,36,0,0
+1794492558930,17,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,17,0,0
+1794492558943,4,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,4,0,0
+1794492558941,6,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,6,0,0
+1794492558943,5,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,5,0,0
+1794492558943,6,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,6,0,0
+1794492558944,4,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,4,0,0
+1794492558943,6,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,6,0,0
+1794492558943,10,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,10,0,0
+1794492558948,5,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,5,0,0
+1794492558948,5,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,5,0,0
+1794492558935,18,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-9,text,true,,582,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,18,0,0
+1794492558935,19,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-20,text,true,,582,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,19,0,0
+1794492558951,3,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,3,0,0
+1794492558950,5,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,5,0,0
+1794492558951,4,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,4,0,0
+1794492558951,5,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,5,0,0
+1794492558948,9,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,9,0,0
+1794492558917,40,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,28,http://localhost:8088/login,40,0,0
+1794492558935,22,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-13,text,true,,582,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,22,0,0
+1794492558955,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558955,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492558947,15,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,15,0,0
+1794492558955,7,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,7,0,0
+1794492558959,3,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,3,0,0
+1794492558959,3,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,3,0,0
+1794492558958,4,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,4,0,0
+1794492558956,8,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-24,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,7,0,0
+1794492558958,7,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,7,0,0
+1794492558963,2,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,2,0,0
+1794492558964,1,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,1,0,0
+1794492558966,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492558957,12,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-11,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,12,0,0
+1794492558956,13,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-4,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,11,0,0
+1794492558967,2,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,2,0,0
+1794492558967,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558955,17,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-7,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,17,0,0
+1794492558963,9,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,9,0,0
+1794492558963,9,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-20,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,9,0,0
+1794492558963,9,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,9,0,0
+1794492558971,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558971,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558971,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558972,1,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,1,0,0
+1794492558972,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558973,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558974,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558973,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492558955,22,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-17,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,21,0,0
+1794492558966,11,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,11,0,0
+1794492558958,19,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,19,0,0
+1794492558975,3,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,3,0,0
+1794492558974,4,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,4,0,0
+1794492558974,4,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,4,0,0
+1794492558974,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492558976,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492558976,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492558956,23,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-2,text,true,,579,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,23,0,0
+1794492558977,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558977,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492558978,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558980,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492558979,3,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,3,0,0
+1794492558981,1,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,1,0,0
+1794492558979,3,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,3,0,0
+1794492558980,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492558980,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492558980,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558981,1,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,1,0,0
+1794492558980,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492558980,6,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,6,0,0
+1794492558984,2,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,2,0,0
+1794492558979,7,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,28,http://localhost:8088/api/v1/files/batch,7,0,0
+1794492558984,2,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,2,0,0
+1794492558984,2,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,2,0,0
+1794492558984,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558984,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558984,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558984,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558984,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492558985,4,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,4,0,0
+1794492558988,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,1,0,0
+1794492558987,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492558988,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558988,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492558989,1,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,1,0,0
+1794492558988,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558988,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558988,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558990,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492558987,7,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,28,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,7,0,0
+1794492558992,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492558992,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492558991,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492558991,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492558991,3,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,3,0,0
+1794492558991,3,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,3,0,0
+1794492558992,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558991,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492558995,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492558995,2,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,2,0,0
+1794492558973,24,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,28,http://localhost:8088/login,24,0,0
+1794492558994,4,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,4,0,0
+1794492558996,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558996,1,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,1,0,0
+1794492558995,2,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,2,0,0
+1794492558995,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492558995,3,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,3,0,0
+1794492558995,3,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,3,0,0
+1794492558979,23,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,28,http://localhost:8088/login,23,0,0
+1794492559000,2,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,2,0,0
+1794492558999,3,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,3,0,0
+1794492558999,3,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,3,0,0
+1794492558995,8,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,28,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,8,0,0
+1794492559000,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492558999,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492558999,4,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,4,0,0
+1794492558999,4,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,4,0,0
+1794492558999,3,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,3,0,0
+1794492558999,4,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,4,0,0
+1794492559004,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492559004,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492558999,8,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,8,0,0
+1794492559005,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492559005,2,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,2,0,0
+1794492559004,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-4,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492559004,3,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,3,0,0
+1794492559005,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-9,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492559005,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,190,24,28,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492559005,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-24,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492559009,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-20,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492559009,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492559009,2,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,188,24,28,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,2,0,0
+1794492559009,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,209,24,28,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492559009,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-11,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492559004,7,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,28,http://localhost:8088/api/v1/users/me,7,0,0
+1794492559009,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-7,text,true,,352,207,24,28,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492559009,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,22,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559012,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-17,text,true,,352,207,18,22,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492559012,4,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,209,18,22,http://localhost:8088/api/v1/auth/email-verification-codes,4,0,0
+1794492559013,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-13,text,true,,352,207,18,22,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492559012,7,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,20,http://localhost:8088/api/v1/files/batch,7,0,0
+1794492559017,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-2,text,true,,352,207,16,20,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492558988,32,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,20,http://localhost:8088/login,32,0,0
+1794492559015,6,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,20,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,6,0,0
+1794492559004,21,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,19,http://localhost:8088/login,21,0,0
+1794492559021,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559022,3,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,2,0,0
+1794492559021,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,3,0,0
+1794492559026,3,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,3,0,0
+1794492559026,3,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,3,0,0
+1794492559026,3,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,3,0,0
+1794492559031,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559031,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559036,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559036,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559026,20,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,19,http://localhost:8088/login,20,0,0
+1794492559041,5,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,5,0,0
+1794492559047,5,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,5,0,0
+1794492559031,25,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,19,http://localhost:8088/login,25,0,0
+1794492559054,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,5,0,0
+1794492559059,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559060,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559041,27,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,19,http://localhost:8088/login,27,0,0
+1794492559065,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559065,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559069,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559069,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559047,26,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,19,http://localhost:8088/login,26,0,0
+1794492559074,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559074,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559074,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559079,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492559079,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,5,0,0
+1794492559069,15,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,19,http://localhost:8088/login,15,0,0
+1794492559085,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559085,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559085,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559079,16,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,19,http://localhost:8088/login,16,0,0
+1794492559091,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559091,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559096,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559096,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559102,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559102,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559091,19,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,19,http://localhost:8088/login,19,0,0
+1794492559108,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559096,20,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,19,http://localhost:8088/login,20,0,0
+1794492559112,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559113,6,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,6,0,0
+1794492559117,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559117,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559122,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559122,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559127,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559127,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559108,26,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,19,http://localhost:8088/login,26,0,0
+1794492559133,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559120,20,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,19,http://localhost:8088/login,20,0,0
+1794492559136,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559142,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559142,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559147,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492559147,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,5,0,0
+1794492559133,22,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,19,http://localhost:8088/login,22,0,0
+1794492559153,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559153,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559138,22,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,19,http://localhost:8088/login,22,0,0
+1794492559156,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559159,2,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,2,0,0
+1794492559161,2,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,2,0,0
+1794492559161,2,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,2,0,0
+1794492559164,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492559164,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,5,0,0
+1794492559171,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559171,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559159,18,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,19,http://localhost:8088/login,18,0,0
+1794492559178,3,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,2,0,0
+1794492559177,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,3,0,0
+1794492559162,21,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,19,http://localhost:8088/login,21,0,0
+1794492559182,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559184,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559188,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559190,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559177,21,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,19,http://localhost:8088/login,21,0,0
+1794492559193,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559195,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492559182,20,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,19,http://localhost:8088/login,20,0,0
+1794492559201,2,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,2,0,0
+1794492559199,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559203,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559204,3,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,3,0,0
+1794492559208,3,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,3,0,0
+1794492559208,3,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,3,0,0
+1794492559212,5,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,5,0,0
+1794492559212,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492559199,21,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,19,http://localhost:8088/login,21,0,0
+1794492559218,5,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,5,0,0
+1794492559204,21,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,19,http://localhost:8088/login,21,0,0
+1794492559221,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559227,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559227,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559232,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,5,0,0
+1794492559232,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492559218,23,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,19,http://localhost:8088/login,23,0,0
+1794492559239,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559239,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559224,20,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,19,http://localhost:8088/login,20,0,0
+1794492559244,3,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,2,0,0
+1794492559243,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559245,3,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,3,0,0
+1794492559248,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559249,3,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,3,0,0
+1794492559253,3,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,3,0,0
+1794492559253,3,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,3,0,0
+1794492559258,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559258,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559244,20,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,19,http://localhost:8088/login,20,0,0
+1794492559248,21,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,19,http://localhost:8088/login,21,0,0
+1794492559265,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559270,6,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,6,0,0
+1794492559271,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,5,0,0
+1794492559277,8,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,8,0,0
+1794492559263,22,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,19,http://localhost:8088/login,22,0,0
+1794492559277,9,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,9,0,0
+1794492559286,6,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,6,0,0
+1794492559286,6,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,6,0,0
+1794492559286,6,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,6,0,0
+1794492559263,29,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,19,http://localhost:8088/login,29,0,0
+1794492559294,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559294,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559294,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559300,6,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,6,0,0
+1794492559300,6,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,6,0,0
+1794492559294,16,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,19,http://localhost:8088/login,16,0,0
+1794492559307,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492559308,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559311,5,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,5,0,0
+1794492559313,5,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,5,0,0
+1794492559300,20,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,19,http://localhost:8088/login,20,0,0
+1794492559317,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,5,0,0
+1794492559323,6,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,6,0,0
+1794492559322,7,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,7,0,0
+1794492559330,8,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,8,0,0
+1794492559330,10,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,10,0,0
+1794492559313,27,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,19,http://localhost:8088/login,27,0,0
+1794492559319,23,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,19,http://localhost:8088/login,23,0,0
+1794492559341,3,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,3,0,0
+1794492559341,3,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,3,0,0
+1794492559343,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559346,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559346,5,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559349,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559339,17,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,19,http://localhost:8088/login,17,0,0
+1794492559352,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559354,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559357,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559357,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559360,2,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,2,0,0
+1794492559362,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559367,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559352,19,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,19,http://localhost:8088/login,19,0,0
+1794492559372,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559372,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559378,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,5,0,0
+1794492559362,23,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,4,19,http://localhost:8088/login,23,0,0
+1794492559364,25,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,4,19,http://localhost:8088/login,24,0,0
+1794492559387,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559387,5,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,5,0,0
+1794492559389,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,4,0,0
+1794492559392,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,5,0,0
+1794492559392,5,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,5,0,0
+1794492559394,5,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,5,0,0
+1794492559378,24,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,658,156,4,19,http://localhost:8088/login,24,0,0
+1794492559397,5,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,5,0,0
+1794492559399,6,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,6,0,0
+1794492559404,3,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,3,0,0
+1794492559404,3,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,3,0,0
+1794492559406,3,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,3,0,0
+1794492559408,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,191,4,19,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559413,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,644,218,4,19,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,4,0,0
+1794492559397,21,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,658,156,4,19,http://localhost:8088/login,21,0,0
+1794492559418,3,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-3,text,true,,581,194,4,19,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,3,0,0
+1794492559419,2,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,166,4,19,http://localhost:8088/api/v1/users/me,2,0,0
+1794492559408,17,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,658,156,3,18,http://localhost:8088/login,17,0,0
+1794492559422,3,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,191,3,18,http://localhost:8088/api/v1/files/batch,3,0,0
+1794492559426,3,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,166,3,18,http://localhost:8088/api/v1/users/me,3,0,0
+1794492559426,3,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,644,218,3,18,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,3,0,0
+1794492559410,19,前端登录静态页面,200,OK,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,658,156,3,18,http://localhost:8088/login,19,0,0
+1794492559430,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-4,text,true,,581,194,3,18,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559430,4,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,191,3,18,http://localhost:8088/api/v1/files/batch,4,0,0
+1794492559430,4,普通业务 API,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,166,3,18,http://localhost:8088/api/v1/users/me,4,0,0
+1794492558384,1052,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-3,text,true,,584,190,15,18,http://localhost:8088/api/v1/auth/login,1052,0,30
+1794492559436,3,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,644,218,2,17,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,3,0,0
+1794492559436,3,文件批量上传路径 - 空请求,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,191,2,17,http://localhost:8088/api/v1/files/batch,3,0,0
+1794492559440,3,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-1,text,true,,581,194,2,17,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,3,0,0
+1794492559440,4,分片上传路径 - 不存在任务,403,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,644,218,2,17,http://localhost:8088/api/v1/uploads/nginx-rate-limit-probe/chunks/0,3,0,0
+1794492559437,7,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-3,text,true,,579,188,15,17,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,7,0,0
+1794492559445,1,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-3,text,true,,352,209,15,16,http://localhost:8088/api/v1/auth/email-verification-codes,1,0,0
+1794492559444,4,文件下载路径 - 不存在文件,401,,普通页面 API 与文件接口不受认证限流影响 2-2,text,true,,581,194,1,16,http://localhost:8088/api/v1/files/nginx-rate-limit-probe/content,4,0,0
+1794492559448,1,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-3,text,true,,352,207,15,15,http://localhost:8088/api/v1/auth/password-reset/request,1,0,0
+1794492558943,1502,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-19,text,true,,582,207,15,15,http://localhost:8088/api/v1/auth/password-reset/request,1502,0,0
+1794492560446,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,190,15,15,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492560449,5,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-19,text,true,,579,188,15,15,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,5,0,0
+1794492560455,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,209,15,15,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492560458,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,207,15,15,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492560460,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,190,15,15,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492560463,6,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-19,text,true,,579,188,15,15,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,5,0,0
+1794492560469,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,209,15,15,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492560471,4,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,207,15,15,http://localhost:8088/api/v1/auth/password-reset/request,4,0,0
+1794492560475,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,190,15,15,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492560478,1,EP-067 图片验证码 - 非法场景探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,188,15,15,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,1,0,0
+1794492560479,5,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,209,15,15,http://localhost:8088/api/v1/auth/email-verification-codes,5,0,0
+1794492560485,5,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-19,text,true,,352,207,15,15,http://localhost:8088/api/v1/auth/password-reset/request,5,0,0
+1794492558939,2523,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-23,text,true,,582,207,14,14,http://localhost:8088/api/v1/auth/password-reset/request,2522,0,0
+1794492561463,4,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-23,text,true,,352,190,14,14,http://localhost:8088/api/v1/auth/login,4,0,0
+1794492561468,26,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-23,text,true,,579,188,14,14,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,26,0,0
+1794492561497,9,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-23,text,true,,582,209,14,14,http://localhost:8088/api/v1/auth/email-verification-codes,9,0,0
+1794492558939,3541,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-14,text,true,,582,207,14,14,http://localhost:8088/api/v1/auth/password-reset/request,3541,0,0
+1794492562481,5,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-14,text,true,,352,190,14,14,http://localhost:8088/api/v1/auth/login,5,0,0
+1794492562487,32,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-14,text,true,,579,188,14,14,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,32,0,0
+1794492562523,4,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-14,text,true,,352,209,14,14,http://localhost:8088/api/v1/auth/email-verification-codes,4,0,0
+1794492562529,19,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-14,text,true,,352,207,14,14,http://localhost:8088/api/v1/auth/password-reset/request,19,0,0
+1794492562549,4,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-14,text,true,,352,190,14,14,http://localhost:8088/api/v1/auth/login,4,0,0
+1794492562554,10,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-14,text,true,,579,188,14,14,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,5,0,0
+1794492562565,6,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-14,text,true,,352,209,14,14,http://localhost:8088/api/v1/auth/email-verification-codes,6,0,0
+1794492562572,4,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-14,text,true,,352,207,14,14,http://localhost:8088/api/v1/auth/password-reset/request,4,0,0
+1794492562577,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-14,text,true,,352,190,14,14,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492562580,33,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-14,text,true,,579,188,14,14,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,33,0,0
+1794492562615,6,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-14,text,true,,352,209,14,14,http://localhost:8088/api/v1/auth/email-verification-codes,5,0,0
+1794492562622,5,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-14,text,true,,352,207,14,14,http://localhost:8088/api/v1/auth/password-reset/request,5,0,0
+1794492558939,4565,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-8,text,true,,582,207,13,13,http://localhost:8088/api/v1/auth/password-reset/request,4565,0,0
+1794492563504,7,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-8,text,true,,352,190,13,13,http://localhost:8088/api/v1/auth/login,7,0,0
+1794492563512,14,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-8,text,true,,579,188,13,13,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,14,0,0
+1794492563527,13,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-8,text,true,,582,209,13,13,http://localhost:8088/api/v1/auth/email-verification-codes,13,0,0
+1794492558935,5576,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-12,text,true,,582,207,13,13,http://localhost:8088/api/v1/auth/password-reset/request,5576,0,0
+1794492564511,10,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-12,text,true,,352,190,13,13,http://localhost:8088/api/v1/auth/login,10,0,0
+1794492564522,34,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-12,text,true,,579,188,13,13,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,34,0,0
+1794492564557,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-12,text,true,,352,209,13,13,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492564559,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-12,text,true,,352,207,13,13,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492564561,2,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-12,text,true,,352,190,13,13,http://localhost:8088/api/v1/auth/login,2,0,0
+1794492564564,24,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-12,text,true,,579,188,13,13,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,23,0,0
+1794492564588,3,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-12,text,true,,352,209,13,13,http://localhost:8088/api/v1/auth/email-verification-codes,3,0,0
+1794492564591,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-12,text,true,,352,207,13,13,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492564594,1,EP-001 登录 - 空凭据探测,429,Too Many Requests,敏感认证接口并发限流 1-12,text,true,,352,190,13,13,http://localhost:8088/api/v1/auth/login,1,0,0
+1794492564599,7,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-12,text,true,,579,188,13,13,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,7,0,0
+1794492564606,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-12,text,true,,352,209,13,13,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492564609,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-12,text,true,,352,207,13,13,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558384,7145,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-10,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,7145,0,36
+1794492565529,31,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-10,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,31,0,0
+1794492565562,19,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-10,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,19,0,0
+1794492558386,8154,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-15,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,8154,0,36
+1794492566546,13,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-15,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,13,0,0
+1794492566560,4,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-15,text,true,,352,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,4,0,0
+1794492566567,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-15,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492558386,9176,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-5,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,9176,0,29
+1794492567563,20,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-5,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,20,0,0
+1794492567585,17,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-5,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,17,0,0
+1794492558385,10205,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-22,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,10205,0,28
+1794492568593,28,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-22,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,28,0,0
+1794492568622,1,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-22,text,true,,352,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,1,0,0
+1794492568624,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-22,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558386,11206,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-1,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,11206,0,37
+1794492569594,11,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-1,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,11,0,0
+1794492569606,15,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-1,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,15,0,0
+1794492558386,12225,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-16,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,12224,0,35
+1794492570622,26,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-16,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,26,0,0
+1794492570649,8,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-16,text,true,,352,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,8,0,0
+1794492570659,1,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-16,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,1,0,0
+1794492558386,13233,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-21,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,13232,0,31
+1794492571620,12,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-21,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,12,0,0
+1794492571633,41,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-21,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,41,0,0
+1794492571675,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-21,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558386,14247,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-6,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,14247,0,27
+1794492572634,20,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-6,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,20,0,0
+1794492572654,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-6,text,true,,352,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492572657,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-6,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492558384,15269,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-18,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,15269,0,33
+1794492573654,39,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-18,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,39,0,0
+1794492573694,12,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-18,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,12,0,0
+1794492573706,14,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-18,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,14,0,0
+1794492572659,1998,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-6,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,1998,0,0
+1794492574658,25,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-6,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,25,0,0
+1794492574684,8,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-6,text,true,,352,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,8,0,0
+1794492574699,22,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-6,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,22,0,0
+1794492571678,3993,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-21,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,3992,0,0
+1794492575671,9,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-21,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,8,0,0
+1794492575680,10,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-21,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,10,0,0
+1794492575691,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-21,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492570661,6020,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-16,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,6020,0,0
+1794492576681,9,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-16,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,9,0,0
+1794492576691,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-16,text,true,,352,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492576693,1,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-16,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,1,0,0
+1794492569622,8072,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-1,text,true,,582,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,8072,0,0
+1794492568626,10084,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-22,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,10084,0,0
+1794492578710,14,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-22,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,14,0,0
+1794492578726,15,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-22,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,15,0,0
+1794492567603,12119,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-5,text,true,,582,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,12119,0,0
+1794492566576,14164,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-15,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,14163,0,0
+1794492580740,24,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-15,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,24,0,0
+1794492580765,46,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-15,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,46,0,0
+1794492565583,16160,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-10,text,true,,582,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,16160,0,0
+1794492563541,19221,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-8,text,true,,582,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,19221,0,0
+1794492561506,22272,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-23,text,true,,582,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,22272,0,0
+1794492559450,25353,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-3,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,25353,0,0
+1794492584802,22,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-3,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,22,0,0
+1794492584825,34,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-3,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,34,0,0
+1794492583776,2027,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-23,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,2027,0,0
+1794492585804,13,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-23,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,13,0,0
+1794492585818,10,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-23,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,9,0,0
+1794492582762,4051,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-8,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,4051,0,0
+1794492586816,21,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-8,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,21,0,0
+1794492586837,42,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-8,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,42,0,0
+1794492581743,6090,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-10,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,6090,0,0
+1794492587832,28,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-10,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,28,0,0
+1794492587861,9,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-10,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,9,0,0
+1794492587870,1,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-10,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,1,0,0
+1794492580812,8030,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-15,text,true,,582,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,8030,0,0
+1794492579723,10137,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-5,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,10137,0,0
+1794492589860,15,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-5,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,15,0,0
+1794492589876,17,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-5,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,17,0,0
+1794492578742,12127,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-22,text,true,,582,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,12127,0,0
+1794492577694,14198,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-1,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,14198,0,0
+1794492591892,39,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-1,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,39,0,0
+1794492591932,17,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-1,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,17,0,0
+1794492576694,16211,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-16,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,16211,0,0
+1794492592905,21,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-16,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,21,0,0
+1794492592927,16,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-16,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,16,0,0
+1794492592944,27,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-16,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,27,0,0
+1794492575693,18236,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-21,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,18236,0,0
+1794492593929,8,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-21,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,8,0,0
+1794492593937,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-21,text,true,,352,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492593939,1,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-21,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,1,0,0
+1794492574722,20219,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-6,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,20219,0,0
+1794492594941,7,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-6,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,7,0,0
+1794492594949,6,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-6,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,6,0,0
+1794492594955,1,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-6,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,1,0,0
+1794492573721,22243,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-18,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,22243,0,0
+1794492595964,10,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-18,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,10,0,0
+1794492595974,1,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-18,text,true,,352,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,1,0,0
+1794492595976,1,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-18,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,1,0,0
+1794492594957,2036,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-6,text,true,,584,190,12,12,http://localhost:8088/api/v1/auth/login,2036,0,0
+1794492596994,13,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-6,text,true,,579,188,12,12,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,13,0,0
+1794492597007,11,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-6,text,true,,582,209,12,12,http://localhost:8088/api/v1/auth/email-verification-codes,11,0,0
+1794492597019,1,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-6,text,true,,352,207,12,12,http://localhost:8088/api/v1/auth/password-reset/request,1,0,0
+1794492593941,4086,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-21,text,true,,584,190,11,11,http://localhost:8088/api/v1/auth/login,4086,0,0
+1794492598029,14,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-21,text,true,,579,188,11,11,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,14,0,0
+1794492598044,1,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-21,text,true,,352,209,11,11,http://localhost:8088/api/v1/auth/email-verification-codes,1,0,0
+1794492598046,3,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-21,text,true,,352,207,11,11,http://localhost:8088/api/v1/auth/password-reset/request,3,0,0
+1794492592972,6066,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-16,text,true,,584,190,10,10,http://localhost:8088/api/v1/auth/login,6066,0,0
+1794492599040,51,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-16,text,true,,579,188,10,10,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,51,0,0
+1794492599092,15,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-16,text,true,,582,209,10,10,http://localhost:8088/api/v1/auth/email-verification-codes,15,0,0
+1794492599107,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-16,text,true,,352,207,10,10,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492591949,8107,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-1,text,true,,582,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,8107,0,0
+1794492590868,10206,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-22,text,true,,584,190,9,9,http://localhost:8088/api/v1/auth/login,10206,0,0
+1794492601076,49,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-22,text,true,,579,188,9,9,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,49,0,0
+1794492601126,29,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-22,text,true,,582,209,9,9,http://localhost:8088/api/v1/auth/email-verification-codes,21,0,0
+1794492589894,12227,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-5,text,true,,582,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,12227,0,0
+1794492588842,14366,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-15,text,true,,584,190,9,9,http://localhost:8088/api/v1/auth/login,14365,0,0
+1794492603209,17,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-15,text,true,,579,188,9,9,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,17,0,0
+1794492603227,36,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-15,text,true,,582,209,9,9,http://localhost:8088/api/v1/auth/email-verification-codes,36,0,0
+1794492587872,16347,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-10,text,true,,584,190,9,9,http://localhost:8088/api/v1/auth/login,16347,0,0
+1794492604220,24,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-10,text,true,,579,188,9,9,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,23,0,0
+1794492604244,2,EP-068 邮件 OTP - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-10,text,true,,352,209,9,9,http://localhost:8088/api/v1/auth/email-verification-codes,2,0,0
+1794492604247,40,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-10,text,true,,352,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,40,0,0
+1794492586880,18361,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-8,text,true,,582,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,18361,0,0
+1794492585828,20433,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-23,text,true,,582,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,20433,0,0
+1794492584860,22414,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-3,text,true,,582,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,22412,0,0
+1794492606261,2052,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-23,text,true,,584,190,9,9,http://localhost:8088/api/v1/auth/login,2052,0,0
+1794492608314,12,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-23,text,true,,579,188,9,9,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,11,0,0
+1794492608326,11,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-23,text,true,,582,209,9,9,http://localhost:8088/api/v1/auth/email-verification-codes,11,0,0
+1794492605242,4099,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-8,text,true,,584,190,9,9,http://localhost:8088/api/v1/auth/login,4099,0,0
+1794492609342,40,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-8,text,true,,579,188,9,9,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,40,0,0
+1794492609383,9,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-8,text,true,,582,209,9,9,http://localhost:8088/api/v1/auth/email-verification-codes,9,0,0
+1794492604288,6056,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-10,text,true,,584,190,9,9,http://localhost:8088/api/v1/auth/login,6056,0,0
+1794492610344,25,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-10,text,true,,579,188,9,9,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,25,0,0
+1794492610370,28,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-10,text,true,,582,209,9,9,http://localhost:8088/api/v1/auth/email-verification-codes,28,0,0
+1794492603264,8094,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-15,text,true,,582,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,8094,0,0
+1794492602123,10249,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-5,text,true,,584,190,9,9,http://localhost:8088/api/v1/auth/login,10247,0,0
+1794492612372,26,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-5,text,true,,579,188,9,9,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,26,0,0
+1794492612399,16,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-5,text,true,,582,209,9,9,http://localhost:8088/api/v1/auth/email-verification-codes,15,0,0
+1794492601156,12223,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-22,text,true,,582,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,12223,0,0
+1794492600058,14339,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-1,text,true,,584,190,9,9,http://localhost:8088/api/v1/auth/login,14339,0,0
+1794492614397,11,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-1,text,true,,579,188,9,9,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,10,0,0
+1794492614408,15,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-1,text,true,,582,209,9,9,http://localhost:8088/api/v1/auth/email-verification-codes,15,0,0
+1794492595977,19437,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-18,text,true,,584,190,9,9,http://localhost:8088/api/v1/auth/login,19437,0,0
+1794492615414,10,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-18,text,true,,579,188,9,9,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,9,0,0
+1794492615424,9,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-18,text,true,,582,209,9,9,http://localhost:8088/api/v1/auth/email-verification-codes,9,0,0
+1794492615433,2,EP-071 找回密码申请 - 空请求探测,429,Too Many Requests,敏感认证接口并发限流 1-18,text,true,,352,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,2,0,0
+1794492614423,2012,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-1,text,true,,582,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,2012,0,0
+1794492613378,4068,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-22,text,true,,584,190,9,9,http://localhost:8088/api/v1/auth/login,4068,0,0
+1794492617447,16,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-22,text,true,,579,188,9,9,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,16,0,0
+1794492617464,11,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-22,text,true,,582,209,9,9,http://localhost:8088/api/v1/auth/email-verification-codes,11,0,0
+1794492612415,6058,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-5,text,true,,582,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,6058,0,0
+1794492611359,8124,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-15,text,true,,584,190,9,9,http://localhost:8088/api/v1/auth/login,8124,0,0
+1794492619483,14,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-15,text,true,,579,188,9,9,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,14,0,2
+1794492619498,28,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-15,text,true,,582,209,9,9,http://localhost:8088/api/v1/auth/email-verification-codes,28,0,0
+1794492610398,10093,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-10,text,true,,582,207,9,9,http://localhost:8088/api/v1/auth/password-reset/request,10093,0,0
+1794492609394,12110,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-8,text,true,,582,207,8,8,http://localhost:8088/api/v1/auth/password-reset/request,12110,0,0
+1794492608337,14216,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-23,text,true,,582,207,7,7,http://localhost:8088/api/v1/auth/password-reset/request,14216,0,0
+1794492607275,16272,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-3,text,true,,584,190,6,6,http://localhost:8088/api/v1/auth/login,16272,0,0
+1794492623548,18,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-3,text,true,,579,188,6,6,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,18,0,3
+1794492623566,16,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-3,text,true,,582,209,6,6,http://localhost:8088/api/v1/auth/email-verification-codes,16,0,0
+1794492619527,5036,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-15,text,true,,582,207,6,6,http://localhost:8088/api/v1/auth/password-reset/request,5036,0,0
+1794492618474,7100,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-5,text,true,,584,190,5,5,http://localhost:8088/api/v1/auth/login,7100,0,3
+1794492625575,7,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-5,text,true,,579,188,5,5,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,7,0,0
+1794492625583,8,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-5,text,true,,582,209,5,5,http://localhost:8088/api/v1/auth/email-verification-codes,8,0,0
+1794492617476,9113,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-22,text,true,,582,207,5,5,http://localhost:8088/api/v1/auth/password-reset/request,9113,0,0
+1794492616436,11175,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-1,text,true,,584,190,4,4,http://localhost:8088/api/v1/auth/login,11175,0,0
+1794492627612,18,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-1,text,true,,579,188,4,4,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,18,0,3
+1794492627630,16,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-1,text,true,,582,209,4,4,http://localhost:8088/api/v1/auth/email-verification-codes,16,0,0
+1794492615436,13189,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-18,text,true,,584,190,4,4,http://localhost:8088/api/v1/auth/login,13189,0,0
+1794492628624,10,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-18,text,true,,579,188,4,4,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,10,0,2
+1794492628635,7,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-18,text,true,,582,209,4,4,http://localhost:8088/api/v1/auth/email-verification-codes,7,0,0
+1794492627646,1992,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-1,text,true,,582,207,4,4,http://localhost:8088/api/v1/auth/password-reset/request,1992,0,0
+1794492625592,5059,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-5,text,true,,582,207,3,3,http://localhost:8088/api/v1/auth/password-reset/request,5059,0,0
+1794492623583,8085,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-3,text,true,,582,207,2,2,http://localhost:8088/api/v1/auth/password-reset/request,8085,0,0
+1794492628643,4047,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-18,text,true,,582,207,2,2,http://localhost:8088/api/v1/auth/password-reset/request,4047,0,0
+1794492631670,2082,EP-001 登录 - 空凭据探测,400,,敏感认证接口并发限流 1-3,text,true,,584,190,1,1,http://localhost:8088/api/v1/auth/login,2081,0,0
+1794492633752,36,EP-067 图片验证码 - 非法场景探测,400,,敏感认证接口并发限流 1-3,text,true,,579,188,1,1,http://localhost:8088/api/v1/auth/captcha?scene=NGINX_PROBE,36,0,0
+1794492633788,7,EP-068 邮件 OTP - 空请求探测,400,,敏感认证接口并发限流 1-3,text,true,,582,209,1,1,http://localhost:8088/api/v1/auth/email-verification-codes,7,0,0
+1794492633796,1027,EP-071 找回密码申请 - 空请求探测,400,,敏感认证接口并发限流 1-3,text,true,,582,207,1,1,http://localhost:8088/api/v1/auth/password-reset/request,1027,0,0
+1794492634831,50,至少两次有效 429 且 trace_id 不同,200,OK,汇总 Nginx 验收断言 1-1,text,true,,69,0,1,1,null,0,0,0

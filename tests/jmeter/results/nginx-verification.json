@@ -1,0 +1,158 @@
+﻿{
+    "generated_at":  "2026-11-12T22:04:24.2712189+08:00",
+    "base_url":  "http://localhost:8088",
+    "health":  {
+                   "status":  200,
+                   "body":  "ok"
+               },
+    "sensitive":  [
+                      {
+                          "endpoint_id":  "EP-001",
+                          "method":  "POST",
+                          "path":  "/api/v1/auth/login",
+                          "attempts":  24,
+                          "rejected_429":  14,
+                          "non_429_statuses":  [
+                                                   "400:10"
+                                               ],
+                          "samples":  [
+                                          {
+                                              "status":  429,
+                                              "content_type":  "application/json; charset=utf-8",
+                                              "x_trace_id":  "e8879dc37ddaab4cabed84a8d3a6c339",
+                                              "body":  "{\"code\":40001,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null,\"trace_id\":\"e8879dc37ddaab4cabed84a8d3a6c339\"}"
+                                          },
+                                          {
+                                              "status":  429,
+                                              "content_type":  "application/json; charset=utf-8",
+                                              "x_trace_id":  "49c478f939ec759b75ccc603d4902185",
+                                              "body":  "{\"code\":40001,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null,\"trace_id\":\"49c478f939ec759b75ccc603d4902185\"}"
+                                          }
+                                      ]
+                      },
+                      {
+                          "endpoint_id":  "EP-067",
+                          "method":  "GET",
+                          "path":  "/api/v1/auth/captcha?scene=NGINX_PROBE",
+                          "attempts":  36,
+                          "rejected_429":  26,
+                          "non_429_statuses":  [
+                                                   "400:10"
+                                               ],
+                          "samples":  [
+                                          {
+                                              "status":  429,
+                                              "content_type":  "application/json; charset=utf-8",
+                                              "x_trace_id":  "48d9203e442b4cb4d65a1c3c714ff689",
+                                              "body":  "{\"code\":40001,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null,\"trace_id\":\"48d9203e442b4cb4d65a1c3c714ff689\"}"
+                                          },
+                                          {
+                                              "status":  429,
+                                              "content_type":  "application/json; charset=utf-8",
+                                              "x_trace_id":  "28eb5d8ffaa27c417e05c24b3c8dd9bc",
+                                              "body":  "{\"code\":40001,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null,\"trace_id\":\"28eb5d8ffaa27c417e05c24b3c8dd9bc\"}"
+                                          }
+                                      ]
+                      },
+                      {
+                          "endpoint_id":  "EP-068",
+                          "method":  "POST",
+                          "path":  "/api/v1/auth/email-verification-codes",
+                          "attempts":  24,
+                          "rejected_429":  19,
+                          "non_429_statuses":  [
+                                                   "400:5"
+                                               ],
+                          "samples":  [
+                                          {
+                                              "status":  429,
+                                              "content_type":  "application/json; charset=utf-8",
+                                              "x_trace_id":  "133b163f786f403bcb28bd27eb7bb7b1",
+                                              "body":  "{\"code\":40001,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null,\"trace_id\":\"133b163f786f403bcb28bd27eb7bb7b1\"}"
+                                          },
+                                          {
+                                              "status":  429,
+                                              "content_type":  "application/json; charset=utf-8",
+                                              "x_trace_id":  "95a187b3a92ffef1a8d1416d5981b3f7",
+                                              "body":  "{\"code\":40001,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null,\"trace_id\":\"95a187b3a92ffef1a8d1416d5981b3f7\"}"
+                                          }
+                                      ]
+                      },
+                      {
+                          "endpoint_id":  "EP-071",
+                          "method":  "POST",
+                          "path":  "/api/v1/auth/password-reset/request",
+                          "attempts":  24,
+                          "rejected_429":  19,
+                          "non_429_statuses":  [
+                                                   "400:5"
+                                               ],
+                          "samples":  [
+                                          {
+                                              "status":  429,
+                                              "content_type":  "application/json; charset=utf-8",
+                                              "x_trace_id":  "f4053351b13104d2a3cc003224af22ab",
+                                              "body":  "{\"code\":40001,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null,\"trace_id\":\"f4053351b13104d2a3cc003224af22ab\"}"
+                                          },
+                                          {
+                                              "status":  429,
+                                              "content_type":  "application/json; charset=utf-8",
+                                              "x_trace_id":  "5186866028b796cec0c9295da6811cd4",
+                                              "body":  "{\"code\":40001,\"message\":\"请求过于频繁，请稍后再试\",\"data\":null,\"trace_id\":\"5186866028b796cec0c9295da6811cd4\"}"
+                                          }
+                                      ]
+                      }
+                  ],
+    "non_sensitive":  [
+                          {
+                              "name":  "前端静态页面",
+                              "method":  "GET",
+                              "path":  "/login",
+                              "attempts":  12,
+                              "statuses":  [
+                                               "200:12"
+                                           ]
+                          },
+                          {
+                              "name":  "普通业务 API",
+                              "method":  "GET",
+                              "path":  "/api/v1/users/me",
+                              "attempts":  12,
+                              "statuses":  [
+                                               "401:12"
+                                           ]
+                          },
+                          {
+                              "name":  "文件批量上传路径",
+                              "method":  "POST",
+                              "path":  "/api/v1/files/batch",
+                              "attempts":  12,
+                              "statuses":  [
+                                               "403:12"
+                                           ]
+                          },
+                          {
+                              "name":  "分片上传路径",
+                              "method":  "PUT",
+                              "path":  "/api/v1/uploads/nginx-rate-limit-probe/chunks/0",
+                              "attempts":  12,
+                              "statuses":  [
+                                               "403:12"
+                                           ]
+                          },
+                          {
+                              "name":  "文件下载路径",
+                              "method":  "GET",
+                              "path":  "/api/v1/files/nginx-rate-limit-probe/content",
+                              "attempts":  12,
+                              "statuses":  [
+                                               "401:12"
+                                           ]
+                          }
+                      ],
+    "failures":  [
+
+                 ],
+    "success":  true,
+    "note":  "仅验证 Nginx 与本地链路；未使用真实账号、邮箱或 SMTP，不替代 B/C 合并后的最终验收。"
+}
