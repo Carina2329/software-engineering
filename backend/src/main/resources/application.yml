@@ -48,6 +48,7 @@ app:
     queue:
       exchange: ${MAIL_OTP_EXCHANGE:auth.otp.exchange}
       routing-key: ${MAIL_OTP_ROUTING_KEY:auth.otp.send}
+      retry-routing-key: ${MAIL_OTP_RETRY_ROUTING_KEY:auth.otp.retry}
       send-queue: ${MAIL_OTP_SEND_QUEUE:auth.otp.send.queue}
       retry-queue: ${MAIL_OTP_RETRY_QUEUE:auth.otp.retry.queue}
       dead-letter-queue: ${MAIL_OTP_DLQ:auth.otp.dlq}
