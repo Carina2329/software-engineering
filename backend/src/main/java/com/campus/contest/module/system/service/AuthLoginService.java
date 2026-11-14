@@ -72,7 +72,7 @@ public class AuthLoginService {
                 throw invalidCredentials();
             }
             AuthTokenService.LoginResult result = issueFor(user);
-            rateLimiter.clearAccountFailures(username);
+            rateLimiter.clearAccountFailures(username, clientIp);
             return result;
         } catch (BizException e) {
             if (isInfrastructureFailure(e) || isRateLimited(e)) {
@@ -103,7 +103,7 @@ public class AuthLoginService {
                 throw invalidCredentials();
             }
             AuthTokenService.LoginResult result = issueFor(user);
-            rateLimiter.clearAccountFailures(email);
+            rateLimiter.clearAccountFailures(email, clientIp);
             return result;
         } catch (BizException e) {
             if (isInfrastructureFailure(e) || isRateLimited(e)) {

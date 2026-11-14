@@ -5,9 +5,12 @@ import com.campus.contest.common.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -27,44 +30,112 @@ public class VerificationRateLimiter {
 
     private static final int REGISTER_IP_HOURLY_LIMIT = 20;
 
+    /**
+     * 原子计数：首次写入时设置 TTL，超过阈值返回 0。
+     */
+    private static final RedisScript<Long> COUNT_SCRIPT = new DefaultRedisScript<>(
+            """
+            local count = redis.call('INCR', KEYS[1])
+            if count == 1 then
+              redis.call('PEXPIRE', KEYS[1], ARGV[2])
+            end
+            if count > tonumber(ARGV[1]) then
+              return 0
+            end
+            return 1
+            """,
+            Long.class
+    );
+
+    /**
+     * OTP 发送原子限流：60 秒冷却、邮箱小时上限、IP 小时上限。
+     */
+    private static final RedisScript<Long> OTP_SEND_SCRIPT = new DefaultRedisScript<>(
+            """
+            if redis.call('EXISTS', KEYS[1]) == 1 then
+              return 0
+            end
+            local emailCount = tonumber(redis.call('GET', KEYS[2]) or '0')
+            if emailCount >= tonumber(ARGV[2]) then
+              return 0
+            end
+            local ipCount = tonumber(redis.call('GET', KEYS[3]) or '0')
+            if ipCount >= tonumber(ARGV[3]) then
+              return 0
+            end
+            redis.call('SET', KEYS[1], '1', 'PX', ARGV[1])
+            local newEmail = redis.call('INCR', KEYS[2])
+            if newEmail == 1 then
+              redis.call('PEXPIRE', KEYS[2], ARGV[4])
+            end
+            local newIp = redis.call('INCR', KEYS[3])
+            if newIp == 1 then
+              redis.call('PEXPIRE', KEYS[3], ARGV[4])
+            end
+            return 1
+            """,
+            Long.class
+    );
+
     private final StringRedisTemplate redisTemplate;
 
     public void checkCaptchaGeneration(String clientIp) {
-        countAndCheck("auth:rate:captcha:ip:", clientIp, CAPTCHA_WINDOW, CAPTCHA_IP_LIMIT);
+        checkCount(
+                "auth:rate:captcha:ip:" + VerificationTokens.sha256Hex(normalize(clientIp)),
+                CAPTCHA_WINDOW,
+                CAPTCHA_IP_LIMIT
+        );
     }
 
     public void checkAndRecordOtpSend(String email, String clientIp) {
         String normalizedEmail = normalize(email);
-        String cooldownKey = "auth:rate:otp:cooldown:email:"
-                + VerificationTokens.sha256Hex(normalizedEmail);
         try {
-            Boolean acquired = redisTemplate.opsForValue()
-                    .setIfAbsent(cooldownKey, "1", OTP_COOLDOWN);
-            if (!Boolean.TRUE.equals(acquired)) {
+            Long result = redisTemplate.execute(
+                    OTP_SEND_SCRIPT,
+                    List.of(
+                            "auth:rate:otp:cooldown:email:"
+                                    + VerificationTokens.sha256Hex(normalizedEmail),
+                            "auth:rate:otp:email:"
+                                    + VerificationTokens.sha256Hex(normalizedEmail),
+                            "auth:rate:otp:ip:"
+                                    + VerificationTokens.sha256Hex(normalize(clientIp))
+                    ),
+                    String.valueOf(OTP_COOLDOWN.toMillis()),
+                    String.valueOf(OTP_EMAIL_HOURLY_LIMIT),
+                    String.valueOf(OTP_IP_HOURLY_LIMIT),
+                    String.valueOf(OTP_WINDOW.toMillis())
+            );
+            if (result == null) {
+                throw unavailable();
+            }
+            if (result != 1L) {
                 throw rateLimited();
             }
         } catch (DataAccessException e) {
             throw unavailable();
         }
-        countAndCheck("auth:rate:otp:email:", normalizedEmail, OTP_WINDOW, OTP_EMAIL_HOURLY_LIMIT);
-        countAndCheck("auth:rate:otp:ip:", clientIp, OTP_WINDOW, OTP_IP_HOURLY_LIMIT);
     }
 
     public void checkRegister(String clientIp) {
-        countAndCheck("auth:rate:register:ip:", clientIp, OTP_WINDOW, REGISTER_IP_HOURLY_LIMIT);
+        checkCount(
+                "auth:rate:register:ip:" + VerificationTokens.sha256Hex(normalize(clientIp)),
+                OTP_WINDOW,
+                REGISTER_IP_HOURLY_LIMIT
+        );
     }
 
-    private void countAndCheck(String prefix, String subject, Duration window, int limit) {
-        String key = prefix + VerificationTokens.sha256Hex(normalize(subject));
+    private void checkCount(String key, Duration window, int limit) {
         try {
-            Long count = redisTemplate.opsForValue().increment(key);
-            if (count == null) {
+            Long result = redisTemplate.execute(
+                    COUNT_SCRIPT,
+                    List.of(key),
+                    String.valueOf(limit),
+                    String.valueOf(window.toMillis())
+            );
+            if (result == null) {
                 throw unavailable();
             }
-            if (count == 1L) {
-                redisTemplate.expire(key, window);
-            }
-            if (count > limit) {
+            if (result != 1L) {
                 throw rateLimited();
             }
         } catch (DataAccessException e) {

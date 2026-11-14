@@ -4,27 +4,29 @@ import com.campus.contest.common.BizException;
 import com.campus.contest.module.system.dto.EmailVerificationCodeRequest;
 import com.campus.contest.module.system.entity.SysUserDO;
 import com.campus.contest.module.system.enums.EmailOtpScene;
+import com.campus.contest.module.system.messaging.EmailOtpDispatchCommand;
+import com.campus.contest.module.system.messaging.EmailOtpPublisher;
 import com.campus.contest.module.system.service.AuthUserLookupService;
 import com.campus.contest.module.system.service.CaptchaService;
 import com.campus.contest.module.system.service.VerificationRateLimiter;
+import com.campus.contest.module.system.service.VerificationTokens;
 import com.campus.contest.module.system.vo.EmailVerificationChallengeVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.core.HashOperations;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.RedisScript;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.mockito.ArgumentCaptor;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -32,45 +34,42 @@ import static org.mockito.Mockito.when;
 
 class EmailOtpServiceImplTest {
 
-    private StringRedisTemplate redisTemplate;
-    private HashOperations<String, Object, Object> hashOps;
+    private RedisEmailOtpChallengeStore challengeStore;
     private AuthUserLookupService userLookupService;
-    private JavaMailSender mailSender;
+    private EmailOtpPublisher publisher;
     private EmailOtpServiceImpl service;
 
     @BeforeEach
-    @SuppressWarnings("unchecked")
     void setUp() {
-        redisTemplate = mock(StringRedisTemplate.class);
-        hashOps = mock(HashOperations.class);
-        when(redisTemplate.opsForHash()).thenReturn(hashOps);
+        challengeStore = mock(RedisEmailOtpChallengeStore.class);
         userLookupService = mock(AuthUserLookupService.class);
-        mailSender = mock(JavaMailSender.class);
+        publisher = mock(EmailOtpPublisher.class);
         service = new EmailOtpServiceImpl(
-                redisTemplate,
+                challengeStore,
                 mock(VerificationRateLimiter.class),
                 userLookupService,
                 mock(CaptchaService.class),
-                mailSender
+                publisher
         );
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    void verifySuccessDoesNotThrow() {
-        when(redisTemplate.execute(
-                any(RedisScript.class), anyList(), any(Object[].class)
-        )).thenReturn(1L);
+    void verifyDelegatesToChallengeStore() {
+        service.verify("challenge-1", "Student@Example.edu", "123456", EmailOtpScene.REGISTER);
 
-        service.verify("challenge-1", "student@example.edu", "123456", EmailOtpScene.REGISTER);
+        verify(challengeStore).verifyAndConsume(
+                eq("challenge-1"),
+                eq("student@example.edu"),
+                eq(VerificationTokens.sha256Hex("123456")),
+                eq(EmailOtpScene.REGISTER)
+        );
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void verifyRejectsSceneIsolation() {
-        when(redisTemplate.execute(
-                any(RedisScript.class), anyList(), any(Object[].class)
-        )).thenReturn(2L);
+        doThrow(new BizException(10001, "邮箱验证码不正确或已失效"))
+                .when(challengeStore)
+                .verifyAndConsume(any(), any(), any(), any());
 
         BizException exception = assertThrows(
                 BizException.class,
@@ -80,11 +79,10 @@ class EmailOtpServiceImplTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void verifyExhaustedThrowsRateLimited() {
-        when(redisTemplate.execute(
-                any(RedisScript.class), anyList(), any(Object[].class)
-        )).thenReturn(4L);
+        doThrow(new BizException(40001, "邮箱验证码错误次数过多，请重新获取"))
+                .when(challengeStore)
+                .verifyAndConsume(any(), any(), any(), any());
 
         BizException exception = assertThrows(
                 BizException.class,
@@ -101,7 +99,7 @@ class EmailOtpServiceImplTest {
 
         assertNotNull(challenge.challengeId());
         assertFalse(challenge.challengeId().isBlank());
-        verify(mailSender, never()).send(any(SimpleMailMessage.class));
+        verify(publisher, never()).publish(any());
     }
 
     @Test
@@ -111,7 +109,7 @@ class EmailOtpServiceImplTest {
         EmailVerificationChallengeVO challenge = service.send(request(EmailOtpScene.RESET_PASSWORD), "127.0.0.1");
 
         assertNotNull(challenge.challengeId());
-        verify(mailSender, never()).send(any(SimpleMailMessage.class));
+        verify(publisher, never()).publish(any());
     }
 
     @Test
@@ -121,19 +119,60 @@ class EmailOtpServiceImplTest {
         EmailVerificationChallengeVO challenge = service.send(request(EmailOtpScene.REGISTER), "127.0.0.1");
 
         assertNotNull(challenge.challengeId());
-        verify(mailSender, never()).send(any(SimpleMailMessage.class));
+        verify(publisher, never()).publish(any());
     }
 
     @Test
-    void sendSendsMailForActiveLoginEmail() {
+    void sendPublishesCommandForActiveLoginEmail() {
         when(userLookupService.findByEmail("student@example.edu")).thenReturn(Optional.of(activeUser()));
-        ReflectionTestUtils.setField(service, "mailFrom", "no-reply@test.local");
+        Instant expiresAt = Instant.now().plusSeconds(300);
+        when(challengeStore.createOrReplace(any(), any(), any(), any()))
+                .thenReturn(new RedisEmailOtpChallengeStore.CreatedChallenge(
+                        "challenge-1",
+                        expiresAt
+                ));
 
         EmailVerificationChallengeVO challenge = service.send(request(EmailOtpScene.LOGIN), "127.0.0.1");
 
-        assertNotNull(challenge.challengeId());
-        assertFalse(challenge.challengeId().isBlank());
-        verify(mailSender).send(any(SimpleMailMessage.class));
+        assertEquals("challenge-1", challenge.challengeId());
+        ArgumentCaptor<EmailOtpDispatchCommand> captor =
+                ArgumentCaptor.forClass(EmailOtpDispatchCommand.class);
+        verify(publisher).publish(captor.capture());
+        EmailOtpDispatchCommand command = captor.getValue();
+        assertEquals("challenge-1", command.challengeId());
+        assertEquals("student@example.edu", command.email());
+        assertEquals(EmailOtpScene.LOGIN, command.scene());
+        assertTrue(command.otpCode().matches("^[0-9]{6}$"));
+        assertEquals(expiresAt, command.expiresAt());
+        assertFalse(command.traceId().isBlank());
+        assertFalse(command.suppress());
+        verify(challengeStore).createOrReplace(
+                eq("student@example.edu"),
+                eq(EmailOtpScene.LOGIN),
+                eq(VerificationTokens.sha256Hex(command.otpCode())),
+                any(Duration.class)
+        );
+    }
+
+    @Test
+    void publisherFailurePropagatesWithoutSecondRollback() {
+        when(userLookupService.findByEmail("student@example.edu")).thenReturn(Optional.of(activeUser()));
+        when(challengeStore.createOrReplace(any(), any(), any(), any()))
+                .thenReturn(new RedisEmailOtpChallengeStore.CreatedChallenge(
+                        "challenge-2",
+                        Instant.now().plusSeconds(300)
+                ));
+        doThrow(new BizException(50003, "认证或幂等依赖暂不可用"))
+                .when(publisher)
+                .publish(any());
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> service.send(request(EmailOtpScene.LOGIN), "127.0.0.1")
+        );
+
+        assertEquals(50003, exception.getCode());
+        verify(challengeStore, never()).rollbackFailedDispatch(any(), any(), any());
     }
 
     private EmailVerificationCodeRequest request(EmailOtpScene scene) {

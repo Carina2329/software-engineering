@@ -5,65 +5,77 @@ import com.campus.contest.common.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
-import java.time.Duration;
-
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class VerificationRateLimiterTest {
 
     private StringRedisTemplate redisTemplate;
-    private ValueOperations<String, String> valueOps;
     private VerificationRateLimiter rateLimiter;
 
     @BeforeEach
-    @SuppressWarnings("unchecked")
     void setUp() {
         redisTemplate = mock(StringRedisTemplate.class);
-        valueOps = mock(ValueOperations.class);
-        when(redisTemplate.opsForValue()).thenReturn(valueOps);
         rateLimiter = new VerificationRateLimiter(redisTemplate);
     }
 
     @Test
-    void otpSendCooldownRejectsSecondRequest() {
-        when(valueOps.setIfAbsent(anyString(), eq("1"), any(Duration.class))).thenReturn(false);
+    @SuppressWarnings("unchecked")
+    void otpSendRejectedWhenLuaReturnsNotAllowed() {
+        when(redisTemplate.execute(
+                any(RedisScript.class), anyList(), any(Object[].class)
+        )).thenReturn(0L);
 
         BizException exception = assertThrows(
                 BizException.class,
-                () -> rateLimiter.checkAndRecordOtpSend("a@example.edu", "127.0.0.1")
+                () -> rateLimiter.checkAndRecordOtpSend("A@Example.edu", "127.0.0.1")
         );
 
         assertEquals(ErrorCode.RATE_LIMITED.getCode(), exception.getCode());
     }
 
     @Test
-    void otpSendRejectsWhenEmailHourlyLimitExceeded() {
-        when(valueOps.setIfAbsent(anyString(), eq("1"), any(Duration.class))).thenReturn(true);
-        when(valueOps.increment(anyString())).thenReturn(6L);
+    @SuppressWarnings("unchecked")
+    void otpSendAllowedWhenLuaReturnsOne() {
+        when(redisTemplate.execute(
+                any(RedisScript.class), anyList(), any(Object[].class)
+        )).thenReturn(1L);
 
-        BizException exception = assertThrows(
-                BizException.class,
-                () -> rateLimiter.checkAndRecordOtpSend("a@example.edu", "127.0.0.1")
-        );
-
-        assertEquals(ErrorCode.RATE_LIMITED.getCode(), exception.getCode());
+        assertDoesNotThrow(() -> rateLimiter.checkAndRecordOtpSend("a@example.edu", "127.0.0.1"));
     }
 
     @Test
-    void captchaGenerationRejectsWhenIpLimitExceeded() {
-        when(valueOps.increment(anyString())).thenReturn(31L);
+    @SuppressWarnings("unchecked")
+    void captchaGenerationRejectedWhenLuaReturnsNotAllowed() {
+        when(redisTemplate.execute(
+                any(RedisScript.class), anyList(), any(Object[].class)
+        )).thenReturn(0L);
 
         BizException exception = assertThrows(
                 BizException.class,
                 () -> rateLimiter.checkCaptchaGeneration("127.0.0.1")
+        );
+
+        assertEquals(ErrorCode.RATE_LIMITED.getCode(), exception.getCode());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void registerRejectedWhenLuaReturnsNotAllowed() {
+        when(redisTemplate.execute(
+                any(RedisScript.class), anyList(), any(Object[].class)
+        )).thenReturn(0L);
+
+        BizException exception = assertThrows(
+                BizException.class,
+                () -> rateLimiter.checkRegister("127.0.0.1")
         );
 
         assertEquals(ErrorCode.RATE_LIMITED.getCode(), exception.getCode());

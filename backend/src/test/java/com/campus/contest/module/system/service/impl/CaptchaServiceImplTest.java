@@ -6,7 +6,6 @@ import com.campus.contest.module.system.service.VerificationRateLimiter;
 import com.campus.contest.module.system.vo.CaptchaChallengeVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
@@ -25,20 +24,21 @@ import static org.mockito.Mockito.when;
 class CaptchaServiceImplTest {
 
     private StringRedisTemplate redisTemplate;
-    private HashOperations<String, Object, Object> hashOps;
     private CaptchaServiceImpl captchaService;
 
     @BeforeEach
-    @SuppressWarnings("unchecked")
     void setUp() {
         redisTemplate = mock(StringRedisTemplate.class);
-        hashOps = mock(HashOperations.class);
-        when(redisTemplate.opsForHash()).thenReturn(hashOps);
         captchaService = new CaptchaServiceImpl(redisTemplate, mock(VerificationRateLimiter.class));
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void createReturnsPngChallenge() {
+        when(redisTemplate.execute(
+                any(RedisScript.class), anyList(), any(Object[].class)
+        )).thenReturn(1L);
+
         CaptchaChallengeVO challenge = captchaService.create(CaptchaScene.LOGIN, "127.0.0.1");
         assertNotNull(challenge);
         assertNotNull(challenge.captchaId());
