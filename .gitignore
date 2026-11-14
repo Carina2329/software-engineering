@@ -30,3 +30,6 @@ logs/
 # 系统
 .DS_Store
 Thumbs.db
+
+# JMeter 生成报告（仅保留 tests/jmeter/evidence 下的脱敏验收证据）
+tests/jmeter/results/
