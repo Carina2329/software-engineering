@@ -4,6 +4,7 @@ import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
 import com.campus.contest.module.system.enums.CaptchaScene;
 import com.campus.contest.module.system.enums.EmailOtpScene;
+import com.campus.contest.module.system.messaging.EmailOtpPublisher;
 import com.campus.contest.module.system.service.AuthUserLookupService;
 import com.campus.contest.module.system.service.CaptchaService;
 import com.campus.contest.module.system.service.VerificationRateLimiter;
@@ -12,7 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.mail.javamail.JavaMailSender;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -68,7 +68,7 @@ class VerificationAtomicConsumptionRedisTest {
                     mock(VerificationRateLimiter.class),
                     mock(AuthUserLookupService.class),
                     mock(CaptchaService.class),
-                    mock(JavaMailSender.class)
+                    mock(EmailOtpPublisher.class)
             );
             String email = "student@example.edu";
             String code = "123456";

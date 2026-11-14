@@ -2,10 +2,13 @@ package com.campus.contest.module.system.service.impl;
 
 import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
+import com.campus.contest.common.trace.TraceContext;
 import com.campus.contest.module.system.dto.EmailVerificationCodeRequest;
 import com.campus.contest.module.system.dto.PasswordResetRequest;
 import com.campus.contest.module.system.enums.CaptchaScene;
 import com.campus.contest.module.system.enums.EmailOtpScene;
+import com.campus.contest.module.system.messaging.EmailOtpDispatchCommand;
+import com.campus.contest.module.system.messaging.EmailOtpPublisher;
 import com.campus.contest.module.system.service.AuthUserLookupService;
 import com.campus.contest.module.system.service.CaptchaService;
 import com.campus.contest.module.system.service.EmailOtpService;
@@ -13,11 +16,6 @@ import com.campus.contest.module.system.service.VerificationRateLimiter;
 import com.campus.contest.module.system.service.VerificationTokens;
 import com.campus.contest.module.system.vo.EmailVerificationChallengeVO;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.MailException;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -25,6 +23,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -32,7 +31,6 @@ import java.util.regex.Pattern;
  */
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class EmailOtpServiceImpl implements EmailOtpService {
 
     private static final Duration TTL = Duration.ofMinutes(5);
@@ -45,10 +43,7 @@ public class EmailOtpServiceImpl implements EmailOtpService {
     private final VerificationRateLimiter rateLimiter;
     private final AuthUserLookupService userLookupService;
     private final CaptchaService captchaService;
-    private final JavaMailSender mailSender;
-
-    @Value("${app.mail.from:}")
-    private String mailFrom;
+    private final EmailOtpPublisher publisher;
 
     @Override
     public EmailVerificationChallengeVO send(EmailVerificationCodeRequest request, String clientIp) {
@@ -125,37 +120,24 @@ public class EmailOtpServiceImpl implements EmailOtpService {
                 VerificationTokens.sha256Hex(code),
                 TTL
         );
-        try {
-            sendMail(email, scene, code);
-        } catch (RuntimeException e) {
-            try {
-                challengeStore.rollbackFailedDispatch(challenge.challengeId(), email, scene);
-            } catch (RuntimeException rollbackFailure) {
-                log.warn("邮件发送失败后清理挑战失败: {}", rollbackFailure.getClass().getSimpleName());
-            }
-            throw e;
-        }
+        publisher.publish(new EmailOtpDispatchCommand(
+                challenge.challengeId(),
+                email,
+                scene,
+                code,
+                challenge.expiresAt(),
+                currentTraceId(),
+                false
+        ));
         return new EmailVerificationChallengeVO(challenge.challengeId(), challenge.expiresAt());
     }
 
-    private void sendMail(String email, EmailOtpScene scene, String code) {
-        if (mailFrom == null || mailFrom.isBlank()) {
-            throw new BizException(
-                    ErrorCode.AUTH_IDEMPOTENCY_UNAVAILABLE.getCode(),
-                    "邮件发件人(app.mail.from)未配置"
-            );
+    private String currentTraceId() {
+        String traceId = TraceContext.currentTraceId();
+        if (traceId == null || traceId.isBlank()) {
+            return UUID.randomUUID().toString().replace("-", "");
         }
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(mailFrom);
-            message.setTo(email);
-            message.setSubject("竞赛平台邮箱验证码");
-            message.setText("您的验证码是：" + code + "，5 分钟内有效，请勿泄露。用途：" + scene.name() + "。");
-            mailSender.send(message);
-        } catch (MailException e) {
-            log.warn("邮件发送失败: {}", e.getClass().getSimpleName());
-            throw unavailable();
-        }
+        return traceId;
     }
 
     private CaptchaScene captchaSceneOf(EmailOtpScene scene) {
@@ -196,10 +178,4 @@ public class EmailOtpServiceImpl implements EmailOtpService {
         return new BizException(ErrorCode.INVALID_PARAM.getCode(), message);
     }
 
-    private BizException unavailable() {
-        return new BizException(
-                ErrorCode.AUTH_IDEMPOTENCY_UNAVAILABLE.getCode(),
-                ErrorCode.AUTH_IDEMPOTENCY_UNAVAILABLE.getMessage()
-        );
-    }
 }
