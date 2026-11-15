@@ -1,0 +1,176 @@
+# 认证与 RBAC 变更记录
+
+## 2026-11-12 - 认证高并发保护公共基线
+
+### 契约
+
+- 认证邮件 OTP 是 RabbitMQ 的唯一允许场景；202 表示任务已入队，不表示邮件已送达。
+- RabbitMQ 不可用只阻止新的 OTP 发送任务，不影响用户名密码登录或已有 OTP 的 Redis 校验。
+- 50003 扩展为认证链路依赖暂不可用，包括 Redis、幂等和认证邮件队列。
+- 重发 OTP 使旧 challenge 失效；发布失败只允许原子清理本请求 challenge。
+- Nginx 429 必须返回统一结构，trace_id 真实展开 `$request_id` 并与 `X-Trace-Id` 一致。
+- RabbitMQ 采用至少一次投递，Redis 用于正常状态下的重复消费防护，不承诺 exactly-once。
+- OpenAPI 升级到 `1.2.1`，接口汇总同步版本；旧版 1.2.0 已归档。
+
+### 公共基础
+
+- 增加 Spring AMQP 依赖、RabbitMQ 环境配置和本地 Docker 服务。
+- 冻结 `EmailOtpDispatchCommand`、`EmailOtpPublisher`、`EmailOtpChallengeStore` 三个跨模块协作接口。
+- 本轮只完成公共基线和接口声明，不包含 Nginx 限流、Redis Lua、OTP 实现或 RabbitMQ 生产者/消费者。
+
+### 验证记录
+
+- 后端完整门控测试：131 个测试通过，0 失败、0 错误、0 跳过。
+- 前端 `pnpm build` 通过，1707 个模块成功转换。
+- OpenAPI 与接口汇总均为 84 个唯一 EP，版本分别为 `1.2.1` 和 `v1.2.1`。
+- `docker compose config`、Nginx `nginx -t` 和 `/nginx-health` 校验通过。
+- RabbitMQ 容器健康检查通过。
+
+## 2026-11-11 - 登录刷新稳定性修复
+
+### 修改
+
+- 登录、注册和找回密码页面不再主动恢复旧会话，避免未登录时刷新登录页却进入上一账号的账号中心。
+- 前端 Refresh 增加跨标签页 Web Locks 串行锁，避免多个标签页同时轮换 Refresh Token。
+- 关闭无状态 Bearer JWT 请求触发的 CSRF 会话轮换。此前 `/api/v1/users/me` 成功返回时会自动清除 `XSRF-TOKEN`，导致下一次 `/api/v1/auth/refresh` 返回 403 并跳回登录页。
+
+### 验证记录
+
+- 认证 HTTP 回归测试通过：2 个测试，0 失败。
+- 使用真实登录 Cookie 的无头浏览器验证：账号中心首次加载及连续刷新 2 次，均保持账号中心；每次 Refresh 和 `/users/me` 都返回 200。
+
+## 2026-11-08 - 联调修复 v0.2.4
+
+### 修改
+
+- 文件上传请求和响应统一使用 OpenAPI 要求的 snake_case 字段。
+- 上传进度状态改为 `UPLOADING`、`MERGING`、`COMPLETED`、`FAILED`，并补充缺失分片与过期时间。
+- 批量上传返回成功数量和失败数量，OpenAPI 同步明确单个结果对象。
+- EP-047 的 `X-Chunk-SHA256` 改为真正必填。
+- 缺少必填请求头时统一返回 HTTP `400` 和业务码 `10001`，不再落入 500。
+- 开发环境 CORS 同时允许 `localhost:5173` 和 `127.0.0.1:5173`，避免用 IP 打开前端时 POST 被错误拦截为 403。
+- 权限管理后台增加“返回账号中心”入口，不再依赖浏览器回退键。
+- 邮件配置补齐 SMTP 用户名、授权码、SSL 和超时环境变量，默认仍使用 Mailpit，可切换真实邮箱服务。
+- 增加完整的 26 张基础表建表脚本，并修正 `upload_task.expire_at` 的非法默认值。
+- OpenAPI 升级到 `1.1.4`，接口汇总同步版本。
+
+### 验证记录
+
+- 使用独立 MySQL 联调库完成真实上传初始化、分片上传、进度查询和合并。
+- 身份认证、注册、找回密码、Refresh、Logout、RBAC 管理和文件数据范围联调通过。
+- 用户名密码和邮箱 OTP 两种登录、注册、找回密码、Refresh、Logout、角色创建/修改/授权、用户角色分配和会话撤销均通过真实 HTTP 验证。
+- TEAM、GUIDED、ASSIGNED 文件数据范围通过真实 MySQL 关联数据验证；离队成员和已删除队伍被拒绝。
+- 前端通过 Vite 代理加载真实图片验证码，登录页完成无头浏览器渲染验收。
+- 后端完整门控测试：130 个测试通过，0 失败，0 错误，0 跳过。
+
+## 2026-11-08 - 公共契约 v0.2.3
+
+### 修改
+
+- OpenAPI 升级到 `1.1.3`，接口汇总同步版本。
+- EP-007 用户角色分配改为必须携带 `Idempotency-Key`；缺少时返回 HTTP `400` 和业务码 `10001`。
+- `contract.md` 的用户角色分配规则与实现同步。
+
+### 说明
+
+- PR #7 已合并到 `feature/rbac-auth`，合并提交为 `9eb09cf`。
+- RBAC 后端最终提交为 `dd3e513`。
+
+### 验证记录
+
+- 后端完整门控测试：127 个测试通过，0 失败，0 错误，0 跳过。
+- 覆盖真实 Redis、认证 HTTP、13 个 RBAC HTTP 用例、上传任务归属、批量会话撤销和文件数据范围 SQL 条件。
+- 前端 `pnpm build`：1707 个模块转换成功。
+- 真实 MySQL、Mailpit 和多角色文件数据范围端到端验收仍需在完整数据库建表后执行。
+
+## 2026-11-07 - 前端集成 v0.2.2
+
+### 新增
+
+- 注册用户管理、角色管理、权限资源和 403 页面路由，并在路由守卫中按权限码拦截。
+- 账号中心为拥有管理权限的用户提供权限管理入口。
+
+### 修改
+
+- 登录成功、退出登录、401 和重置密码导致会话清理时同步清空菜单与按钮权限缓存。
+- 管理页面统一使用公共 `ApiError` 和 `getApiErrorMessage`，移除重复错误模型。
+- 菜单权限快照忽略已停用资源，避免展示后端不会授权的按钮。
+- 邮件 OTP 登录和注册在取得挑战后隐藏图片验证码，不再展示不参与提交的输入项。
+- 重新发送邮件 OTP 时先作废旧挑战并重新获取图片验证码，避免复用已消费的验证码。
+
+### 约束
+
+- 本次仅完成前端集成和公共骨架收口，不包含同学 3 负责的 RBAC 后端接口。
+- 前端菜单和按钮控制仍只用于体验优化，最终权限由后端 Spring Security 校验。
+
+### 验证记录
+
+- `pnpm build`：1707 个模块转换成功，无 TypeScript 错误。
+
+## 2026-11-06 - 公共契约 v0.2.1
+
+### 新增
+
+- 邮件发件人公共配置 `app.mail.from`，环境变量为 `MAIL_FROM`。
+
+### 修改
+
+- OpenAPI 升级到 `1.1.2`，接口汇总同步版本。
+- 注册接口明确同 IP 最多 20 次/小时。
+- 明确 EP-068 按 `REGISTER`、`LOGIN` 和 `RESET_PASSWORD` 场景决定是否实际发信；不实际发信时仍返回相同结构和 `challengeId`。
+- 找回密码 OTP 只能通过 EP-071 发送，防止账号枚举。
+
+### 验证记录
+
+- PR #5 `e403a23` 完整门控测试：60 个测试通过，0 失败，0 错误，0 跳过。
+- 验证码和邮件 OTP 的读取、比对、删除由 Redis Lua 脚本原子完成。
+- 图片验证码、邮件 OTP、会话标识等安全随机值统一使用 `java.security.SecureRandom`。
+
+## 2026-11-04 - 公共基础 v0.2.0
+
+### 新增
+
+- 跨模块接口定义：
+  - `EmailOtpScene`
+  - `EmailOtpVerifier`
+  - `SessionRevocationService`
+  - `CurrentUserProvider`
+- 公共业务错误码 `50003`：认证或幂等依赖暂不可用，HTTP 503，可重试。
+- 请求级 `trace_id` 生成、响应头返回和 MDC 清理。
+- `sys_user`、`sys_role`、`sys_user_role`、`sys_menu`、`sys_role_menu`、`sys_oper_log` 的 Entity 和 Mapper。
+- 只读 RBAC 权限快照服务。
+- 公共审计日志服务，自动脱敏敏感字段。
+- 带 USER 或 SESSION 作用域的 Redis 幂等服务。
+- Mailpit 开发服务配置。
+
+### 修改
+
+- `Result` 增加兼容 OpenAPI 的 `trace_id` 字段。
+- 全局异常处理按既有数字业务码返回对应 HTTP 状态。
+- MyBatis-Plus 注册乐观锁插件，使实体 `version` 字段实际参与更新校验。
+- CORS 不再允许任意来源。
+- Spring Security OAuth2 Resource Server、Spring Security Test 和 Spring Mail 依赖加入公共构建。
+- `sys_oper_log` 增加 `trace_id VARCHAR(64) NULL`。
+
+### 约束
+
+- `20001` 继续表示业务状态或乐观锁冲突。
+- `40002` 继续表示重复请求、重放或幂等冲突。
+- `50001` 继续表示 AI 服务不可用。
+- `50002` 继续表示对象存储不可用。
+- 不新增数据库表。
+
+### 验证记录
+
+- `RUN_REDIS_TESTS=true mvn -B clean test`：18 个测试通过。
+- 原有小文件上传返回 201，下载文件 SHA-256 与源文件一致。
+- 成功响应、参数错误响应和响应头使用相同 `X-Trace-Id`。
+- 缺少上传文件参数返回 HTTP 400 和业务码 `10001`。
+- CORS 只回显配置允许的前端来源。
+- 真实 Redis 集成测试覆盖并发同请求、不同用户同幂等键和 Redis 断连失败关闭。
+
+## 2026-11-03 - 初始契约 v0.1.0
+
+- 建立两种登录方式、图片验证码、邮件 OTP、JWT＋Redis 会话和 RBAC 方案。
+- 冻结 12 个新增接口和 78 个接口操作。
+- 明确不新增数据库表，只扩展现有系统表。

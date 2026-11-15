@@ -1,5 +1,6 @@
 package com.campus.contest.module.work.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 /**
@@ -8,8 +9,10 @@ import lombok.Data;
 @Data
 public class FileUploadResult {
 
+    @JsonProperty("file_name")
     private String fileName;
-    private Long fileId;
+    @JsonProperty("file_id")
+    private String fileId;
     private Long size;
     private String path;
     private boolean success;
