@@ -22,4 +22,12 @@
 ### 当前范围
 
 - 只开放个人档案和竞赛届次两个业务项。
-- 不生成正式任务卡，不实现 Controller、Service、Mapper 或前端页面。
+- 生成两张正式任务卡：刘同学负责个人档案，谷同学负责竞赛与届次。
+- 本轮仍不实现 Controller、Service、Mapper 或前端页面。
+
+## 2026-11-15 - 正式任务卡
+
+- `BIZ-PROFILE-001`：刘同学，分支 `feature/business-profile`。
+- `BIZ-CONTEST-EDITION-001`：谷同学，分支 `feature/business-contest-edition`。
+- 两个分支均从最新 `origin/feature/business-core` 创建，PR 目标为 `feature/business-core`。
+- 个人档案先合入集成分支，竞赛与届次随后 rebase 并合入。
