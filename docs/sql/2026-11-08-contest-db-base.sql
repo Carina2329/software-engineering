@@ -1,5 +1,5 @@
 -- AI 学科竞赛全流程智能服务平台 数据库建表脚本（MySQL 8.0）
--- 版本：1.0.1（2026-11-08）
+-- 版本：1.1.0（2026-11-15）
 -- 说明：业务关系由应用层保证，相关字段均已建索引；关联表仅含 id 与 created_at。
 -- 注意：脚本会先 DROP 同名表再重建，只能在开发库执行，切勿在生产库运行！
 -- 字符集：utf8mb4；引擎：InnoDB
@@ -84,7 +84,7 @@ CREATE TABLE `contest_edition` (
   `contest_id` BIGINT NOT NULL COMMENT '所属竞赛',
   `edition_name` VARCHAR(128) NOT NULL COMMENT '届次名称',
   `year` SMALLINT NOT NULL COMMENT '举办年份',
-  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '届次状态',
+  `status` TINYINT NOT NULL DEFAULT 0 COMMENT '届次状态：0=DRAFT，1=REGISTERING，2=SUBMITTING，3=REVIEWING，4=PUBLISHING，5=ARCHIVED',
   `register_deadline` DATETIME COMMENT '报名截止时间',
   `work_deadline` DATETIME COMMENT '作品截止时间',
   `review_start` DATETIME COMMENT '评审开始时间',
@@ -92,6 +92,12 @@ CREATE TABLE `contest_edition` (
   `publish_end` DATETIME COMMENT '公示结束时间',
   `min_team_size` TINYINT NOT NULL DEFAULT 1 COMMENT '最少队伍人数',
   `max_team_size` TINYINT NOT NULL DEFAULT 5 COMMENT '最多队伍人数',
+  `team_size_mode` VARCHAR(16) NOT NULL DEFAULT 'RANGE' COMMENT '队伍人数模式：FIXED 或 RANGE',
+  `max_teams_per_teacher` TINYINT NOT NULL DEFAULT 3 COMMENT '当前届次每位教师最多确认指导队伍数（1-10）',
+  `topic_mode` VARCHAR(24) DEFAULT NULL COMMENT '赛题模式；草稿可为空，发布前必填',
+  `topic_review_required` TINYINT NOT NULL DEFAULT 1 COMMENT '选题或自拟项目是否需要管理员审核',
+  `topic_allocation_mode` VARCHAR(16) NOT NULL DEFAULT 'REVIEW' COMMENT '限额赛题分配方式：REVIEW 或 FIRST_COME',
+  `topic_change_limit` TINYINT NOT NULL DEFAULT 1 COMMENT '报名截止前允许更换赛题或项目次数（0-3）',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `created_by` BIGINT NOT NULL COMMENT '创建人',
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
@@ -101,6 +107,27 @@ CREATE TABLE `contest_edition` (
   `version` INT NOT NULL DEFAULT 0 COMMENT '版本号（乐观锁）',
   KEY `idx_edition_contest` (contest_id),
   KEY `idx_edition_status` (status),
+  UNIQUE KEY `uk_edition_contest_name` (contest_id, edition_name),
+  CONSTRAINT `chk_edition_status`
+    CHECK (`status` BETWEEN 0 AND 5),
+  CONSTRAINT `chk_edition_team_size_mode`
+    CHECK (`team_size_mode` IN ('FIXED', 'RANGE')),
+  CONSTRAINT `chk_edition_team_sizes`
+    CHECK (`min_team_size` BETWEEN 1 AND 5
+      AND `max_team_size` BETWEEN 1 AND 5
+      AND `min_team_size` <= `max_team_size`
+      AND (`team_size_mode` = 'RANGE' OR `min_team_size` = `max_team_size`)),
+  CONSTRAINT `chk_edition_teacher_limit`
+    CHECK (`max_teams_per_teacher` BETWEEN 1 AND 10),
+  CONSTRAINT `chk_edition_topic_mode`
+    CHECK (`topic_mode` IS NULL OR `topic_mode` IN
+      ('PRESET_UNLIMITED', 'PRESET_LIMITED', 'SELF_PROPOSED', 'NO_TOPIC')),
+  CONSTRAINT `chk_edition_topic_allocation`
+    CHECK (`topic_allocation_mode` IN ('REVIEW', 'FIRST_COME')),
+  CONSTRAINT `chk_edition_topic_change_limit`
+    CHECK (`topic_change_limit` BETWEEN 0 AND 3),
+  CONSTRAINT `chk_edition_topic_review_required`
+    CHECK (`topic_review_required` IN (0, 1)),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='竞赛的一次具体举办（FR-04，业务数据组织单位）';
 
@@ -132,7 +159,7 @@ CREATE TABLE `contest_topic` (
   `direction` VARCHAR(64) COMMENT '方向',
   `difficulty` TINYINT COMMENT '难度',
   `tech_requirement` VARCHAR(512) COMMENT '技术需求',
-  `max_teams` INT NOT NULL DEFAULT 1 COMMENT '可报名队伍数',
+  `max_teams` INT DEFAULT NULL COMMENT '可选队伍容量；NULL 表示不限队伍数量',
   `chosen_count` INT NOT NULL DEFAULT 0 COMMENT '已选题队伍数',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `created_by` BIGINT NOT NULL COMMENT '创建人',

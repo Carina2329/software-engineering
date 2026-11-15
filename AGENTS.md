@@ -1,28 +1,29 @@
 # 项目 AI 协作约束
 
-本文件适用于本仓库中参与本周认证与 RBAC 开发的 AI 助手。
+本文件适用于本仓库的全部开发与评审工作。认证、RBAC 和高并发保护已于 PR #12 合并到 `develop`，当前进入业务核心开发。
 
 ## 开发前必须阅读
 
 开始任何实现前，阅读：
 
 - `AGENTS.md`
-- 对应角色的 `docs/auth-rbac/ai-task-briefs.md` 任务卡
-- `docs/auth-rbac/contract.md` 中与本任务相关的部分
+- `docs/business/business-core/contract.md` 和当前阶段任务卡（如适用）
 - `docs/api/openapi-v1.json` 中对应的接口定义
+- 修改认证或高并发路径时，阅读 `docs/auth-rbac/contract.md` 和对应任务卡
 
 如任务涉及数据库，只能阅读：
 
-- `docs/db/rbac-auth-delta.md`
-- `docs/sql/2026-11-03-rbac-auth-foundation.sql`
+- `docs/db/contest-selection-delta-v0.2.md`
+- `docs/sql/2026-11-15-business-core-foundation.sql`
+- 认证相关任务继续阅读 `docs/db/rbac-auth-delta.md` 和 `docs/sql/2026-11-03-rbac-auth-foundation.sql`
 
 这些文件是事实源。不要在任务卡、代码注释或另一份文档中复制一套接口字段或数据库定义。
 
-公共契约版本记录见 `docs/auth-rbac/CHANGELOG.md`。
+业务公共契约版本记录见 `docs/business/business-core/CHANGELOG.md`；认证与高并发记录见 `docs/auth-rbac/CHANGELOG.md`。
 
-## 已冻结范围
+## 认证与高并发冻结范围
 
-本周只实现：
+以下能力已经合并为正式基线：
 
 - 用户名密码和邮箱 OTP 两种登录；
 - 服务端图片人机验证码；
@@ -40,6 +41,15 @@
 
 除认证邮件 OTP 异步发送外，禁止扩展短信登录、第三方登录、SSO、多因素认证、新的权限表、消息队列或 Outbox。其他业务不得自行接入 MQ。
 
+## 当前业务开放范围
+
+当前只开放两个业务闭环，真实组员认领和段欣懿确认后才能生成正式任务卡：
+
+- 个人档案：学生姓名、学号、学院、专业、年级；教师姓名、学院、职称。
+- 竞赛与届次：竞赛主档、届次、核心时间、固定/范围人数、教师指导上限、赛题模式、发布和查看。
+
+本阶段不实现赛题增删、队伍报名、教师申请、作品提交、评审、公示、通知、AI 或静态空壳页面。
+
 ## 公共文件边界
 
 以下文件由段欣懿统一维护。其他成员不得直接修改；若需要变更，应在任务结果中说明原因、期望改动和影响，由段欣懿处理：
@@ -53,13 +63,18 @@
 - `backend/src/main/java/com/campus/contest/config/CorsConfig.java`
 - `docs/api/openapi-v1.json`
 - `docs/api/接口汇总.md`
+- `docs/api/archive/`
+- `docs/business/business-core/`
+- `docs/db/contest-selection-delta-v0.2.md`
+- `docs/AI学科竞赛系统-功能需求说明书-V0.4.md`
+- `docs/AI学科竞赛系统-前后端工程规划与命名规范-V0.3.md`
 - `docs/auth-rbac/contract.md`
 - `docs/auth-rbac/team-plan.md`
 - `docs/db/rbac-auth-delta.md`
 - `docs/sql/` 下的公共数据库脚本
 - 根目录 `AGENTS.md`
 
-前端公共骨架只由同学 4 维护：
+前端公共骨架由段欣懿指定的当前任务卡负责人维护：
 
 - `frontend/src/api/request.ts`
 - `frontend/src/router/index.ts`
@@ -67,7 +82,7 @@
 - `frontend/src/main.ts`
 - `frontend/src/App.vue`
 
-同学 5 不得创建第二套 Axios 实例、Auth Store、Token 持久化或路由守卫。
+任何业务成员不得创建第二套 Axios 实例、Auth Store、Token 持久化或路由守卫。
 
 ## 认证与授权约束
 
@@ -123,6 +138,8 @@
 - 适用的写接口使用 `Idempotency-Key`。
 - 更新接口使用 `version` 乐观锁。
 - 角色变更、角色授权和用户角色分配必须写审计日志，但不得记录敏感数据。
+- 业务时间统一按 `Asia/Shanghai` 解释。
+- 普通用户不得看到草稿届次；归档届次只读。
 
 公共基础现已提供统一 `trace_id`、数字错误码映射、六张系统表的 Entity/Mapper、权限快照、审计和幂等服务。
 同学 1、2、3 使用这些公共能力，不再各自创建同名数据访问或审计逻辑。
