@@ -27,9 +27,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 本类刻意不进入 `mvn test` 默认执行（后缀为 IT，surefire 默认只收 *Test），
  * 并且额外要求 -Dprofile.mysql.it=true 才运行，避免没有数据库的机器误报失败。
  *
- * 运行方式（本机 Docker 容器 contest-mysql，宿主机端口 3307）：
+ * 运行方式（默认连 Docker Compose 标准端口 127.0.0.1:3306/contest_db）：
  * <pre>
  * mvn -f backend/pom.xml -Dtest=ProfileMysqlTransactionIT -Dprofile.mysql.it=true test
+ * </pre>
+ *
+ * 本机 3306 被其他软件占用时，可用环境变量覆盖默认连接（无需改代码）：
+ * <pre>
+ * $env:PROFILE_IT_DB_URL="jdbc:mysql://127.0.0.1:3307/contest_db?useUnicode=true&amp;characterEncoding=utf8&amp;serverTimezone=Asia/Shanghai&amp;allowPublicKeyRetrieval=true&amp;useSSL=false"
+ * $env:PROFILE_IT_DB_USER="root"; $env:PROFILE_IT_DB_PASSWORD="root123"
  * </pre>
  *
  * 覆盖的真实数据库行为：
@@ -44,11 +50,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ProfileMysqlTransactionIT {
 
-    private static final String DB_URL = System.getenv().getOrDefault(
-            "PROFILE_IT_DB_URL",
-            "jdbc:mysql://127.0.0.1:3307/contest_db?useUnicode=true&characterEncoding=utf8"
-                    + "&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false"
-    );
+    /** 默认对齐 docker-compose 标准端口 3306；可用 PROFILE_IT_DB_URL 覆盖（例如本机 3306 被占用时指向 3307）。 */
+    private static final String DEFAULT_DB_URL =
+            "jdbc:mysql://127.0.0.1:3306/contest_db?useUnicode=true&characterEncoding=utf8"
+                    + "&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false";
+
+    private static final String DB_URL = System.getenv().getOrDefault("PROFILE_IT_DB_URL", DEFAULT_DB_URL);
     private static final String DB_USER = System.getenv().getOrDefault("PROFILE_IT_DB_USER", "root");
     private static final String DB_PASSWORD = System.getenv().getOrDefault("PROFILE_IT_DB_PASSWORD", "root123");
 
@@ -62,7 +69,7 @@ class ProfileMysqlTransactionIT {
 
     @BeforeAll
     static void prepare() throws SQLException {
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+        try (Connection connection = connect()) {
             userIdA = insertUser(connection, USER_A, "2024" + SUFFIX.substring(SUFFIX.length() - 6), "IT 学生 A");
             userIdB = insertUser(connection, USER_B, "2024" + (long) (Math.random() * 900000 + 100000), "IT 学生 B");
         }
@@ -70,7 +77,7 @@ class ProfileMysqlTransactionIT {
 
     @AfterAll
     static void cleanup() throws SQLException {
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+        try (Connection connection = connect()) {
             try (PreparedStatement statement = connection.prepareStatement(
                     "delete from sys_oper_log where trace_id like ?")) {
                 statement.setString(1, TRACE_PREFIX + "%");
@@ -89,7 +96,7 @@ class ProfileMysqlTransactionIT {
     @Order(1)
     @DisplayName("真实 MySQL：version 命中时更新 1 行、version+1，审计与业务变更同事务提交")
     void versionUpdateCommitsWithAudit() throws SQLException {
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+        try (Connection connection = connect()) {
             connection.setAutoCommit(false);
             int rows;
             try (PreparedStatement statement = connection.prepareStatement(
@@ -114,7 +121,7 @@ class ProfileMysqlTransactionIT {
     @DisplayName("真实 MySQL：旧 version 再次提交命中 0 行，对应 HTTP 409 + 20001 版本冲突")
     void staleVersionMatchesNoRow() throws SQLException {
         int rows;
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+        try (Connection connection = connect()) {
             try (PreparedStatement statement = connection.prepareStatement(
                     "update sys_user set major = ? , version = version + 1 where id = ? and version = ?")) {
                 statement.setString(1, "计算机科学与技术");
@@ -132,7 +139,7 @@ class ProfileMysqlTransactionIT {
     @Order(3)
     @DisplayName("真实 MySQL：审计写入抛错时同事务回滚，档案变更不生效（成功变更必有审计）")
     void auditFailureRollsBackProfileUpdate() throws SQLException {
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+        try (Connection connection = connect()) {
             connection.setAutoCommit(false);
             int rows;
             try (PreparedStatement statement = connection.prepareStatement(
@@ -163,7 +170,7 @@ class ProfileMysqlTransactionIT {
     void duplicateStudentNoIsRejectedByUniqueIndex() throws SQLException {
         String takenStudentNo = readStudentNo(userIdB);
 
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+        try (Connection connection = connect()) {
             assertThatThrownBy(() -> {
                 try (PreparedStatement statement = connection.prepareStatement(
                         "update sys_user set student_no = ?, version = version + 1 where id = ? and version = ?")) {
@@ -182,6 +189,18 @@ class ProfileMysqlTransactionIT {
     // ------------------------------------------------------------------
     // 辅助方法
     // ------------------------------------------------------------------
+
+    private static Connection connect() throws SQLException {
+        try {
+            return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        } catch (SQLException e) {
+            throw new SQLException(
+                    "连接 " + DB_URL + " 失败（用户 " + DB_USER + "）。"
+                            + "该用例默认连 docker-compose 标准端口 3306；若本机 3306 被其它 MySQL（如 ZenTao）占用，"
+                            + "请设置环境变量 PROFILE_IT_DB_URL 指向项目容器端口，"
+                            + "例如 jdbc:mysql://127.0.0.1:3307/contest_db?...", e);
+        }
+    }
 
     private static long insertUser(Connection connection, String username, String studentNo, String realName)
             throws SQLException {
@@ -218,7 +237,7 @@ class ProfileMysqlTransactionIT {
     }
 
     private static int readVersion(long userId) throws SQLException {
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        try (Connection connection = connect();
              PreparedStatement statement = connection.prepareStatement("select version from sys_user where id = ?")) {
             statement.setLong(1, userId);
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -229,7 +248,7 @@ class ProfileMysqlTransactionIT {
     }
 
     private static String readMajor(long userId) throws SQLException {
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        try (Connection connection = connect();
              PreparedStatement statement = connection.prepareStatement("select major from sys_user where id = ?")) {
             statement.setLong(1, userId);
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -240,7 +259,7 @@ class ProfileMysqlTransactionIT {
     }
 
     private static String readStudentNo(long userId) throws SQLException {
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        try (Connection connection = connect();
              PreparedStatement statement =
                      connection.prepareStatement("select student_no from sys_user where id = ?")) {
             statement.setLong(1, userId);
@@ -252,7 +271,7 @@ class ProfileMysqlTransactionIT {
     }
 
     private static int readAuditCount(String traceId) throws SQLException {
-        try (Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        try (Connection connection = connect();
              PreparedStatement statement =
                      connection.prepareStatement("select count(*) from sys_oper_log where trace_id = ?")) {
             statement.setString(1, traceId);
