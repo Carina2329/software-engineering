@@ -61,6 +61,8 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -223,6 +225,42 @@ class ProfileHttpTest {
 
         assertThat(result.getResponse().getStatus()).isEqualTo(400);
         assertThat(body(result).path("code").asInt()).isEqualTo(ErrorCode.INVALID_PARAM.getCode());
+    }
+
+    @Test
+    @DisplayName("角色越界：学生提交空字符串职称同样返回 HTTP 400 + 10001")
+    void studentCannotSubmitBlankTitleOverHttp() throws Exception {
+        stubStudentProfile();
+
+        MvcResult result = mockMvc.perform(patch("/api/v1/users/me")
+                .with(authentication(studentAuth()))
+                .with(csrf())
+                .header("Idempotency-Key", "profile-student-blank-title-0001")
+                .contentType("application/json")
+                .content("{\"real_name\":\"刘蕊\",\"title\":\"\",\"version\":3}")
+        ).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(body(result).path("code").asInt()).isEqualTo(ErrorCode.INVALID_PARAM.getCode());
+        assertThat(body(result).path("message").asText()).isEqualTo("学生档案不允许修改职称");
+    }
+
+    @Test
+    @DisplayName("角色越界：教师提交空字符串学号同样返回 HTTP 400 + 10001")
+    void teacherCannotSubmitBlankStudentNoOverHttp() throws Exception {
+        stubTeacherProfile();
+
+        MvcResult result = mockMvc.perform(patch("/api/v1/users/me")
+                .with(authentication(teacherAuth()))
+                .with(csrf())
+                .header("Idempotency-Key", "profile-teacher-blank-studentno-0001")
+                .contentType("application/json")
+                .content("{\"college\":\"计算机科学学院\",\"student_no\":\"\",\"version\":2}")
+        ).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(body(result).path("code").asInt()).isEqualTo(ErrorCode.INVALID_PARAM.getCode());
+        assertThat(body(result).path("message").asText()).isEqualTo("教师档案不允许修改学号");
     }
 
     @Test

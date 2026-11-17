@@ -194,6 +194,105 @@ class ProfileServiceImplTest {
     }
 
     @Test
+    @DisplayName("学生提交空字符串职称同样返回 400：字段出现即越界，不能被当成未提交")
+    void studentCannotSubmitBlankTitle() {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUser());
+        when(authorizationSnapshotService.loadRequired(STUDENT_ID)).thenReturn(snapshot(STUDENT_ID, "STUDENT"));
+
+        ProfileUpdateRequest blankTitle = request(3, "刘蕊");
+        blankTitle.setTitle("");
+
+        assertThatThrownBy(() -> profileService.updateMyProfile(blankTitle, null))
+                .isInstanceOfSatisfying(BizException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo(ErrorCode.INVALID_PARAM.getCode());
+                    assertThat(error.getMessage()).isEqualTo("学生档案不允许修改职称");
+                });
+        verify(userMapper, never()).updateById(any(SysUserDO.class));
+    }
+
+    @Test
+    @DisplayName("教师提交空字符串或 null 学号同样返回 400")
+    void teacherCannotSubmitBlankStudentNo() {
+        when(currentUserProvider.requireUserId()).thenReturn(TEACHER_ID);
+        when(userMapper.selectById(TEACHER_ID)).thenReturn(teacherUser());
+        when(authorizationSnapshotService.loadRequired(TEACHER_ID)).thenReturn(snapshot(TEACHER_ID, "TEACHER"));
+
+        ProfileUpdateRequest blankStudentNo = request(2, null);
+        blankStudentNo.setCollege("计算机科学学院");
+        blankStudentNo.setStudentNo("   ");
+
+        assertThatThrownBy(() -> profileService.updateMyProfile(blankStudentNo, null))
+                .isInstanceOfSatisfying(BizException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo(ErrorCode.INVALID_PARAM.getCode());
+                    assertThat(error.getMessage()).isEqualTo("教师档案不允许修改学号");
+                });
+
+        ProfileUpdateRequest nullStudentNo = request(2, null);
+        nullStudentNo.setStudentNo(null);
+
+        assertThatThrownBy(() -> profileService.updateMyProfile(nullStudentNo, null))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.INVALID_PARAM.getCode()));
+        verify(userMapper, never()).updateById(any(SysUserDO.class));
+    }
+
+    @Test
+    @DisplayName("本人角色字段提交空值返回 400，不静默忽略")
+    void ownRoleFieldWithBlankValueIsRejected() {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUser());
+        when(authorizationSnapshotService.loadRequired(STUDENT_ID)).thenReturn(snapshot(STUDENT_ID, "STUDENT"));
+
+        ProfileUpdateRequest request = request(3, null);
+        request.setMajor("   ");
+
+        assertThatThrownBy(() -> profileService.updateMyProfile(request, null))
+                .isInstanceOfSatisfying(BizException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo(ErrorCode.INVALID_PARAM.getCode());
+                    assertThat(error.getMessage()).isEqualTo("专业不能为空");
+                });
+        verify(userMapper, never()).updateById(any(SysUserDO.class));
+    }
+
+    @Test
+    @DisplayName("成功变更的审计写入失败时整体失败：不会出现“改成功但没有审计”")
+    void auditFailureAbortsUpdate() {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUser());
+        when(authorizationSnapshotService.loadRequired(STUDENT_ID)).thenReturn(snapshot(STUDENT_ID, "STUDENT"));
+        when(userMapper.updateById(any(SysUserDO.class))).thenReturn(1);
+        org.mockito.Mockito.doThrow(new org.springframework.dao.DataAccessResourceFailureException("审计库不可用"))
+                .when(auditLogService).record(any(AuditLogCommand.class));
+
+        ProfileUpdateRequest request = request(3, "刘蕊");
+
+        assertThatThrownBy(() -> profileService.updateMyProfile(request, null))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    @DisplayName("重复学号是 409 + 20002，版本冲突是 409 + 20001，两者业务码必须不同")
+    void duplicateStudentNoAndVersionConflictUseDifferentCodes() {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUser());
+        when(authorizationSnapshotService.loadRequired(STUDENT_ID)).thenReturn(snapshot(STUDENT_ID, "STUDENT"));
+
+        ProfileUpdateRequest duplicate = request(3, null);
+        duplicate.setStudentNo("202678090111");
+        when(userMapper.countByStudentNoExcluding(anyString(), eq(STUDENT_ID))).thenReturn(1L);
+        assertThatThrownBy(() -> profileService.updateMyProfile(duplicate, null))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.DUPLICATE_RELATION.getCode()));
+
+        when(userMapper.updateById(any(SysUserDO.class))).thenReturn(0);
+        ProfileUpdateRequest conflict = request(2, "刘蕊");
+        assertThatThrownBy(() -> profileService.updateMyProfile(conflict, null))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_CONFLICT.getCode()));
+    }
+
+    @Test
     @DisplayName("教师修改学院与职称成功")
     void teacherUpdatesCollegeAndTitle() {
         when(currentUserProvider.requireUserId()).thenReturn(TEACHER_ID);
@@ -361,7 +460,10 @@ class ProfileServiceImplTest {
     private ProfileUpdateRequest request(Integer version, String realName) {
         ProfileUpdateRequest request = new ProfileUpdateRequest();
         request.setVersion(version);
-        request.setRealName(realName);
+        if (realName != null) {
+            // 不设置即代表“请求体里没有该字段”，与“提交了空值”要区分开
+            request.setRealName(realName);
+        }
         return request;
     }
 

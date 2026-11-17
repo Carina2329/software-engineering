@@ -206,13 +206,15 @@ public class ProfileServiceImpl implements ProfileService {
             if (rows != 1) {
                 throw versionConflict();
             }
+            // “成功变更必须有审计”：审计写入放在同一事务内。
+            // 审计落库失败会抛出运行时异常，事务整体回滚，档案不会出现“改成功但没有审计”的状态。
+            recordSuccessAudit(userId, existing, changes, version, version + 1, startedAt);
             return version + 1;
         });
         if (newVersion == null) {
             throw new BizException(ErrorCode.INTERNAL_ERROR.getCode(), "档案更新事务未返回结果");
         }
 
-        recordSuccessAudit(userId, existing, changes, version, newVersion, startedAt);
         return new IdVersionVO(String.valueOf(userId), newVersion);
     }
 
@@ -234,44 +236,56 @@ public class ProfileServiceImpl implements ProfileService {
     private Map<String, String> collectChanges(ProfileUpdateRequest request, String profileType) {
         Map<String, String> changes = new LinkedHashMap<>();
 
-        putIfPresent(changes, FIELD_REAL_NAME, request.getRealName(), REAL_NAME_MAX_LENGTH, "姓名");
-        putIfPresent(changes, FIELD_COLLEGE, request.getCollege(), COLLEGE_MAX_LENGTH, "学院");
+        // 姓名、学院对所有角色开放
+        putOwnField(changes, request, FIELD_REAL_NAME, request.getRealName(), REAL_NAME_MAX_LENGTH, "姓名");
+        putOwnField(changes, request, FIELD_COLLEGE, request.getCollege(), COLLEGE_MAX_LENGTH, "学院");
 
         if (PROFILE_STUDENT.equals(profileType)) {
-            requireRoleAllowed(request.getTitle(), "学生档案不允许修改职称");
-            putIfPresent(changes, FIELD_STUDENT_NO, request.getStudentNo(), STUDENT_NO_MAX_LENGTH, "学号");
-            putIfPresent(changes, FIELD_MAJOR, request.getMajor(), MAJOR_MAX_LENGTH, "专业");
-            putIfPresent(changes, FIELD_GRADE, request.getGrade(), GRADE_MAX_LENGTH, "年级");
+            rejectRoleField(request, FIELD_TITLE, "学生档案不允许修改职称");
+            putOwnField(changes, request, FIELD_STUDENT_NO, request.getStudentNo(), STUDENT_NO_MAX_LENGTH, "学号");
+            putOwnField(changes, request, FIELD_MAJOR, request.getMajor(), MAJOR_MAX_LENGTH, "专业");
+            putOwnField(changes, request, FIELD_GRADE, request.getGrade(), GRADE_MAX_LENGTH, "年级");
         } else if (PROFILE_TEACHER.equals(profileType)) {
-            requireRoleAllowed(request.getStudentNo(), "教师档案不允许修改学号");
-            requireRoleAllowed(request.getMajor(), "教师档案不允许修改专业");
-            requireRoleAllowed(request.getGrade(), "教师档案不允许修改年级");
-            putIfPresent(changes, FIELD_TITLE, request.getTitle(), TITLE_MAX_LENGTH, "职称");
+            rejectRoleField(request, FIELD_STUDENT_NO, "教师档案不允许修改学号");
+            rejectRoleField(request, FIELD_MAJOR, "教师档案不允许修改专业");
+            rejectRoleField(request, FIELD_GRADE, "教师档案不允许修改年级");
+            putOwnField(changes, request, FIELD_TITLE, request.getTitle(), TITLE_MAX_LENGTH, "职称");
         } else {
-            requireRoleAllowed(request.getStudentNo(), "当前角色不允许修改学号");
-            requireRoleAllowed(request.getMajor(), "当前角色不允许修改专业");
-            requireRoleAllowed(request.getGrade(), "当前角色不允许修改年级");
-            requireRoleAllowed(request.getTitle(), "当前角色不允许修改职称");
+            rejectRoleField(request, FIELD_STUDENT_NO, "当前角色不允许修改学号");
+            rejectRoleField(request, FIELD_MAJOR, "当前角色不允许修改专业");
+            rejectRoleField(request, FIELD_GRADE, "当前角色不允许修改年级");
+            rejectRoleField(request, FIELD_TITLE, "当前角色不允许修改职称");
         }
         return changes;
     }
 
-    /** 角色越界：只要提交了非本人角色的字段就返回参数错误，而不是静默忽略 */
-    private void requireRoleAllowed(String value, String message) {
-        if (StringUtils.hasText(value)) {
+    /**
+     * 角色越界：只要请求体里“出现过”非本人角色的字段就返回参数错误，
+     * 哪怕值是空串或 null。仅按“值非空”判断会让 {"title":""} 静默通过，等于绕过角色边界。
+     */
+    private void rejectRoleField(ProfileUpdateRequest request, String field, String message) {
+        if (request.hasField(field)) {
             throw invalidParam(message);
         }
     }
 
-    private void putIfPresent(
+    /**
+     * 只处理请求体里确实出现过的“本人角色字段”。
+     * 出现但值为 null / 空串时返回 400，而不是静默忽略。
+     */
+    private void putOwnField(
             Map<String, String> changes,
+            ProfileUpdateRequest request,
             String field,
             String rawValue,
             int maxLength,
             String label
     ) {
-        if (rawValue == null) {
+        if (!request.hasField(field)) {
             return;
+        }
+        if (rawValue == null) {
+            throw invalidParam(label + "不能为空");
         }
         String value = rawValue.trim();
         if (value.isEmpty()) {
@@ -317,6 +331,10 @@ public class ProfileServiceImpl implements ProfileService {
         return update;
     }
 
+    /**
+     * 成功变更的审计：由事务内调用，写入失败直接抛出，让档案更新一起回滚。
+     * 这是“成功变更必须有审计”的实现方式，不做静默降级。
+     */
     private void recordSuccessAudit(
             Long userId,
             SysUserDO before,
@@ -332,41 +350,47 @@ public class ProfileServiceImpl implements ProfileService {
         params.put("version_before", versionBefore);
         params.put("version_after", versionAfter);
         params.put("result", "SUCCESS");
-        recordAudit(userId, params, 0, startedAt);
+        auditLogService.record(command(userId, params, 0, startedAt));
     }
 
+    /**
+     * 被拒绝请求的审计：本身已经失败，不能因为审计再制造新的失败，
+     * 因此这里做有限降级（记录告警），不影响返回给调用方的业务错误。
+     */
     private void recordFailureAudit(Long userId, ProfileUpdateRequest request, BizException failure, long startedAt) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("changed_fields", requestedFieldNames(request));
         params.put("result", "REJECTED");
         params.put("reason", failure.getMessage());
-        recordAudit(userId, params, failure.getCode(), startedAt);
+        try {
+            auditLogService.record(command(userId, params, failure.getCode(), startedAt));
+        } catch (RuntimeException e) {
+            log.warn("个人档案拒绝记录审计写入失败: operation={}, error={}",
+                    OPERATION_UPDATE, e.getClass().getSimpleName());
+        }
+    }
+
+    private AuditLogCommand command(Long userId, Map<String, Object> params, Integer result, long startedAt) {
+        return new AuditLogCommand(
+                userId,
+                MODULE,
+                OPERATION_UPDATE,
+                requestUri(),
+                requestMethod(),
+                params(params),
+                clientIp(),
+                Math.toIntExact(Math.min(Integer.MAX_VALUE, System.currentTimeMillis() - startedAt)),
+                result == null ? 0 : result,
+                null
+        );
     }
 
     private List<String> requestedFieldNames(ProfileUpdateRequest request) {
-        List<String> names = new ArrayList<>();
         if (request == null) {
-            return names;
+            return new ArrayList<>();
         }
-        if (request.getRealName() != null) {
-            names.add(FIELD_REAL_NAME);
-        }
-        if (request.getStudentNo() != null) {
-            names.add(FIELD_STUDENT_NO);
-        }
-        if (request.getCollege() != null) {
-            names.add(FIELD_COLLEGE);
-        }
-        if (request.getMajor() != null) {
-            names.add(FIELD_MAJOR);
-        }
-        if (request.getGrade() != null) {
-            names.add(FIELD_GRADE);
-        }
-        if (request.getTitle() != null) {
-            names.add(FIELD_TITLE);
-        }
-        return names;
+        // 按“请求体里出现过的字段”统计，空串 / null 也算提交过
+        return new ArrayList<>(request.getPresentFields());
     }
 
     private Map<String, Object> beforeValues(SysUserDO user, Set<String> fields) {
@@ -385,26 +409,6 @@ public class ProfileServiceImpl implements ProfileService {
             }
         }
         return before;
-    }
-
-    private void recordAudit(Long userId, Map<String, Object> params, Integer result, long startedAt) {
-        try {
-            auditLogService.record(new AuditLogCommand(
-                    userId,
-                    MODULE,
-                    OPERATION_UPDATE,
-                    requestUri(),
-                    requestMethod(),
-                    params(params),
-                    clientIp(),
-                    Math.toIntExact(Math.min(Integer.MAX_VALUE, System.currentTimeMillis() - startedAt)),
-                    result == null ? 0 : result,
-                    null
-            ));
-        } catch (RuntimeException e) {
-            // 审计写入失败不改变已经提交的档案结果，只记录告警
-            log.warn("个人档案审计写入失败: operation={}, error={}", OPERATION_UPDATE, e.getClass().getSimpleName());
-        }
     }
 
     private String params(Object value) {
