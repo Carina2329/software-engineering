@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getApiErrorMessage } from '../../api/request'
 import { useAuthStore } from '../../stores/auth'
+import ProfileEditorCard from './components/ProfileEditorCard.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -119,6 +120,8 @@ async function handleLogout(): Promise<void> {
           </div>
         </dl>
       </article>
+
+      <ProfileEditorCard />
 
       <article class="summary-card wide integration-card">
         <p class="eyebrow">Identity foundation ready</p>
