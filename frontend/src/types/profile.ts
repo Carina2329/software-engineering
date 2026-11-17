@@ -141,6 +141,7 @@ export function profileFieldKeysFor(userType: string): ProfileFieldKey[] {
 export const PROFILE_MESSAGES = {
   conflict: '资料已被修改，请刷新后重试',
   duplicateStudentNo: '学号已存在，请使用本人唯一学号',
+  unknownConflict: '保存失败：数据发生冲突（HTTP 409），请刷新后重试',
   emptyPatch: '没有需要保存的修改',
   saved: '档案已保存，版本号已更新',
 } as const

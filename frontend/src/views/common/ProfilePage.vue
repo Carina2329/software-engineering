@@ -5,7 +5,9 @@ import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
 import {
   createProfileIdempotencyKey,
   fetchMyProfile,
+  isDuplicateStudentNo,
   isProfileConflict,
+  isUnknownConflict,
   profileErrorMessage,
   updateMyProfile,
 } from '../../api/profile'
@@ -146,11 +148,21 @@ const handleSave = async (): Promise<void> => {
     conflictNotice.value = false
     ElMessage.success(`${PROFILE_MESSAGES.saved}（v${result.version}）`)
   } catch (error) {
-    if (isProfileConflict(error)) {
+    // 学号重复与版本冲突都是 HTTP 409，必须先按业务码区分，否则会把“学号已存在”误报成版本冲突
+    if (isDuplicateStudentNo(error)) {
+      conflictNotice.value = false
+      saveError.value = PROFILE_MESSAGES.duplicateStudentNo
+      ElMessage.error(saveError.value)
+    } else if (isProfileConflict(error)) {
       // 版本冲突：不静默覆盖，提示刷新后重试
       conflictNotice.value = true
       saveError.value = PROFILE_MESSAGES.conflict
       ElMessage.error(PROFILE_MESSAGES.conflict)
+    } else if (isUnknownConflict(error)) {
+      // 未知 409：既不是版本冲突也不是学号重复，明确提示而不是冒充版本冲突
+      conflictNotice.value = false
+      saveError.value = PROFILE_MESSAGES.unknownConflict
+      ElMessage.error(saveError.value)
     } else {
       saveError.value = profileErrorMessage(error)
       ElMessage.error(saveError.value)

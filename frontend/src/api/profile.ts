@@ -27,26 +27,42 @@ export function createProfileIdempotencyKey(): string {
   return crypto.randomUUID()
 }
 
-/** 版本冲突：HTTP 409 + 业务码 20001 */
+/** 版本冲突：只认业务码 20001（409 只是 HTTP 层面的冲突语义，不能代表版本冲突） */
 export function isProfileConflict(error: unknown): boolean {
-  return error instanceof ApiError && (error.code === 20001 || error.status === 409)
+  return error instanceof ApiError && error.code === 20001
 }
 
-/** 学号重复：业务码 20002 */
+/** 学号重复：业务码 20002（与版本冲突同样是 HTTP 409，必须靠业务码区分） */
 export function isDuplicateStudentNo(error: unknown): boolean {
   return error instanceof ApiError && error.code === 20002
 }
 
 /**
+ * 未识别的 409：服务端返回了 HTTP 409，但业务码既不是 20001（版本冲突）也不是 20002（学号重复）。
+ * 这类响应既不能当版本冲突提示，也不能静默吞掉，必须给出“冲突但原因未知”的明确提示。
+ */
+export function isUnknownConflict(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    error.code !== 20001 &&
+    error.code !== 20002
+  )
+}
+
+/**
  * 档案相关错误提示。
- * 版本冲突必须明确提示“资料已被修改，请刷新后重试”，不能静默覆盖。
+ * 先判重复学号再判版本冲突：两者都返回 HTTP 409，只按状态码判断会把“学号已存在”误报成“资料已被修改”。
  */
 export function profileErrorMessage(error: unknown, fallback = '档案保存失败'): string {
+  if (isDuplicateStudentNo(error)) {
+    return PROFILE_MESSAGES.duplicateStudentNo
+  }
   if (isProfileConflict(error)) {
     return PROFILE_MESSAGES.conflict
   }
-  if (isDuplicateStudentNo(error)) {
-    return PROFILE_MESSAGES.duplicateStudentNo
+  if (isUnknownConflict(error)) {
+    return PROFILE_MESSAGES.unknownConflict
   }
   return getApiErrorMessage(error, fallback)
 }
