@@ -11,7 +11,7 @@ const assert = (condition, message) => {
 }
 
 const openapi = JSON.parse(read('docs/api/openapi-v1.json'))
-assert(openapi.info.version === '1.3.0', 'OpenAPI version must be 1.3.0')
+assert(openapi.info.version === '1.3.1', 'OpenAPI version must be 1.3.1')
 assert(openapi['x-business-baseline']?.source_branch === 'develop@63c2a14', 'business baseline must use PR12 develop')
 
 const operationIds = new Set()
@@ -68,6 +68,14 @@ for (const field of ['registration_open', 'submission_open', 'read_only', 'revie
   assert(editionDetail[field], `edition detail is missing ${field}`)
 }
 
+const contestDetail = openapi.paths['/contests/{contest_id}'].get.responses['200'].content['application/json'].schema.properties.data
+assert(contestDetail.properties.version?.type === 'integer', 'contest detail is missing version')
+assert(contestDetail.required?.includes('version'), 'contest detail version must be required')
+
+const milestoneItem = openapi.paths['/editions/{edition_id}/milestones'].get.responses['200'].content['application/json'].schema.properties.data.items
+assert(milestoneItem.properties.version?.type === 'integer', 'milestone item is missing version')
+assert(milestoneItem.required?.includes('version'), 'milestone version must be required')
+
 const foundationSql = read('docs/sql/2026-11-15-business-core-foundation.sql')
 assert(!/CREATE\s+TABLE/i.test(foundationSql), 'business foundation must not create tables')
 for (const field of ['team_size_mode', 'max_teams_per_teacher', 'topic_mode', 'topic_change_limit']) {
@@ -80,7 +88,8 @@ for (const mode of ['PRESET_UNLIMITED', 'PRESET_LIMITED', 'SELF_PROPOSED', 'NO_T
 }
 
 const summary = read('docs/api/接口汇总.md')
-assert(summary.includes('文档版本：v1.3.0'), 'interface summary version is not v1.3.0')
+assert(summary.includes('文档版本：v1.3.1'), 'interface summary version is not v1.3.1')
+assert(summary.includes('archive/接口汇总-v1.3.0.md'), 'v1.3.0 archive link is missing')
 assert(summary.includes('archive/接口汇总-v1.2.1.md'), 'v1.2.1 archive link is missing')
 
 console.log(`business-core contract valid: ${operationIds.size} operations, ${refs.length} refs`)

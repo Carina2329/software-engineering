@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AI学科竞赛全流程智能服务平台接口",
-    "version": "1.3.0",
-    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.3.0 冻结业务核心公共基线：第一阶段个人档案只允许本人维护学生姓名、学号、学院、专业、年级或教师姓名、学院、职称；届次支持固定/范围队伍人数和届次教师指导上限；核心时间以届次字段为准，届次状态由管理员手动推进。",
+    "version": "1.3.1",
+    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.3.0 冻结业务核心公共基线；1.3.1 在竞赛详情和赛程节点列表增加乐观锁 version，形成可用的编辑闭环。",
     "contact": {
       "name": "第6组",
       "email": "group6@example.edu"
@@ -20,6 +20,24 @@
     }
   ],
   "x-changelog": [
+    {
+      "version": "1.3.1",
+      "date": "2026-11-17",
+      "changes": [
+        "EP-013 竞赛详情响应增加必填 version，用于 EP-014 修改竞赛时进行乐观锁校验。",
+        "EP-020 赛程节点列表中的每个节点增加必填 version，用于 EP-022 修改赛程节点时进行乐观锁校验。",
+        "本次只增加响应字段，不修改既有字段、路径、请求方式和调用顺序。"
+      ]
+    },
+    {
+      "version": "1.3.0",
+      "date": "2026-11-15",
+      "changes": [
+        "冻结第一阶段个人档案字段和角色修改边界。",
+        "届次增加固定/范围人数、教师指导上限、核心时间和动作状态。",
+        "明确届次发布、修改、可见性、归档只读和状态映射规则。"
+      ]
+    },
     {
       "version": "1.2.1",
       "date": "2026-11-12",
@@ -1941,6 +1959,11 @@
                           "type": "string",
                           "description": "简介"
                         },
+                        "version": {
+                          "type": "integer",
+                          "description": "竞赛主档乐观锁版本号；修改 EP-014 时必须回传",
+                          "minimum": 0
+                        },
                         "editions": {
                           "type": "array",
                           "description": "届次摘要",
@@ -1948,7 +1971,11 @@
                             "type": "string"
                           }
                         }
-                      }
+                      },
+                      "required": [
+                        "id",
+                        "version"
+                      ]
                     },
                     "trace_id": {
                       "type": "string",
@@ -3187,8 +3214,17 @@
                           "enabled": {
                             "type": "boolean",
                             "description": "是否启用"
+                          },
+                          "version": {
+                            "type": "integer",
+                            "description": "赛程节点乐观锁版本号；修改 EP-022 时必须回传",
+                            "minimum": 0
                           }
-                        }
+                        },
+                        "required": [
+                          "id",
+                          "version"
+                        ]
                       }
                     },
                     "trace_id": {
@@ -12544,9 +12580,10 @@
   "x-database-tables": 26,
   "x-endpoint-count": 84,
   "x-business-baseline": {
-    "version": "1.3.0",
-    "date": "2026-11-15",
+    "version": "1.3.1",
+    "date": "2026-11-17",
     "source_branch": "develop@63c2a14",
+    "contract_revision": "compatible-version-fields",
     "timezone": "Asia/Shanghai",
     "edition_status_db_mapping": {
       "DRAFT": 0,
