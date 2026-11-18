@@ -17,7 +17,7 @@ CREATE UNIQUE INDEX uk_sys_role_role_code ON sys_role (role_code);
 
 -- 3. 关联表防止重复关系
 CREATE UNIQUE INDEX uk_sys_user_role_user_role
-    ON sys_user_role (user_id, role_id);
+    ON sys_user_role (user_id, role_id, scope_type, scope_id);
 
 -- 4. 复用 sys_menu 作为目录、菜单、按钮/API 权限资源树
 ALTER TABLE sys_menu

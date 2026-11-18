@@ -28,6 +28,9 @@ mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-08-contest-db-base.sql
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-10-29-file-sha256-storage-unique.sql
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-10-30-upload-task-expected-sha256.sql
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-03-rbac-auth-foundation.sql
+mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-15-business-core-permissions-seed.sql
+mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-18-multitenant-permissions-seed.sql
+mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-18-multitenant-dev-seed.sql
 
 # 3. 启动后端：用 IDEA 打开 backend/，运行 ContestApplication
 #    或命令行：cd backend && mvn spring-boot:run

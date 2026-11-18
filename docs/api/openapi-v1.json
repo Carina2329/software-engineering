@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AI学科竞赛全流程智能服务平台接口",
-    "version": "1.3.1",
-    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.3.0 冻结业务核心公共基线；1.3.1 在竞赛详情和赛程节点列表增加乐观锁 version，形成可用的编辑闭环。",
+    "version": "1.4.0",
+    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.3.0 冻结业务核心公共基线；1.3.1 在竞赛详情和赛程节点列表增加乐观锁 version，形成可用的编辑闭环。 1.4.0 将平台冻结为多学校、多主办方赛事托管模式：用户关联学校，学号同校唯一；管理员角色绑定组织、省份或具体赛事范围；具体比赛必须声明主办组织、级别、学校/省份范围和可见范围。",
     "contact": {
       "name": "第6组",
       "email": "group6@example.edu"
@@ -20,6 +20,18 @@
     }
   ],
   "x-changelog": [
+    {
+      "version": "1.4.0",
+      "date": "2026-11-18",
+      "changes": [
+        "增加组织、学校和省份主数据，学生/教师关联学校。",
+        "学号唯一性调整为 (school_id, student_no)，登录账号和邮箱仍全平台唯一。",
+        "增加全局、组织、省份和赛事范围角色授权。",
+        "具体比赛实例增加主办组织、级别、学校/省份范围、可见范围和参赛资格模式。",
+        "第一阶段晋级支持 OPEN、INVITED、QUALIFIED，自动晋级延后。",
+        "增加学校归属待确认、已确认、已驳回三态审核和驳回原因。"
+      ]
+    },
     {
       "version": "1.3.1",
       "date": "2026-11-17",
@@ -96,6 +108,10 @@
     {
       "name": "角色与权限",
       "description": "角色、权限资源树和角色授权管理。"
+    },
+    {
+      "name": "组织与范围",
+      "description": "学校、主办组织、用户学校归属和带数据范围的授权。"
     }
   ],
   "security": [
@@ -419,6 +435,39 @@
                           "type": "integer",
                           "description": "档案乐观锁版本号，修改档案时必须回传",
                           "minimum": 0
+                        },
+                        "school_id": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "所属学校 organization.id；平台级管理员可为空"
+                        },
+                        "school_name": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "所属学校显示名称"
+                        },
+                        "province_code": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "所属学校所在省份编码"
+                        },
+                        "school_verified": {
+                          "type": "boolean",
+                          "description": "所属学校是否已由管理员确认"
+                        },
+                        "school_verification_status": {
+                          "type": "string",
+                          "enum": [
+                            "PENDING",
+                            "VERIFIED",
+                            "REJECTED"
+                          ],
+                          "description": "学校归属审核状态"
+                        },
+                        "school_review_reason": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "学校归属驳回原因或审核说明"
                         }
                       },
                       "required": [
@@ -600,6 +649,10 @@
                     "type": "integer",
                     "description": "乐观锁版本号",
                     "minimum": 0
+                  },
+                  "school_id": {
+                    "type": "string",
+                    "description": "学校 ID。首次选择时提交；已确认学校变更由管理员接口处理"
                   }
                 },
                 "required": [
@@ -1692,6 +1745,10 @@
                               "organizer": {
                                 "type": "string",
                                 "description": "主办方"
+                              },
+                              "series_code": {
+                                "type": "string",
+                                "description": "竞赛系列编码"
                               }
                             }
                           }
@@ -1755,7 +1812,7 @@
           "竞赛与赛程"
         ],
         "summary": "创建竞赛",
-        "description": "管理员创建竞赛主档。竞赛主档独立于届次，可连续举办多届；竞赛名称不要求全平台唯一。",
+        "description": "平台管理员创建稳定竞赛系列。竞赛名称允许重复；series_code 在全平台唯一。具体级别和参赛范围在比赛实例上配置。",
         "operationId": "ep_012",
         "security": [
           {
@@ -1862,7 +1919,7 @@
                   },
                   "level": {
                     "type": "string",
-                    "description": "竞赛级别",
+                    "description": "兼容旧数据的系列默认级别；新业务以比赛实例 level 为准",
                     "enum": [
                       "SCHOOL",
                       "PROVINCE",
@@ -1876,11 +1933,16 @@
                   "intro": {
                     "type": "string",
                     "description": "竞赛简介，不超过 1000 字"
+                  },
+                  "series_code": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "description": "稳定竞赛系列编码，全平台唯一"
                   }
                 },
                 "required": [
                   "contest_name",
-                  "level"
+                  "series_code"
                 ]
               }
             }
@@ -1970,6 +2032,10 @@
                           "items": {
                             "type": "string"
                           }
+                        },
+                        "series_code": {
+                          "type": "string",
+                          "description": "竞赛系列编码"
                         }
                       },
                       "required": [
@@ -2150,6 +2216,11 @@
                   "version": {
                     "type": "integer",
                     "description": "乐观锁版本号"
+                  },
+                  "series_code": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "description": "竞赛系列编码；仅平台管理员可修改"
                   }
                 },
                 "required": [
@@ -2244,6 +2315,63 @@
                 "ARCHIVED"
               ]
             }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "description": "比赛级别",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SCHOOL",
+                "PROVINCE",
+                "NATIONAL"
+              ]
+            }
+          },
+          {
+            "name": "owner_org_id",
+            "in": "query",
+            "required": false,
+            "description": "主办组织 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "province_code",
+            "in": "query",
+            "required": false,
+            "description": "省份编码",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "school_id",
+            "in": "query",
+            "required": false,
+            "description": "学校 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "visibility",
+            "in": "query",
+            "required": false,
+            "description": "可见范围",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "UNLISTED",
+                "SCHOOL",
+                "PROVINCE",
+                "PUBLIC"
+              ]
+            }
           }
         ],
         "responses": {
@@ -2300,6 +2428,38 @@
                               "status": {
                                 "type": "string",
                                 "description": "状态"
+                              },
+                              "owner_org_id": {
+                                "type": "string"
+                              },
+                              "owner_org_name": {
+                                "type": "string"
+                              },
+                              "level": {
+                                "type": "string",
+                                "enum": [
+                                  "SCHOOL",
+                                  "PROVINCE",
+                                  "NATIONAL"
+                                ]
+                              },
+                              "school_id": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "province_code": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "visibility": {
+                                "type": "string",
+                                "enum": [
+                                  "DRAFT",
+                                  "UNLISTED",
+                                  "SCHOOL",
+                                  "PROVINCE",
+                                  "PUBLIC"
+                                ]
                               }
                             }
                           }
@@ -2569,11 +2729,61 @@
                     "minimum": 1,
                     "maximum": 10,
                     "default": 3
+                  },
+                  "owner_org_id": {
+                    "type": "string",
+                    "description": "比赛主办组织 ID；平台管理员可显式指定，组织管理员由服务端从授权范围解析"
+                  },
+                  "level": {
+                    "type": "string",
+                    "description": "比赛级别",
+                    "enum": [
+                      "SCHOOL",
+                      "PROVINCE",
+                      "NATIONAL"
+                    ]
+                  },
+                  "school_id": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "校级比赛所属学校；level=SCHOOL 时必填"
+                  },
+                  "province_code": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "省级比赛所属省份编码；level=PROVINCE 时必填"
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "DRAFT",
+                      "UNLISTED",
+                      "SCHOOL",
+                      "PROVINCE",
+                      "PUBLIC"
+                    ],
+                    "default": "DRAFT"
+                  },
+                  "entry_mode": {
+                    "type": "string",
+                    "enum": [
+                      "OPEN",
+                      "INVITED",
+                      "QUALIFIED"
+                    ],
+                    "default": "OPEN",
+                    "description": "OPEN 公开报名；INVITED 邀请参加；QUALIFIED 仅晋级名单参加"
+                  },
+                  "cross_school_team_allowed": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "是否允许不同学校学生组成同一队伍"
                   }
                 },
                 "required": [
                   "edition_name",
                   "year",
+                  "level",
                   "team_size_mode",
                   "min_team_size",
                   "max_team_size"
@@ -2755,6 +2965,53 @@
                         "read_only": {
                           "type": "boolean",
                           "description": "届次已归档或当前业务阶段禁止修改时为 true"
+                        },
+                        "owner_org_id": {
+                          "type": "string",
+                          "description": "主办组织 ID"
+                        },
+                        "owner_org_name": {
+                          "type": "string",
+                          "description": "主办组织名称"
+                        },
+                        "level": {
+                          "type": "string",
+                          "enum": [
+                            "SCHOOL",
+                            "PROVINCE",
+                            "NATIONAL"
+                          ]
+                        },
+                        "school_id": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "校级比赛所属学校"
+                        },
+                        "province_code": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "省级比赛所属省份编码"
+                        },
+                        "visibility": {
+                          "type": "string",
+                          "enum": [
+                            "DRAFT",
+                            "UNLISTED",
+                            "SCHOOL",
+                            "PROVINCE",
+                            "PUBLIC"
+                          ]
+                        },
+                        "entry_mode": {
+                          "type": "string",
+                          "enum": [
+                            "OPEN",
+                            "INVITED",
+                            "QUALIFIED"
+                          ]
+                        },
+                        "cross_school_team_allowed": {
+                          "type": "boolean"
                         }
                       }
                     },
@@ -2989,6 +3246,47 @@
                     "description": "当前届次每位教师最多确认指导队伍数；产生队伍后不得修改",
                     "minimum": 1,
                     "maximum": 10
+                  },
+                  "owner_org_id": {
+                    "type": "string",
+                    "description": "主办组织 ID；仅平台管理员可变更"
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "SCHOOL",
+                      "PROVINCE",
+                      "NATIONAL"
+                    ]
+                  },
+                  "school_id": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "province_code": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "DRAFT",
+                      "UNLISTED",
+                      "SCHOOL",
+                      "PROVINCE",
+                      "PUBLIC"
+                    ]
+                  },
+                  "entry_mode": {
+                    "type": "string",
+                    "enum": [
+                      "OPEN",
+                      "INVITED",
+                      "QUALIFIED"
+                    ]
+                  },
+                  "cross_school_team_allowed": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -11828,6 +12126,1311 @@
           }
         }
       }
+    },
+    "/schools": {
+      "get": {
+        "tags": [
+          "组织与范围"
+        ],
+        "summary": "查询启用学校",
+        "description": "登录用户按名称或省份查询可选择的学校主数据。",
+        "operationId": "ep_085",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "province_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "size",
+                        "has_more"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "school_code": {
+                                "type": "string"
+                              },
+                              "school_name": {
+                                "type": "string"
+                              },
+                              "province_code": {
+                                "type": "string"
+                              },
+                              "province_name": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer"
+                        },
+                        "page": {
+                          "type": "integer"
+                        },
+                        "size": {
+                          "type": "integer"
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string",
+                      "description": "服务端生成的请求追踪号"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-085",
+        "x-permission": "school:list",
+        "x-data-scope": "登录用户",
+        "x-audit": false,
+        "x-tables": [
+          "organization"
+        ]
+      }
+    },
+    "/organizations": {
+      "get": {
+        "tags": [
+          "组织与范围"
+        ],
+        "summary": "分页查询组织",
+        "description": "平台管理员查询全部组织；组织管理员只能查询授权组织。",
+        "operationId": "ep_086",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "org_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "province_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "size",
+                        "has_more"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "org_code": {
+                                "type": "string"
+                              },
+                              "org_name": {
+                                "type": "string"
+                              },
+                              "org_type": {
+                                "type": "string",
+                                "enum": [
+                                  "SCHOOL",
+                                  "PROVINCE_ORGANIZER",
+                                  "NATIONAL_ORGANIZER",
+                                  "PLATFORM"
+                                ]
+                              },
+                              "province_code": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "status": {
+                                "type": "integer",
+                                "enum": [
+                                  0,
+                                  1
+                                ]
+                              },
+                              "version": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer"
+                        },
+                        "page": {
+                          "type": "integer"
+                        },
+                        "size": {
+                          "type": "integer"
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string",
+                      "description": "服务端生成的请求追踪号"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-086",
+        "x-permission": "organization:list",
+        "x-data-scope": "GLOBAL / ORGANIZATION",
+        "x-audit": false,
+        "x-tables": [
+          "organization"
+        ]
+      },
+      "post": {
+        "tags": [
+          "组织与范围"
+        ],
+        "summary": "创建组织",
+        "description": "平台管理员创建学校、省级主办方或国家级主办方。",
+        "operationId": "ep_087",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "客户端生成的请求唯一键；重试时复用。",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "org_code": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "org_name": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "org_type": {
+                    "type": "string",
+                    "enum": [
+                      "SCHOOL",
+                      "PROVINCE_ORGANIZER",
+                      "NATIONAL_ORGANIZER",
+                      "PLATFORM"
+                    ]
+                  },
+                  "province_code": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "org_code",
+                  "org_name",
+                  "org_type"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "org_code": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string",
+                      "description": "服务端生成的请求追踪号"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-087",
+        "x-permission": "organization:create",
+        "x-data-scope": "GLOBAL",
+        "x-audit": true,
+        "x-tables": [
+          "organization",
+          "sys_oper_log"
+        ]
+      }
+    },
+    "/organizations/{organization_id}": {
+      "get": {
+        "tags": [
+          "组织与范围"
+        ],
+        "summary": "查询组织详情",
+        "operationId": "ep_088",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organization_id",
+            "in": "path",
+            "required": true,
+            "description": "组织 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "org_code": {
+                          "type": "string"
+                        },
+                        "org_name": {
+                          "type": "string"
+                        },
+                        "org_type": {
+                          "type": "string",
+                          "enum": [
+                            "SCHOOL",
+                            "PROVINCE_ORGANIZER",
+                            "NATIONAL_ORGANIZER",
+                            "PLATFORM"
+                          ]
+                        },
+                        "province_code": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "status": {
+                          "type": "integer",
+                          "enum": [
+                            0,
+                            1
+                          ]
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string",
+                      "description": "服务端生成的请求追踪号"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-088",
+        "x-permission": "organization:list",
+        "x-data-scope": "GLOBAL / ORGANIZATION",
+        "x-audit": false,
+        "x-tables": [
+          "organization"
+        ]
+      },
+      "patch": {
+        "tags": [
+          "组织与范围"
+        ],
+        "summary": "修改组织",
+        "description": "平台管理员修改组织；组织停用不删除历史数据，变更写审计。",
+        "operationId": "ep_089",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organization_id",
+            "in": "path",
+            "required": true,
+            "description": "组织 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "客户端生成的请求唯一键；重试时复用。",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "org_name": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "province_code": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "status": {
+                    "type": "integer",
+                    "enum": [
+                      0,
+                      1
+                    ]
+                  },
+                  "version": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string",
+                      "description": "服务端生成的请求追踪号"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-089",
+        "x-permission": "organization:update",
+        "x-data-scope": "GLOBAL",
+        "x-audit": true,
+        "x-tables": [
+          "organization",
+          "sys_oper_log"
+        ]
+      }
+    },
+    "/role-assignments": {
+      "post": {
+        "tags": [
+          "组织与范围"
+        ],
+        "summary": "授予范围角色",
+        "description": "平台管理员或授权组织管理员授予角色范围；角色或范围变化后撤销目标用户现有会话并写审计。",
+        "operationId": "ep_090",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "客户端生成的请求唯一键；重试时复用。",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "user_id": {
+                    "type": "string"
+                  },
+                  "role_code": {
+                    "type": "string"
+                  },
+                  "scope_type": {
+                    "type": "string",
+                    "enum": [
+                      "GLOBAL",
+                      "ORGANIZATION",
+                      "PROVINCE",
+                      "EVENT"
+                    ]
+                  },
+                  "scope_id": {
+                    "type": "string",
+                    "description": "GLOBAL 使用 0；其他范围使用组织、省份编码或比赛 ID"
+                  },
+                  "valid_from": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  },
+                  "valid_to": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "user_id",
+                  "role_code",
+                  "scope_type",
+                  "scope_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string",
+                      "description": "服务端生成的请求追踪号"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-090",
+        "x-permission": "organization:role:assign",
+        "x-data-scope": "GLOBAL / ORGANIZATION / PROVINCE",
+        "x-audit": true,
+        "x-tables": [
+          "sys_user_role",
+          "sys_oper_log"
+        ]
+      }
+    },
+    "/role-assignments/{assignment_id}": {
+      "patch": {
+        "tags": [
+          "组织与范围"
+        ],
+        "summary": "修改或撤销范围角色",
+        "description": "只能修改授权范围内的角色分配；撤销后同步清理目标用户会话并写审计。",
+        "operationId": "ep_091",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "description": "角色范围分配 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "客户端生成的请求唯一键；重试时复用。",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "scope_type": {
+                    "type": "string",
+                    "enum": [
+                      "GLOBAL",
+                      "ORGANIZATION",
+                      "PROVINCE",
+                      "EVENT"
+                    ]
+                  },
+                  "scope_id": {
+                    "type": "string"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "valid_to": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  },
+                  "version": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string",
+                      "description": "服务端生成的请求追踪号"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-091",
+        "x-permission": "organization:role:assign",
+        "x-data-scope": "GLOBAL / ORGANIZATION / PROVINCE",
+        "x-audit": true,
+        "x-tables": [
+          "sys_user_role",
+          "sys_oper_log"
+        ]
+      }
+    },
+    "/school-affiliations": {
+      "get": {
+        "tags": [
+          "组织与范围"
+        ],
+        "summary": "查询学校归属申请",
+        "description": "学校管理员查询本校待确认、已确认或已驳回的用户；平台管理员可按学校筛选。",
+        "operationId": "ep_092",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "VERIFIED",
+                "REJECTED"
+              ],
+              "default": "PENDING"
+            }
+          },
+          {
+            "name": "school_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "size",
+                        "has_more"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "user_id": {
+                                "type": "string"
+                              },
+                              "username": {
+                                "type": "string"
+                              },
+                              "real_name": {
+                                "type": "string"
+                              },
+                              "student_no": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "school_id": {
+                                "type": "string"
+                              },
+                              "school_name": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "PENDING",
+                                  "VERIFIED",
+                                  "REJECTED"
+                                ]
+                              },
+                              "review_reason": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "submitted_at": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "version": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer"
+                        },
+                        "page": {
+                          "type": "integer"
+                        },
+                        "size": {
+                          "type": "integer"
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-092",
+        "x-permission": "school:affiliation:list",
+        "x-data-scope": "GLOBAL / ORGANIZATION",
+        "x-audit": false,
+        "x-tables": [
+          "sys_user",
+          "organization"
+        ]
+      }
+    },
+    "/school-affiliations/{user_id}": {
+      "patch": {
+        "tags": [
+          "组织与范围"
+        ],
+        "summary": "审核学校归属",
+        "description": "学校管理员确认或驳回本校用户学校归属；驳回必须填写原因。成功审核与审计写入同一事务。",
+        "operationId": "ep_093",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "APPROVE",
+                      "REJECT"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "REJECT 时必填"
+                  },
+                  "version": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "decision",
+                  "version"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user_id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "VERIFIED",
+                            "REJECTED"
+                          ]
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-093",
+        "x-permission": "school:affiliation:review",
+        "x-data-scope": "GLOBAL / ORGANIZATION",
+        "x-idempotency": "是，可选 Idempotency-Key，version 必填",
+        "x-audit": true,
+        "x-tables": [
+          "sys_user",
+          "sys_oper_log"
+        ]
+      }
     }
   },
   "components": {
@@ -12577,13 +14180,13 @@
   "x-project": "AI学科竞赛全流程智能服务平台",
   "x-group": "第6组",
   "x-contract-source": "docs/api/openapi-v1.json",
-  "x-database-tables": 26,
-  "x-endpoint-count": 84,
+  "x-database-tables": 27,
+  "x-endpoint-count": 93,
   "x-business-baseline": {
-    "version": "1.3.1",
-    "date": "2026-11-17",
+    "version": "1.4.0",
+    "date": "2026-11-18",
     "source_branch": "develop@63c2a14",
-    "contract_revision": "compatible-version-fields",
+    "contract_revision": "multi-organization-competition-hosting",
     "timezone": "Asia/Shanghai",
     "edition_status_db_mapping": {
       "DRAFT": 0,
@@ -12595,8 +14198,43 @@
     },
     "current_transition": "DRAFT -> REGISTERING",
     "current_stage_scope": [
+      "organization-scope",
       "personal-profile",
       "contest-edition"
-    ]
+    ],
+    "organization_model": {
+      "types": [
+        "SCHOOL",
+        "PROVINCE_ORGANIZER",
+        "NATIONAL_ORGANIZER",
+        "PLATFORM"
+      ],
+      "role_scopes": [
+        "GLOBAL",
+        "ORGANIZATION",
+        "PROVINCE",
+        "EVENT"
+      ],
+      "student_number_unique": "(school_id, student_no)",
+      "demo_scope": [
+        "四川省",
+        "2-3 competitions",
+        "3-4 schools",
+        "1 out-of-province isolation school"
+      ],
+      "progression_mode": "MANUAL_OR_IMPORT"
+    },
+    "audit_policy": {
+      "mode": "REQUIRED_TRANSACTIONAL",
+      "scope": [
+        "profile",
+        "organization",
+        "role-scope",
+        "contest-event",
+        "milestone"
+      ],
+      "failure": "ROLLBACK_AND_ERROR",
+      "rejected_request_audit": "BEST_EFFORT"
+    }
   }
 }

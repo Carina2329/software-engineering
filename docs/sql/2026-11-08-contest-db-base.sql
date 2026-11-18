@@ -1,10 +1,37 @@
 -- AI 学科竞赛全流程智能服务平台 数据库建表脚本（MySQL 8.0）
--- 版本：1.1.0（2026-11-15）
+-- 版本：1.2.0（2026-11-18）
 -- 说明：业务关系由应用层保证，相关字段均已建索引；关联表仅含 id 与 created_at。
 -- 注意：脚本会先 DROP 同名表再重建，只能在开发库执行，切勿在生产库运行！
 -- 字符集：utf8mb4；引擎：InnoDB
 
 SET NAMES utf8mb4;
+
+DROP TABLE IF EXISTS `organization`;
+CREATE TABLE `organization` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `org_code` VARCHAR(32) NOT NULL COMMENT '稳定组织编码',
+  `org_name` VARCHAR(128) NOT NULL COMMENT '组织名称',
+  `org_type` VARCHAR(24) NOT NULL COMMENT 'SCHOOL/PROVINCE_ORGANIZER/NATIONAL_ORGANIZER/PLATFORM',
+  `province_code` VARCHAR(6) DEFAULT NULL COMMENT '省级行政区编码',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '启用状态',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `created_by` BIGINT NOT NULL,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `updated_by` BIGINT DEFAULT NULL,
+  `deleted` TINYINT NOT NULL DEFAULT 0,
+  `deleted_at` DATETIME DEFAULT NULL,
+  `version` INT NOT NULL DEFAULT 0,
+  UNIQUE KEY `uk_organization_code` (`org_code`),
+  KEY `idx_organization_type_province` (`org_type`, `province_code`, `status`),
+  CONSTRAINT `chk_organization_type`
+    CHECK (`org_type` IN ('SCHOOL', 'PROVINCE_ORGANIZER', 'NATIONAL_ORGANIZER', 'PLATFORM')),
+  CONSTRAINT `chk_organization_province`
+    CHECK (
+      (`org_type` IN ('SCHOOL', 'PROVINCE_ORGANIZER') AND `province_code` IS NOT NULL)
+      OR (`org_type` IN ('NATIONAL_ORGANIZER', 'PLATFORM') AND `province_code` IS NULL)
+    ),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学校、省级/国家级主办方和平台组织主档';
 
 DROP TABLE IF EXISTS `sys_user`;
 CREATE TABLE `sys_user` (
@@ -13,6 +40,12 @@ CREATE TABLE `sys_user` (
   `real_name` VARCHAR(32) NOT NULL COMMENT '真实姓名',
   `password_hash` VARCHAR(100) NOT NULL COMMENT '密码散列值',
   `student_no` VARCHAR(20) COMMENT '学号',
+  `school_id` BIGINT DEFAULT NULL COMMENT '所属学校 organization.id',
+  `school_verification_status` VARCHAR(16) NOT NULL DEFAULT 'PENDING'
+    COMMENT '学校归属状态：PENDING/VERIFIED/REJECTED',
+  `school_reviewed_by` BIGINT DEFAULT NULL COMMENT '学校归属审核人',
+  `school_reviewed_at` DATETIME DEFAULT NULL COMMENT '学校归属审核时间',
+  `school_review_reason` VARCHAR(500) DEFAULT NULL COMMENT '学校归属驳回或审核说明',
   `college` VARCHAR(64) COMMENT '学院',
   `major` VARCHAR(64) COMMENT '专业',
   `grade` VARCHAR(8) COMMENT '年级',
@@ -29,7 +62,11 @@ CREATE TABLE `sys_user` (
   `deleted_at` DATETIME COMMENT '删除时间',
   `version` INT NOT NULL DEFAULT 0 COMMENT '版本号（乐观锁）',
   UNIQUE KEY `uk_sys_user_username` (username),
-  UNIQUE KEY `uk_sys_user_student_no` (student_no),
+  UNIQUE KEY `uk_sys_user_school_student` (`school_id`, `student_no`),
+  KEY `idx_user_school` (`school_id`, `status`, `deleted`),
+  KEY `idx_user_school_verification` (`school_id`, `school_verification_status`, `deleted`),
+  CONSTRAINT `chk_sys_user_school_verification`
+    CHECK (`school_verification_status` IN ('PENDING', 'VERIFIED', 'REJECTED')),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='保存四类角色的账号与档案信息（FR-01）';
 
@@ -54,9 +91,26 @@ CREATE TABLE `sys_user_role` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
   `user_id` BIGINT NOT NULL COMMENT '用户标识',
   `role_id` BIGINT NOT NULL COMMENT '角色标识',
+  `scope_type` VARCHAR(16) NOT NULL DEFAULT 'GLOBAL' COMMENT 'GLOBAL/ORGANIZATION/PROVINCE/EVENT',
+  `scope_id` BIGINT NOT NULL DEFAULT 0 COMMENT 'GLOBAL=0；其他类型保存范围 ID 或省份编码',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '启用状态',
+  `valid_from` DATETIME DEFAULT NULL COMMENT '生效时间',
+  `valid_to` DATETIME DEFAULT NULL COMMENT '失效时间',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  UNIQUE KEY `uk_user_role` (user_id, role_id),
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `updated_by` BIGINT DEFAULT NULL COMMENT '更新人',
+  `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标志',
+  `deleted_at` DATETIME DEFAULT NULL COMMENT '删除时间',
+  `version` INT NOT NULL DEFAULT 0 COMMENT '版本号（乐观锁）',
+  UNIQUE KEY `uk_user_role_scope` (`user_id`, `role_id`, `scope_type`, `scope_id`),
+  KEY `idx_user_role_scope` (`scope_type`, `scope_id`),
+  KEY `idx_user_role_status` (`user_id`, `status`, `deleted`),
   KEY `idx_user_role_role` (role_id),
+  CONSTRAINT `chk_user_role_scope_type`
+    CHECK (`scope_type` IN ('GLOBAL', 'ORGANIZATION', 'PROVINCE', 'EVENT')),
+  CONSTRAINT `chk_user_role_status` CHECK (`status` IN (0, 1)),
+  CONSTRAINT `chk_user_role_validity`
+    CHECK (`valid_to` IS NULL OR `valid_from` IS NULL OR `valid_from` < `valid_to`),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户与角色的多对多关系（FR-01）';
 
@@ -64,6 +118,7 @@ DROP TABLE IF EXISTS `contest`;
 CREATE TABLE `contest` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
   `contest_name` VARCHAR(128) NOT NULL COMMENT '竞赛名称',
+  `series_code` VARCHAR(32) NOT NULL COMMENT '稳定竞赛系列编码',
   `level` VARCHAR(16) NOT NULL COMMENT '竞赛级别',
   `organizer` VARCHAR(128) COMMENT '主办方',
   `intro` VARCHAR(1000) COMMENT '竞赛简介',
@@ -75,6 +130,7 @@ CREATE TABLE `contest` (
   `deleted_at` DATETIME COMMENT '删除时间',
   `version` INT NOT NULL DEFAULT 0 COMMENT '版本号（乐观锁）',
   KEY `idx_contest_level` (level),
+  UNIQUE KEY `uk_contest_series_code` (`series_code`),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='竞赛的稳定主档信息（FR-04）';
 
@@ -82,8 +138,12 @@ DROP TABLE IF EXISTS `contest_edition`;
 CREATE TABLE `contest_edition` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
   `contest_id` BIGINT NOT NULL COMMENT '所属竞赛',
+  `owner_org_id` BIGINT NOT NULL COMMENT '主办组织 organization.id',
   `edition_name` VARCHAR(128) NOT NULL COMMENT '届次名称',
   `year` SMALLINT NOT NULL COMMENT '举办年份',
+  `level` VARCHAR(16) NOT NULL COMMENT 'SCHOOL/PROVINCE/NATIONAL',
+  `school_id` BIGINT DEFAULT NULL COMMENT '校级比赛所属学校',
+  `province_code` VARCHAR(6) DEFAULT NULL COMMENT '省级比赛所属省份',
   `status` TINYINT NOT NULL DEFAULT 0 COMMENT '届次状态：0=DRAFT，1=REGISTERING，2=SUBMITTING，3=REVIEWING，4=PUBLISHING，5=ARCHIVED',
   `register_deadline` DATETIME COMMENT '报名截止时间',
   `work_deadline` DATETIME COMMENT '作品截止时间',
@@ -98,6 +158,9 @@ CREATE TABLE `contest_edition` (
   `topic_review_required` TINYINT NOT NULL DEFAULT 1 COMMENT '选题或自拟项目是否需要管理员审核',
   `topic_allocation_mode` VARCHAR(16) NOT NULL DEFAULT 'REVIEW' COMMENT '限额赛题分配方式：REVIEW 或 FIRST_COME',
   `topic_change_limit` TINYINT NOT NULL DEFAULT 1 COMMENT '报名截止前允许更换赛题或项目次数（0-3）',
+  `visibility` VARCHAR(16) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT/UNLISTED/SCHOOL/PROVINCE/PUBLIC',
+  `entry_mode` VARCHAR(16) NOT NULL DEFAULT 'OPEN' COMMENT 'OPEN/INVITED/QUALIFIED',
+  `cross_school_team_allowed` TINYINT NOT NULL DEFAULT 0 COMMENT '是否允许跨校组队',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `created_by` BIGINT NOT NULL COMMENT '创建人',
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',
@@ -107,7 +170,10 @@ CREATE TABLE `contest_edition` (
   `version` INT NOT NULL DEFAULT 0 COMMENT '版本号（乐观锁）',
   KEY `idx_edition_contest` (contest_id),
   KEY `idx_edition_status` (status),
-  UNIQUE KEY `uk_edition_contest_name` (contest_id, edition_name),
+  KEY `idx_edition_owner_scope` (`owner_org_id`, `level`, `visibility`, `status`),
+  KEY `idx_edition_province_status` (`province_code`, `status`),
+  KEY `idx_edition_school_status` (`school_id`, `status`),
+  UNIQUE KEY `uk_edition_owner_year_name` (`owner_org_id`, `year`, `edition_name`),
   CONSTRAINT `chk_edition_status`
     CHECK (`status` BETWEEN 0 AND 5),
   CONSTRAINT `chk_edition_team_size_mode`
@@ -128,6 +194,20 @@ CREATE TABLE `contest_edition` (
     CHECK (`topic_change_limit` BETWEEN 0 AND 3),
   CONSTRAINT `chk_edition_topic_review_required`
     CHECK (`topic_review_required` IN (0, 1)),
+  CONSTRAINT `chk_edition_event_level`
+    CHECK (`level` IN ('SCHOOL', 'PROVINCE', 'NATIONAL')),
+  CONSTRAINT `chk_edition_visibility`
+    CHECK (`visibility` IN ('DRAFT', 'UNLISTED', 'SCHOOL', 'PROVINCE', 'PUBLIC')),
+  CONSTRAINT `chk_edition_entry_mode`
+    CHECK (`entry_mode` IN ('OPEN', 'INVITED', 'QUALIFIED')),
+  CONSTRAINT `chk_edition_cross_school`
+    CHECK (`cross_school_team_allowed` IN (0, 1)),
+  CONSTRAINT `chk_edition_scope`
+    CHECK (
+      (`level` = 'SCHOOL' AND `school_id` IS NOT NULL AND `province_code` IS NULL)
+      OR (`level` = 'PROVINCE' AND `school_id` IS NULL AND `province_code` IS NOT NULL)
+      OR (`level` = 'NATIONAL' AND `school_id` IS NULL AND `province_code` IS NULL)
+    ),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='竞赛的一次具体举办（FR-04，业务数据组织单位）';
 

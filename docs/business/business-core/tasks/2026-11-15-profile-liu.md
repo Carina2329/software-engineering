@@ -7,8 +7,8 @@
 | 业务域 | 赛前基础 / 个人档案 |
 | 开发分支 | `feature/business-profile` |
 | PR 目标分支 | `feature/business-core` |
-| 公共契约基线 | `c345b16`，实际开发从最新 `origin/feature/business-core` 拉分支 |
-| 当前状态 | 已认领，待开始 |
+| 公共契约基线 | 最新 `origin/feature/business-core`，必须包含 v1.4.0 多组织基线 |
+| 当前状态 | 已认领；PR #14 保持 Draft，按 v1.4.0 多组织基线返工 |
 | 最终确认人 | 段欣懿 |
 
 ## 一、本次要完成的小闭环
@@ -31,6 +31,7 @@
 学生：
 
 - 姓名 `real_name`
+- 学校 `school_id`
 - 学号 `student_no`
 - 学院 `college`
 - 专业 `major`
@@ -39,6 +40,7 @@
 教师：
 
 - 姓名 `real_name`
+- 学校 `school_id`
 - 学院 `college`
 - 职称 `title`
 
@@ -53,7 +55,9 @@
 - 从最新 `origin/feature/business-core` 创建分支，不以 `develop` 或旧高并发分支为起点。
 - 已阅读 `AGENTS.md`、`docs/business/business-core/contract.md`、对应 OpenAPI EP-003/EP-004。
 - 使用现有 Spring Security 当前用户能力和审计日志服务。
-- 现有 `sys_user` 已包含本任务所需数据库字段，本任务不修改数据库。
+- 使用多组织公共增量中的 `organization`、`sys_user.school_id` 和 `(school_id, student_no)` 唯一约束。
+- 使用公共 `GET /api/v1/schools` 查询启用学校，不在个人档案模块重复创建学校列表接口。
+- 学校确认使用公共 `GET /api/v1/school-affiliations` 和 `PATCH /api/v1/school-affiliations/{user_id}`，不另造审核模型。
 
 ## 四、允许修改的文件
 
@@ -67,7 +71,7 @@
 - `backend/src/main/java/com/campus/contest/module/system/service/`
   - 可新增个人档案 Service 接口及实现。
 - `backend/src/main/java/com/campus/contest/module/system/vo/CurrentUserVO.java`
-  - 只增加 `student_no`、`title`、`version`，以及角色对应的只读兼容字段。
+  - 增加学校、学号、职称、版本和角色对应的只读兼容字段。
 - `backend/src/main/java/com/campus/contest/module/system/mapper/SysUserMapper.java`
   - 仅在本任务确实需要条件更新或查询时做最小修改。
 - `backend/src/test/java/com/campus/contest/module/system/`
@@ -104,14 +108,15 @@
 
 ### 后端
 
-1. `GET /api/v1/users/me` 返回当前用户的角色相关档案和最新 `version`。
+1. `GET /api/v1/users/me` 返回当前用户的角色相关档案、所属学校、学校确认状态和最新 `version`。
 2. `PATCH /api/v1/users/me` 只修改当前登录用户。
 3. 学生请求携带 `title` 时返回参数错误；教师请求携带 `student_no`、`major` 或 `grade` 时返回参数错误。
-4. 姓名、学号允许本人修改；学号必须全平台唯一，冲突时返回明确业务错误。
-5. 更新必须使用 `version` 乐观锁；旧版本返回 HTTP 409 和现有冲突业务码。
-6. 变更必须写审计日志，至少记录操作人、变更字段、请求追踪号和结果，不记录密码、令牌等敏感信息。
-7. 不允许通过本接口修改 `username`、`password_hash`、`email`、`status`、角色和权限。
-8. 权限必须由 Spring Security 校验，不能只依赖前端隐藏输入框。
+4. 姓名、学号允许本人修改；学号必须在同一学校内唯一，不同学校允许相同学号。
+5. 学生和教师首次选择学校后进入 `PENDING`；学校管理员在现有用户管理页确认或驳回。
+6. 更新必须使用 `version` 乐观锁；旧版本返回 HTTP 409 和现有冲突业务码。
+7. 成功变更与审计写入必须处于同一事务；审计失败时档案修改回滚。
+8. 不允许通过本接口修改 `username`、`password_hash`、`email`、`status`、角色和权限。
+9. 权限必须由 Spring Security 校验，不能只依赖前端隐藏输入框。
 
 ### 前端
 
@@ -124,14 +129,16 @@
 
 ## 七、验收场景
 
-1. 学生查看和修改姓名、学号、学院、专业、年级，刷新后数据仍存在。
-2. 教师查看和修改姓名、学院、职称，刷新后数据仍存在。
+1. 学生查看和修改姓名、学校、学号、学院、专业、年级，刷新后数据仍存在。
+2. 教师查看和修改姓名、学校、学院、职称，刷新后数据仍存在。
 3. 学生提交教师字段被拒绝；教师提交学生字段被拒绝。
 4. 用户不能修改其他用户的档案。
 5. 两个请求使用相同旧版本时，只有第一个成功，第二个返回冲突。
-6. 重复学号被拒绝，原资料不发生变化。
+6. 同校重复学号被拒绝，不同学校相同学号可以成功。
 7. 姓名或学号修改后，审计日志能查到操作，但不包含敏感字段。
-8. 前端生产构建通过，后端相关测试通过。
+8. 学生和教师能选择学校并显示 `PENDING`、`VERIFIED`、`REJECTED` 和驳回原因；已确认学校不能由本人直接切换。
+9. 学校管理员通过现有用户管理页处理待审核列表，确认或驳回后写审计。
+10. 前端生产构建通过，后端相关测试通过。
 
 ## 八、提交证据
 

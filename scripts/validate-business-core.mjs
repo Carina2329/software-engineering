@@ -11,8 +11,10 @@ const assert = (condition, message) => {
 }
 
 const openapi = JSON.parse(read('docs/api/openapi-v1.json'))
-assert(openapi.info.version === '1.3.1', 'OpenAPI version must be 1.3.1')
+assert(openapi.info.version === '1.4.0', 'OpenAPI version must be 1.4.0')
 assert(openapi['x-business-baseline']?.source_branch === 'develop@63c2a14', 'business baseline must use PR12 develop')
+assert(openapi['x-database-tables'] === 27, 'OpenAPI database table count must be 27')
+assert(openapi['x-endpoint-count'] === 93, 'OpenAPI endpoint count must be 93')
 
 const operationIds = new Set()
 const endpointIds = new Set()
@@ -54,17 +56,33 @@ assert(JSON.stringify(Object.keys(profilePatch).sort()) === JSON.stringify([
   'grade',
   'major',
   'real_name',
+  'school_id',
   'student_no',
   'title',
   'version'
-].sort()), 'profile patch fields do not match v1.3.0')
+].sort()), 'profile patch fields do not match v1.4.0')
+
+const profileGet = openapi.paths['/users/me'].get.responses['200'].content['application/json'].schema.properties.data.properties
+for (const field of ['school_id', 'school_name', 'province_code', 'school_verification_status', 'school_review_reason']) {
+  assert(profileGet[field], `profile response is missing ${field}`)
+}
+
+const contestCreate = openapi.paths['/contests'].post.requestBody.content['application/json'].schema
+assert(contestCreate.properties.series_code, 'contest series_code is missing')
 
 const editionCreate = openapi.paths['/contests/{contest_id}/editions'].post.requestBody.content['application/json'].schema.properties
 assert(editionCreate.team_size_mode?.enum?.join(',') === 'FIXED,RANGE', 'team_size_mode enum is missing')
 assert(editionCreate.max_teams_per_teacher?.default === 3, 'teacher limit default is missing')
+for (const field of ['owner_org_id', 'level', 'school_id', 'province_code', 'visibility', 'entry_mode', 'cross_school_team_allowed']) {
+  assert(editionCreate[field], `edition create is missing ${field}`)
+}
 
 const editionDetail = openapi.paths['/editions/{edition_id}'].get.responses['200'].content['application/json'].schema.properties.data.properties
-for (const field of ['registration_open', 'submission_open', 'read_only', 'review_start', 'publish_start', 'publish_end']) {
+for (const field of [
+  'registration_open', 'submission_open', 'read_only', 'review_start', 'publish_start', 'publish_end',
+  'owner_org_id', 'owner_org_name', 'level', 'school_id', 'province_code', 'visibility', 'entry_mode',
+  'cross_school_team_allowed'
+]) {
   assert(editionDetail[field], `edition detail is missing ${field}`)
 }
 
@@ -87,8 +105,44 @@ for (const mode of ['PRESET_UNLIMITED', 'PRESET_LIMITED', 'SELF_PROPOSED', 'NO_T
   assert(devSeed.includes(mode), `development seed is missing ${mode}`)
 }
 
+const multitenantSql = read('docs/sql/2026-11-18-multitenant-foundation.sql')
+for (const token of [
+  'CREATE TABLE organization',
+  'school_id',
+  'scope_type',
+  'scope_id',
+  'school_verification_status',
+  'school_review_reason',
+  'school_reviewed_by',
+  'school_reviewed_at',
+  'owner_org_id',
+  'province_code',
+  'visibility',
+  'entry_mode'
+]) {
+  assert(multitenantSql.includes(token), `multitenant SQL is missing ${token}`)
+}
+
+const multitenantSeed = read('docs/sql/2026-11-18-multitenant-dev-seed.sql')
+for (const token of ['SC-SCHOOL-A', 'SC-SCHOOL-B', 'HN-SCHOOL-D', 'SERIES-STAT-MODEL', '2026年四川省统计建模省赛']) {
+  assert(multitenantSeed.includes(token), `multitenant dev seed is missing ${token}`)
+}
+
+for (const path of [
+  '/schools',
+  '/organizations',
+  '/organizations/{organization_id}',
+  '/role-assignments',
+  '/role-assignments/{assignment_id}',
+  '/school-affiliations',
+  '/school-affiliations/{user_id}'
+]) {
+  assert(openapi.paths[path], `OpenAPI path is missing ${path}`)
+}
+
 const summary = read('docs/api/接口汇总.md')
-assert(summary.includes('文档版本：v1.3.1'), 'interface summary version is not v1.3.1')
+assert(summary.includes('文档版本：v1.4.0'), 'interface summary version is not v1.4.0')
+assert(summary.includes('archive/接口汇总-v1.3.1.md'), 'v1.3.1 archive link is missing')
 assert(summary.includes('archive/接口汇总-v1.3.0.md'), 'v1.3.0 archive link is missing')
 assert(summary.includes('archive/接口汇总-v1.2.1.md'), 'v1.2.1 archive link is missing')
 
