@@ -50,15 +50,6 @@ const router = createRouter({
       },
     },
     {
-      path: '/profile',
-      name: 'profile',
-      component: () => import('../views/common/ProfilePage.vue'),
-      meta: {
-        requiresAuth: true,
-        title: '个人档案',
-      },
-    },
-    {
       path: '/admin',
       component: () => import('../layouts/AdminLayout.vue'),
       meta: {
