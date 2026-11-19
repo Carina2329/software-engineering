@@ -7,6 +7,7 @@ import com.campus.contest.module.organization.entity.OrganizationDO;
 import com.campus.contest.module.organization.mapper.ContestEditionScopeMapper;
 import com.campus.contest.module.organization.mapper.OrganizationMapper;
 import com.campus.contest.module.organization.mapper.OrganizationScopeMapper;
+import com.campus.contest.module.organization.model.EffectiveGrant;
 import com.campus.contest.module.organization.model.EffectiveScope;
 import com.campus.contest.module.organization.model.ScopeGrantDO;
 import com.campus.contest.module.organization.service.impl.OrganizationScopeServiceImpl;
@@ -107,6 +108,13 @@ class OrganizationScopeServiceImplTest {
         assertThat(scope.organizationIds()).containsExactly(10L);
         assertThat(scope.provinceCodes()).containsExactly(510000L);
         assertThat(scope.eventIds()).containsExactly(40L);
+
+        List<EffectiveGrant> effectiveGrants = service.loadEffectiveGrants(USER_ID);
+        assertThat(effectiveGrants).containsExactlyInAnyOrder(
+                new EffectiveGrant("SCHOOL_ADMIN", com.campus.contest.module.organization.model.ScopeType.ORGANIZATION, 10L),
+                new EffectiveGrant("PROVINCE_ADMIN", com.campus.contest.module.organization.model.ScopeType.PROVINCE, 510000L),
+                new EffectiveGrant("EVENT_MANAGER", com.campus.contest.module.organization.model.ScopeType.EVENT, 40L)
+        );
     }
 
     @Test

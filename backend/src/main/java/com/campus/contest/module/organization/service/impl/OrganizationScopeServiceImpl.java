@@ -7,6 +7,7 @@ import com.campus.contest.module.organization.entity.OrganizationDO;
 import com.campus.contest.module.organization.mapper.ContestEditionScopeMapper;
 import com.campus.contest.module.organization.mapper.OrganizationMapper;
 import com.campus.contest.module.organization.mapper.OrganizationScopeMapper;
+import com.campus.contest.module.organization.model.EffectiveGrant;
 import com.campus.contest.module.organization.model.EffectiveScope;
 import com.campus.contest.module.organization.model.ScopeGrantDO;
 import com.campus.contest.module.organization.model.ScopeType;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -54,20 +56,29 @@ public class OrganizationScopeServiceImpl implements OrganizationScopeService {
 
     @Override
     public EffectiveScope loadRequired(Long userId) {
+        return resolve(userId).scope();
+    }
+
+    @Override
+    public List<EffectiveGrant> loadEffectiveGrants(Long userId) {
+        return resolve(userId).grants();
+    }
+
+    private ScopeResolution resolve(Long userId) {
         if (userId == null) {
-            return EffectiveScope.empty();
+            return new ScopeResolution(EffectiveScope.empty(), List.of());
         }
 
         LocalDateTime now = LocalDateTime.now();
         List<ScopeGrantDO> storedGrants = scopeMapper.selectActiveGrants(userId, now);
         if (storedGrants == null || storedGrants.isEmpty()) {
-            return EffectiveScope.empty();
+            return new ScopeResolution(EffectiveScope.empty(), List.of());
         }
         List<ScopeGrantDO> grants = storedGrants.stream()
                 .filter(grant -> isEffective(grant, now))
                 .toList();
         if (grants.isEmpty()) {
-            return EffectiveScope.empty();
+            return new ScopeResolution(EffectiveScope.empty(), List.of());
         }
 
         Map<Long, OrganizationDO> organizations = loadOrganizations(grants);
@@ -77,6 +88,7 @@ public class OrganizationScopeServiceImpl implements OrganizationScopeService {
         Set<Long> organizationIds = new LinkedHashSet<>();
         Set<Long> provinceCodes = new LinkedHashSet<>();
         Set<Long> eventIds = new LinkedHashSet<>();
+        List<EffectiveGrant> effectiveGrants = new ArrayList<>();
 
         for (ScopeGrantDO grant : grants) {
             Optional<ScopeType> scopeType = ScopeType.from(grant.getScopeType());
@@ -95,28 +107,51 @@ public class OrganizationScopeServiceImpl implements OrganizationScopeService {
                             && "ALL".equals(normalizeCode(grant.getDataScope()))
                             && Objects.equals(0L, scopeId)) {
                         global = true;
+                        effectiveGrants.add(new EffectiveGrant(
+                                ROLE_ADMIN,
+                                ScopeType.GLOBAL,
+                                scopeId
+                        ));
                     }
                 }
                 case ORGANIZATION -> {
                     OrganizationDO organization = organizations.get(scopeId);
                     if (isAllowedOrganizationGrant(roleCode, organization)) {
                         organizationIds.add(scopeId);
+                        effectiveGrants.add(new EffectiveGrant(
+                                roleCode,
+                                ScopeType.ORGANIZATION,
+                                scopeId
+                        ));
                     }
                 }
                 case PROVINCE -> {
                     if (isAllowedProvinceGrant(roleCode, scopeId)) {
                         provinceCodes.add(scopeId);
+                        effectiveGrants.add(new EffectiveGrant(
+                                roleCode,
+                                ScopeType.PROVINCE,
+                                scopeId
+                        ));
                     }
                 }
                 case EVENT -> {
                     if (isAllowedEventGrant(roleCode) && events.containsKey(scopeId)) {
                         eventIds.add(scopeId);
+                        effectiveGrants.add(new EffectiveGrant(
+                                roleCode,
+                                ScopeType.EVENT,
+                                scopeId
+                        ));
                     }
                 }
             }
         }
 
-        return new EffectiveScope(global, organizationIds, provinceCodes, eventIds);
+        return new ScopeResolution(
+                new EffectiveScope(global, organizationIds, provinceCodes, eventIds),
+                List.copyOf(effectiveGrants)
+        );
     }
 
     @Override
@@ -367,5 +402,11 @@ public class OrganizationScopeServiceImpl implements OrganizationScopeService {
 
     private BizException dataForbidden(String message) {
         return new BizException(ErrorCode.DATA_FORBIDDEN.getCode(), message);
+    }
+
+    private record ScopeResolution(
+            EffectiveScope scope,
+            List<EffectiveGrant> grants
+    ) {
     }
 }

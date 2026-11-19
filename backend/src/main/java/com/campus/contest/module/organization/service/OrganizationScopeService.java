@@ -1,6 +1,9 @@
 package com.campus.contest.module.organization.service;
 
 import com.campus.contest.module.organization.model.EffectiveScope;
+import com.campus.contest.module.organization.model.EffectiveGrant;
+
+import java.util.List;
 
 /**
  * 组织、省份和赛事的数据范围判断统一入口。
@@ -18,6 +21,11 @@ public interface OrganizationScopeService {
      * 读取当前登录用户的有效范围授权。
      */
     EffectiveScope loadCurrentRequired();
+
+    /**
+     * 返回当前用户的有效管理角色和具体范围，供授权矩阵判断使用。
+     */
+    List<EffectiveGrant> loadEffectiveGrants(Long userId);
 
     boolean canAccessOrganization(Long organizationId);
 
