@@ -27,6 +27,12 @@ public interface OrganizationScopeService {
      */
     List<EffectiveGrant> loadEffectiveGrants(Long userId);
 
+    /**
+     * 仅用于撤销或停用旧授权：角色授权本身仍须有效，
+     * 但目标组织/赛事可以已经停用或归档，不因此阻断撤销。
+     */
+    List<EffectiveGrant> loadEffectiveGrantsForExistingTargets(Long userId);
+
     boolean canAccessOrganization(Long organizationId);
 
     boolean canAccessProvince(String provinceCode);

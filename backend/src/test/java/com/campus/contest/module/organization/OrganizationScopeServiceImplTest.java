@@ -115,6 +115,13 @@ class OrganizationScopeServiceImplTest {
                 new EffectiveGrant("PROVINCE_ADMIN", com.campus.contest.module.organization.model.ScopeType.PROVINCE, 510000L),
                 new EffectiveGrant("EVENT_MANAGER", com.campus.contest.module.organization.model.ScopeType.EVENT, 40L)
         );
+
+        assertThat(service.loadEffectiveGrantsForExistingTargets(USER_ID))
+                .contains(new EffectiveGrant(
+                        "SCHOOL_ADMIN",
+                        com.campus.contest.module.organization.model.ScopeType.ORGANIZATION,
+                        30L
+                ));
     }
 
     @Test

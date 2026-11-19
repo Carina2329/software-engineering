@@ -56,15 +56,20 @@ public class OrganizationScopeServiceImpl implements OrganizationScopeService {
 
     @Override
     public EffectiveScope loadRequired(Long userId) {
-        return resolve(userId).scope();
+        return resolve(userId, true).scope();
     }
 
     @Override
     public List<EffectiveGrant> loadEffectiveGrants(Long userId) {
-        return resolve(userId).grants();
+        return resolve(userId, true).grants();
     }
 
-    private ScopeResolution resolve(Long userId) {
+    @Override
+    public List<EffectiveGrant> loadEffectiveGrantsForExistingTargets(Long userId) {
+        return resolve(userId, false).grants();
+    }
+
+    private ScopeResolution resolve(Long userId, boolean requireOperationalTargets) {
         if (userId == null) {
             return new ScopeResolution(EffectiveScope.empty(), List.of());
         }
@@ -81,7 +86,10 @@ public class OrganizationScopeServiceImpl implements OrganizationScopeService {
             return new ScopeResolution(EffectiveScope.empty(), List.of());
         }
 
-        Map<Long, OrganizationDO> organizations = loadOrganizations(grants);
+        Map<Long, OrganizationDO> organizations = loadOrganizations(
+                grants,
+                requireOperationalTargets
+        );
         Map<Long, ContestEditionScopeDO> events = loadEvents(grants);
 
         boolean global = false;
@@ -274,7 +282,10 @@ public class OrganizationScopeServiceImpl implements OrganizationScopeService {
         return ownerProvince != null && scope.provinceCodes().contains(ownerProvince);
     }
 
-    private Map<Long, OrganizationDO> loadOrganizations(List<ScopeGrantDO> grants) {
+    private Map<Long, OrganizationDO> loadOrganizations(
+            List<ScopeGrantDO> grants,
+            boolean requireActive
+    ) {
         Set<Long> organizationIds = grants.stream()
                 .filter(grant -> ScopeType.from(grant.getScopeType())
                         .filter(type -> type == ScopeType.ORGANIZATION)
@@ -289,7 +300,7 @@ public class OrganizationScopeServiceImpl implements OrganizationScopeService {
         Map<Long, OrganizationDO> result = new LinkedHashMap<>();
         if (organizations != null) {
             organizations.stream()
-                    .filter(this::isActiveOrganization)
+                    .filter(organization -> !requireActive || isActiveOrganization(organization))
                     .forEach(organization -> result.put(organization.getId(), organization));
         }
         return result;

@@ -67,6 +67,7 @@ public class RoleAssignmentServiceImpl implements RoleAssignmentService {
     private static final int GRANT_INACTIVE = 0;
     private static final int NOT_DELETED = 0;
     private static final int ORGANIZATION_ACTIVE = 1;
+    private static final int EVENT_ARCHIVED = 5;
     private static final Duration IDEMPOTENCY_TTL = Duration.ofHours(24);
 
     private static final String OP_CREATE = "ROLE_ASSIGNMENT_CREATE";
@@ -204,7 +205,7 @@ public class RoleAssignmentServiceImpl implements RoleAssignmentService {
         AssignmentMutation mutation = transactionTemplate.execute(status -> {
             requireUser(targetUserId, true);
             SysRoleDO role = requireAssignableRole(roleCode);
-            ScopeTarget target = resolveScopeTarget(roleCode, scopeType, scopeId);
+            ScopeTarget target = resolveAssignableTarget(roleCode, scopeType, scopeId);
             authorizeAssignment(operatorId, roleCode, target);
 
             long duplicates = roleAssignmentMapper.selectCount(
@@ -294,17 +295,20 @@ public class RoleAssignmentServiceImpl implements RoleAssignmentService {
             String roleCode = normalizeRoleCode(role.getRoleCode());
             requireSupportedRoleCode(roleCode);
 
-            ScopeTarget oldTarget = resolveScopeTarget(roleCode, oldScopeType, oldScopeId);
-            authorizeAssignment(operatorId, roleCode, oldTarget);
-            ScopeTarget newTarget = oldScopeType == newScopeType && oldScopeId.equals(newScopeId)
-                    ? oldTarget
-                    : resolveScopeTarget(roleCode, newScopeType, newScopeId);
-            if (newTarget != oldTarget) {
+            ScopeTarget oldTarget = resolveExistingTarget(roleCode, oldScopeType, oldScopeId);
+            authorizeExistingAssignment(operatorId, roleCode, oldTarget);
+            boolean scopeChanged = !oldScopeType.equals(newScopeType)
+                    || !oldScopeId.equals(newScopeId);
+            boolean requiresAssignableTarget = scopeChanged || newActive;
+            ScopeTarget newTarget = requiresAssignableTarget
+                    ? resolveAssignableTarget(roleCode, newScopeType, newScopeId)
+                    : oldTarget;
+            if (scopeChanged) {
                 authorizeAssignment(operatorId, roleCode, newTarget);
             }
             validateUpdateTime(existing.getValidFrom(), newValidTo, newActive);
 
-            if (!oldScopeType.equals(newScopeType) || !oldScopeId.equals(newScopeId)) {
+            if (scopeChanged) {
                 long duplicates = roleAssignmentMapper.selectCount(
                         Wrappers.<SysUserRoleDO>lambdaQuery()
                                 .eq(SysUserRoleDO::getUserId, existing.getUserId())
@@ -371,6 +375,24 @@ public class RoleAssignmentServiceImpl implements RoleAssignmentService {
             ScopeTarget target
     ) {
         List<EffectiveGrant> grants = organizationScopeService.loadEffectiveGrants(operatorId);
+        authorizeAgainstGrants(roleCode, target, grants);
+    }
+
+    private void authorizeExistingAssignment(
+            Long operatorId,
+            String roleCode,
+            ScopeTarget target
+    ) {
+        List<EffectiveGrant> grants =
+                organizationScopeService.loadEffectiveGrantsForExistingTargets(operatorId);
+        authorizeAgainstGrants(roleCode, target, grants);
+    }
+
+    private void authorizeAgainstGrants(
+            String roleCode,
+            ScopeTarget target,
+            List<EffectiveGrant> grants
+    ) {
         boolean global = grants.stream()
                 .anyMatch(grant -> ROLE_ADMIN.equals(grant.roleCode())
                         && grant.scopeType() == ScopeType.GLOBAL);
@@ -442,7 +464,7 @@ public class RoleAssignmentServiceImpl implements RoleAssignmentService {
         return owner == null ? null : parseLongOrNull(owner.getProvinceCode());
     }
 
-    private ScopeTarget resolveScopeTarget(
+    private ScopeTarget resolveAssignableTarget(
             String roleCode,
             ScopeType scopeType,
             Long scopeId
@@ -479,6 +501,60 @@ public class RoleAssignmentServiceImpl implements RoleAssignmentService {
         ContestEditionScopeDO event = contestEditionMapper.selectById(scopeId);
         if (event == null) {
             throw notFound("目标赛事不存在");
+        }
+        if (Objects.equals(EVENT_ARCHIVED, event.getStatus())) {
+            throw stateConflict("已归档赛事不能新增或重新启用授权");
+        }
+        OrganizationDO owner = event.getOwnerOrgId() == null
+                ? null
+                : organizationMapper.selectById(event.getOwnerOrgId());
+        if (owner == null
+                || !Objects.equals(ORGANIZATION_ACTIVE, owner.getStatus())) {
+            throw stateConflict("赛事主办组织不存在或已停用");
+        }
+        requireRoleScopeCompatibility(roleCode, scopeType, null, event);
+        return new ScopeTarget(scopeType, scopeId, null, event, owner);
+    }
+
+    /**
+     * 停用旧授权只要求原目标仍存在且角色/范围兼容。
+     * 组织停用、赛事归档或主办组织停用不阻塞撤销。
+     */
+    private ScopeTarget resolveExistingTarget(
+            String roleCode,
+            ScopeType scopeType,
+            Long scopeId
+    ) {
+        if (scopeType == ScopeType.GLOBAL) {
+            throw invalidParam("GLOBAL 基础角色不由范围授权接口维护");
+        }
+        if (scopeId == null || scopeId <= 0) {
+            throw invalidParam("现有 scope_id 非法");
+        }
+
+        if (scopeType == ScopeType.ORGANIZATION) {
+            OrganizationDO organization = organizationMapper.selectById(scopeId);
+            if (organization == null) {
+                throw notFound("原授权组织不存在");
+            }
+            requireRoleScopeCompatibility(roleCode, scopeType, organization, null);
+            return new ScopeTarget(scopeType, scopeId, organization, null, null);
+        }
+
+        if (scopeType == ScopeType.PROVINCE) {
+            if (!dictionaryQueryService.containsEnabledValue(
+                    PROVINCE_DICTIONARY,
+                    String.valueOf(scopeId)
+            )) {
+                throw notFound("原授权省份不存在或不可用");
+            }
+            requireRoleScopeCompatibility(roleCode, scopeType, null, null);
+            return new ScopeTarget(scopeType, scopeId, null, null, null);
+        }
+
+        ContestEditionScopeDO event = contestEditionMapper.selectById(scopeId);
+        if (event == null) {
+            throw notFound("原授权赛事不存在");
         }
         OrganizationDO owner = event.getOwnerOrgId() == null
                 ? null
@@ -749,6 +825,10 @@ public class RoleAssignmentServiceImpl implements RoleAssignmentService {
 
     private BizException internalError(String message) {
         return new BizException(ErrorCode.INTERNAL_ERROR.getCode(), message);
+    }
+
+    private BizException stateConflict(String message) {
+        return new BizException(ErrorCode.BUSINESS_CONFLICT.getCode(), message);
     }
 
     private record AssignmentMutation(

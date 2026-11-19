@@ -440,7 +440,7 @@ class RoleAssignmentServiceImplTest {
         when(organizationMapper.selectById(10L)).thenReturn(
                 organization(10L, "SCHOOL", "510000", 1)
         );
-        when(organizationScopeService.loadEffectiveGrants(OPERATOR_ID)).thenReturn(
+        when(organizationScopeService.loadEffectiveGrantsForExistingTargets(OPERATOR_ID)).thenReturn(
                 List.of(globalAdminGrant())
         );
         when(assignmentMapper.updateScopedAssignment(
@@ -496,7 +496,7 @@ class RoleAssignmentServiceImplTest {
         when(organizationMapper.selectById(20L)).thenReturn(
                 organization(20L, "SCHOOL", "510000", 1)
         );
-        when(organizationScopeService.loadEffectiveGrants(OPERATOR_ID)).thenReturn(List.of(
+        when(organizationScopeService.loadEffectiveGrantsForExistingTargets(OPERATOR_ID)).thenReturn(List.of(
                 new EffectiveGrant("SCHOOL_ADMIN", ScopeType.ORGANIZATION, 10L)
         ));
 
@@ -523,6 +523,9 @@ class RoleAssignmentServiceImplTest {
         when(organizationMapper.selectById(20L)).thenReturn(
                 organization(20L, "SCHOOL", "510000", 1)
         );
+        when(organizationScopeService.loadEffectiveGrantsForExistingTargets(OPERATOR_ID)).thenReturn(List.of(
+                new EffectiveGrant("SCHOOL_ADMIN", ScopeType.ORGANIZATION, 10L)
+        ));
         when(organizationScopeService.loadEffectiveGrants(OPERATOR_ID)).thenReturn(List.of(
                 new EffectiveGrant("SCHOOL_ADMIN", ScopeType.ORGANIZATION, 10L)
         ));
@@ -649,6 +652,211 @@ class RoleAssignmentServiceImplTest {
         assertThat(transactionManager.rolledBack).isFalse();
     }
 
+    @Test
+    @DisplayName("组织停用后平台管理员仍可停用原范围授权")
+    void platformAdminCanDeactivateAssignmentOnDisabledOrganization() {
+        when(assignmentMapper.selectById(100L)).thenReturn(
+                assignment(100L, TARGET_USER_ID, 21L, "ORGANIZATION", 10L, 1, 2)
+        );
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(user(TARGET_USER_ID, 1));
+        when(roleMapper.selectById(21L)).thenReturn(role(21L, "EVENT_MANAGER"));
+        when(organizationMapper.selectById(10L)).thenReturn(
+                organization(10L, "SCHOOL", "510000", 0)
+        );
+        when(organizationScopeService.loadEffectiveGrantsForExistingTargets(OPERATOR_ID)).thenReturn(
+                List.of(globalAdminGrant())
+        );
+        when(assignmentMapper.updateScopedAssignment(
+                eq(100L),
+                eq("ORGANIZATION"),
+                eq(10L),
+                eq(0),
+                isNull(),
+                eq(2),
+                eq(OPERATOR_ID)
+        )).thenReturn(1);
+
+        IdVersionVO result = service.updateAssignment(
+                100L,
+                updateRequest(false, 2),
+                null
+        );
+
+        assertThat(result.getVersion()).isEqualTo(3);
+        verify(auditLogService).record(any(AuditLogCommand.class));
+        verify(sideEffectService).revokeSessionsOfUsers(
+                List.of(TARGET_USER_ID),
+                "ROLE_ASSIGNMENT_UPDATE"
+        );
+    }
+
+    @Test
+    @DisplayName("学校管理员在组织停用后仍可撤销本组织旧授权")
+    void schoolAdminCanDeactivateOwnAssignmentAfterOrganizationDisabled() {
+        when(assignmentMapper.selectById(100L)).thenReturn(
+                assignment(100L, TARGET_USER_ID, 21L, "ORGANIZATION", 10L, 1, 2)
+        );
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(user(TARGET_USER_ID, 1));
+        when(roleMapper.selectById(21L)).thenReturn(role(21L, "EVENT_MANAGER"));
+        when(organizationMapper.selectById(10L)).thenReturn(
+                organization(10L, "SCHOOL", "510000", 0)
+        );
+        when(organizationScopeService.loadEffectiveGrantsForExistingTargets(OPERATOR_ID))
+                .thenReturn(List.of(
+                        new EffectiveGrant("SCHOOL_ADMIN", ScopeType.ORGANIZATION, 10L)
+                ));
+        when(assignmentMapper.updateScopedAssignment(
+                eq(100L),
+                eq("ORGANIZATION"),
+                eq(10L),
+                eq(0),
+                isNull(),
+                eq(2),
+                eq(OPERATOR_ID)
+        )).thenReturn(1);
+
+        IdVersionVO result = service.updateAssignment(
+                100L,
+                updateRequest(false, 2),
+                null
+        );
+
+        assertThat(result.getVersion()).isEqualTo(3);
+        verify(auditLogService).record(any(AuditLogCommand.class));
+        verify(sideEffectService).revokeSessionsOfUsers(
+                List.of(TARGET_USER_ID),
+                "ROLE_ASSIGNMENT_UPDATE"
+        );
+    }
+
+    @Test
+    @DisplayName("归档赛事上的旧授权仍可停用")
+    void archivedEventAssignmentCanBeDeactivated() {
+        when(assignmentMapper.selectById(100L)).thenReturn(
+                assignment(100L, TARGET_USER_ID, 21L, "EVENT", 40L, 1, 2)
+        );
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(user(TARGET_USER_ID, 1));
+        when(roleMapper.selectById(21L)).thenReturn(role(21L, "EVENT_MANAGER"));
+        when(contestEditionMapper.selectById(40L)).thenReturn(event(40L, 10L, null, 5));
+        when(organizationMapper.selectById(10L)).thenReturn(
+                organization(10L, "SCHOOL", "510000", 1)
+        );
+        when(organizationScopeService.loadEffectiveGrantsForExistingTargets(OPERATOR_ID)).thenReturn(
+                List.of(globalAdminGrant())
+        );
+        when(assignmentMapper.updateScopedAssignment(
+                eq(100L),
+                eq("EVENT"),
+                eq(40L),
+                eq(0),
+                isNull(),
+                eq(2),
+                eq(OPERATOR_ID)
+        )).thenReturn(1);
+
+        IdVersionVO result = service.updateAssignment(
+                100L,
+                updateRequest(false, 2),
+                null
+        );
+
+        assertThat(result.getVersion()).isEqualTo(3);
+        verify(auditLogService).record(any(AuditLogCommand.class));
+        verify(sideEffectService).revokeSessionsOfUsers(
+                List.of(TARGET_USER_ID),
+                "ROLE_ASSIGNMENT_UPDATE"
+        );
+    }
+
+    @Test
+    @DisplayName("不能给归档赛事新增授权")
+    void cannotCreateAssignmentForArchivedEvent() {
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(user(TARGET_USER_ID, 1));
+        when(roleMapper.selectOne(any())).thenReturn(role(21L, "EVENT_MANAGER"));
+        when(contestEditionMapper.selectById(40L)).thenReturn(event(40L, 10L, null, 5));
+
+        assertBizCode(
+                () -> service.createAssignment(
+                        createRequest(TARGET_USER_ID, "EVENT_MANAGER", "EVENT", 40L),
+                        "archived-create-key"
+                ),
+                ErrorCode.BUSINESS_CONFLICT
+        );
+        verify(assignmentMapper, never()).insert(any(SysUserRoleDO.class));
+    }
+
+    @Test
+    @DisplayName("不能把授权迁移到归档赛事")
+    void cannotMoveAssignmentToArchivedEvent() {
+        when(assignmentMapper.selectById(100L)).thenReturn(
+                assignment(100L, TARGET_USER_ID, 21L, "ORGANIZATION", 10L, 1, 1)
+        );
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(user(TARGET_USER_ID, 1));
+        when(roleMapper.selectById(21L)).thenReturn(role(21L, "EVENT_MANAGER"));
+        when(organizationMapper.selectById(10L)).thenReturn(
+                organization(10L, "SCHOOL", "510000", 1)
+        );
+        when(organizationScopeService.loadEffectiveGrantsForExistingTargets(OPERATOR_ID)).thenReturn(
+                List.of(globalAdminGrant())
+        );
+        when(contestEditionMapper.selectById(40L)).thenReturn(event(40L, 10L, null, 5));
+        RoleAssignmentUpdateRequest request = updateRequest(true, 1);
+        request.setScopeType("EVENT");
+        request.setScopeId("40");
+
+        assertBizCode(
+                () -> service.updateAssignment(100L, request, null),
+                ErrorCode.BUSINESS_CONFLICT
+        );
+        verify(assignmentMapper, never()).updateScopedAssignment(
+                any(), any(), any(), anyInt(), any(), anyInt(), any()
+        );
+    }
+
+    @Test
+    @DisplayName("不能给主办组织停用的赛事新增授权")
+    void cannotCreateAssignmentWhenEventOwnerIsDisabled() {
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(user(TARGET_USER_ID, 1));
+        when(roleMapper.selectOne(any())).thenReturn(role(21L, "EVENT_MANAGER"));
+        when(contestEditionMapper.selectById(40L)).thenReturn(event(40L, 10L, null, 0));
+        when(organizationMapper.selectById(10L)).thenReturn(
+                organization(10L, "SCHOOL", "510000", 0)
+        );
+
+        assertBizCode(
+                () -> service.createAssignment(
+                        createRequest(TARGET_USER_ID, "EVENT_MANAGER", "EVENT", 40L),
+                        "disabled-owner-key"
+                ),
+                ErrorCode.BUSINESS_CONFLICT
+        );
+    }
+
+    @Test
+    @DisplayName("不能重新启用归档赛事上的旧授权")
+    void cannotReactivateAssignmentOnArchivedEvent() {
+        when(assignmentMapper.selectById(100L)).thenReturn(
+                assignment(100L, TARGET_USER_ID, 21L, "EVENT", 40L, 0, 1)
+        );
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(user(TARGET_USER_ID, 1));
+        when(roleMapper.selectById(21L)).thenReturn(role(21L, "EVENT_MANAGER"));
+        when(contestEditionMapper.selectById(40L)).thenReturn(event(40L, 10L, null, 5));
+        when(organizationMapper.selectById(10L)).thenReturn(
+                organization(10L, "SCHOOL", "510000", 1)
+        );
+        when(organizationScopeService.loadEffectiveGrantsForExistingTargets(OPERATOR_ID)).thenReturn(
+                List.of(globalAdminGrant())
+        );
+
+        assertBizCode(
+                () -> service.updateAssignment(100L, updateRequest(true, 1), null),
+                ErrorCode.BUSINESS_CONFLICT
+        );
+        verify(assignmentMapper, never()).updateScopedAssignment(
+                any(), any(), any(), anyInt(), any(), anyInt(), any()
+        );
+    }
+
     private void assertBizCode(Runnable action, ErrorCode expected) {
         assertThatThrownBy(action::run)
                 .isInstanceOfSatisfying(BizException.class, error ->
@@ -711,10 +919,20 @@ class RoleAssignmentServiceImplTest {
     }
 
     private ContestEditionScopeDO event(Long id, Long ownerOrgId, String provinceCode) {
+        return event(id, ownerOrgId, provinceCode, 0);
+    }
+
+    private ContestEditionScopeDO event(
+            Long id,
+            Long ownerOrgId,
+            String provinceCode,
+            int status
+    ) {
         ContestEditionScopeDO event = new ContestEditionScopeDO();
         event.setId(id);
         event.setOwnerOrgId(ownerOrgId);
         event.setProvinceCode(provinceCode);
+        event.setStatus(status);
         event.setDeleted(0);
         return event;
     }
