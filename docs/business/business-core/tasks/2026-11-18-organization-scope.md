@@ -63,6 +63,13 @@
 - 确认、驳回原因、审核人和审核时间
 - 已确认学校不能由本人直接切换
 
+### 文件与权限边界
+
+- EP-004、`UserController`、`ProfileService`、`ProfileServiceImpl` 和 `CurrentUserVO` 继续由个人档案任务维护。
+- 本任务提供学校归属服务供档案任务调用，不直接修改 EP-004。
+- `router/index.ts`、`layouts/`、OpenAPI、公共 SQL、菜单和权限种子由段欣懿统一维护。
+- SCHOOL_ADMIN 不授予 `system:user:list`；只能使用 `school:affiliation:list/review`。
+
 ## 四、允许修改范围
 
 认领和正式任务卡确认后，预计只允许修改：

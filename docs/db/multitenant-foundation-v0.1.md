@@ -140,6 +140,8 @@ UNIQUE(user_id, role_id, scope_type, scope_id)
 CN_PROVINCE
 ```
 
+公共种子脚本为 `2026-11-19-cn-province-dictionary-seed.sql`。
+
 第一阶段使用标准省级编码，例如：
 
 - 四川 `510000`

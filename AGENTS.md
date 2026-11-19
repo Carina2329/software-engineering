@@ -71,6 +71,7 @@
 - `docs/sql/2026-11-18-multitenant-rollback.sql`
 - `docs/sql/2026-11-18-multitenant-permissions-seed.sql`
 - `docs/sql/2026-11-18-multitenant-dev-seed.sql`
+- `docs/sql/2026-11-19-cn-province-dictionary-seed.sql`
 - `docs/db/contest-selection-delta-v0.2.md`
 - `docs/AI学科竞赛系统-功能需求说明书-V0.5.md`
 - `docs/AI学科竞赛系统-前后端工程规划与命名规范-V0.4.md`

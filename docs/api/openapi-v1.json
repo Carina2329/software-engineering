@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AI学科竞赛全流程智能服务平台接口",
-    "version": "1.4.0",
-    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.3.0 冻结业务核心公共基线；1.3.1 在竞赛详情和赛程节点列表增加乐观锁 version，形成可用的编辑闭环。 1.4.0 将平台冻结为多学校、多主办方赛事托管模式：用户关联学校，学号同校唯一；管理员角色绑定组织、省份或具体赛事范围；具体比赛必须声明主办组织、级别、学校/省份范围和可见范围。",
+    "version": "1.4.1",
+    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.4.0 将平台冻结为多学校、多主办方赛事托管模式；1.4.1 修正 EP-004 同校学号语义，补充学校归属审核、CN_PROVINCE 公共字典和范围权限边界。",
     "contact": {
       "name": "第6组",
       "email": "group6@example.edu"
@@ -20,6 +20,15 @@
     }
   ],
   "x-changelog": [
+    {
+      "version": "1.4.1",
+      "date": "2026-11-19",
+      "changes": [
+        "修正 EP-004 学号说明为同校唯一，与 (school_id, student_no) 约束一致。",
+        "补充 CN_PROVINCE 省级行政区公共字典。",
+        "明确学校归属审核只使用范围受限接口，不向学校管理员授予全局用户列表权限。"
+      ]
+    },
     {
       "version": "1.4.0",
       "date": "2026-11-18",
@@ -515,7 +524,7 @@
           "认证与用户"
         ],
         "summary": "修改当前用户档案",
-        "description": "只允许本人修改角色对应档案字段。学生可修改姓名、学号、学院、专业、年级；教师可修改姓名、学院、职称。角色、账号状态、权限、密码和登录方式不能由本人修改。真实姓名、学号等字段变更必须审计，学号保持全平台唯一。",
+        "description": "只允许本人修改角色对应档案字段。学生可修改姓名、学校、学号、学院、专业、年级；教师可修改姓名、学校、学院、职称。角色、账号状态、权限、密码和登录方式不能由本人修改。真实姓名、学号等字段变更必须审计，学号在同一学校内唯一；用户名和邮箱仍全平台唯一。",
         "operationId": "ep_004",
         "security": [
           {
@@ -622,7 +631,7 @@
                   },
                   "student_no": {
                     "type": "string",
-                    "description": "学号；仅学生可修改，必须全平台唯一",
+                    "description": "学号；仅学生可修改，同一学校内唯一",
                     "maxLength": 20
                   },
                   "college": {
@@ -14183,8 +14192,8 @@
   "x-database-tables": 27,
   "x-endpoint-count": 93,
   "x-business-baseline": {
-    "version": "1.4.0",
-    "date": "2026-11-18",
+    "version": "1.4.1",
+    "date": "2026-11-19",
     "source_branch": "develop@63c2a14",
     "contract_revision": "multi-organization-competition-hosting",
     "timezone": "Asia/Shanghai",
