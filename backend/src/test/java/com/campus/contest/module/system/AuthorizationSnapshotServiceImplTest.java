@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,6 +67,8 @@ class AuthorizationSnapshotServiceImplTest {
         SysUserRoleDO userRole = new SysUserRoleDO();
         userRole.setUserId(1L);
         userRole.setRoleId(10L);
+        userRole.setStatus(1);
+        userRole.setDeleted(0);
 
         SysRoleMenuDO roleMenu = new SysRoleMenuDO();
         roleMenu.setRoleId(10L);
@@ -90,6 +93,52 @@ class AuthorizationSnapshotServiceImplTest {
     }
 
     @Test
+    void ignoresDisabledExpiredDeletedAndNotYetEffectiveRoleGrants() {
+        SysUserDO user = new SysUserDO();
+        user.setId(1L);
+        user.setUsername("school_admin_a");
+        user.setStatus(1);
+
+        SysRoleDO role = new SysRoleDO();
+        role.setId(10L);
+        role.setRoleCode("SCHOOL_ADMIN");
+        role.setDataScope("ORGANIZATION");
+
+        SysUserRoleDO active = userRole(10L, 1, 0, null, LocalDateTime.now().plusDays(1));
+        SysUserRoleDO disabled = userRole(20L, 0, 0, null, null);
+        SysUserRoleDO deleted = userRole(30L, 1, 1, null, null);
+        SysUserRoleDO expired = userRole(40L, 1, 0, null, LocalDateTime.now().minusSeconds(1));
+        SysUserRoleDO future = userRole(50L, 1, 0, LocalDateTime.now().plusDays(1), null);
+
+        SysRoleMenuDO roleMenu = new SysRoleMenuDO();
+        roleMenu.setRoleId(10L);
+        roleMenu.setMenuId(20L);
+
+        SysMenuDO menu = new SysMenuDO();
+        menu.setId(20L);
+        menu.setPerms("school:affiliation:list");
+        menu.setStatus(1);
+
+        when(userMapper.selectById(1L)).thenReturn(user);
+        when(userRoleMapper.selectList(any())).thenReturn(
+                List.of(active, disabled, deleted, expired, future)
+        );
+        when(roleMapper.selectBatchIds(anyCollection())).thenAnswer(invocation -> {
+            Iterable<Long> requestedRoleIds = invocation.getArgument(0);
+            assertThat(requestedRoleIds).containsExactly(10L);
+            return List.of(role);
+        });
+        when(roleMenuMapper.selectList(any())).thenReturn(List.of(roleMenu));
+        when(menuMapper.selectBatchIds(anyCollection())).thenReturn(List.of(menu));
+
+        AuthorizationSnapshot snapshot = service.loadRequired(1L);
+
+        assertThat(snapshot.roleCodes()).containsExactly("SCHOOL_ADMIN");
+        assertThat(snapshot.permissionCodes()).containsExactly("school:affiliation:list");
+        assertThat(snapshot.dataScopes()).containsExactly("ORGANIZATION");
+    }
+
+    @Test
     void rejectsMissingOrDisabledUserWithExistingUnauthorizedCode() {
         when(userMapper.selectById(99L)).thenReturn(null);
 
@@ -97,5 +146,22 @@ class AuthorizationSnapshotServiceImplTest {
                 .isInstanceOfSatisfying(BizException.class,
                         error -> assertThat(error.getCode())
                                 .isEqualTo(ErrorCode.UNAUTHENTICATED.getCode()));
+    }
+
+    private SysUserRoleDO userRole(
+            Long roleId,
+            Integer status,
+            Integer deleted,
+            LocalDateTime validFrom,
+            LocalDateTime validTo
+    ) {
+        SysUserRoleDO userRole = new SysUserRoleDO();
+        userRole.setUserId(1L);
+        userRole.setRoleId(roleId);
+        userRole.setStatus(status);
+        userRole.setDeleted(deleted);
+        userRole.setValidFrom(validFrom);
+        userRole.setValidTo(validTo);
+        return userRole;
     }
 }

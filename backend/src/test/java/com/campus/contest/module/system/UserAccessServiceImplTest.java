@@ -25,9 +25,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -170,10 +172,94 @@ class UserAccessServiceImplTest {
 
         assertThat(result.getId()).isEqualTo("7");
         assertThat(result.getVersion()).isEqualTo(1);
-        verify(userRoleMapper).delete(any());
-        verify(userRoleMapper).insert(any(SysUserRoleDO.class));
+        verify(userRoleMapper).upsertBaseRole(TARGET_USER_ID, 31L, OPERATOR_ID);
+        verify(userRoleMapper).deleteBaseRolesExcept(
+                TARGET_USER_ID,
+                List.of(31L),
+                OPERATOR_ID
+        );
+        verify(userRoleMapper, never()).delete(any());
         verify(sideEffectService).revokeSessionsOfUsers(eq(List.of(TARGET_USER_ID)), eq("USER_ACCESS_UPDATE"));
         verify(sideEffectService).audit(eq(OPERATOR_ID), eq("USER_ACCESS_UPDATE"), anyString(), eq(0));
+    }
+
+    @Test
+    @DisplayName("EP-007 只替换基础角色，保留有效组织范围授权")
+    void updateUserAccessPreservesScopedRoleGrants() {
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(user(TARGET_USER_ID, "student01", 1));
+        when(userRoleMapper.selectList(any())).thenReturn(List.of(
+                userRole(TARGET_USER_ID, 40L),
+                scopedUserRole(TARGET_USER_ID, 20L, "ORGANIZATION", 10L)
+        ));
+        when(roleMapper.selectBatchIds(any())).thenReturn(List.of(
+                role(40L, "STUDENT"),
+                role(20L, "SCHOOL_ADMIN")
+        ));
+        when(roleMapper.selectList(any())).thenReturn(List.of(role(10L, "ADMIN")));
+        when(userMapper.updateById(any(SysUserDO.class))).thenReturn(1);
+
+        UserAccessUpdateRequest request = new UserAccessUpdateRequest();
+        request.setRoleCodes(List.of("ADMIN"));
+        request.setVersion(0);
+
+        userAccessService.updateUserAccess(TARGET_USER_ID, request, "user-access-key");
+
+        verify(userRoleMapper).upsertBaseRole(TARGET_USER_ID, 10L, OPERATOR_ID);
+        verify(userRoleMapper).deleteBaseRolesExcept(
+                TARGET_USER_ID,
+                List.of(10L),
+                OPERATOR_ID
+        );
+        verify(userRoleMapper, never()).delete(any());
+
+        ArgumentCaptor<String> auditParams = ArgumentCaptor.forClass(String.class);
+        verify(sideEffectService).audit(
+                eq(OPERATOR_ID),
+                eq("USER_ACCESS_UPDATE"),
+                auditParams.capture(),
+                eq(0)
+        );
+        assertThat(auditParams.getValue())
+                .contains("\"ADMIN\"")
+                .contains("\"SCHOOL_ADMIN\"");
+    }
+
+    @Test
+    @DisplayName("用户列表不展示停用、过期或已删除的角色授权")
+    void pageUsersIgnoresInactiveRoleGrants() {
+        SysUserDO student = user(TARGET_USER_ID, "student01", 1);
+        IPage<SysUserDO> page = new Page<>(1, 20);
+        page.setRecords(List.of(student));
+        page.setTotal(1);
+
+        SysUserRoleDO expired = userRole(TARGET_USER_ID, 31L);
+        expired.setValidTo(LocalDateTime.now().minusSeconds(1));
+        SysUserRoleDO disabled = userRole(TARGET_USER_ID, 10L);
+        disabled.setStatus(0);
+        SysUserRoleDO deleted = userRole(TARGET_USER_ID, 20L);
+        deleted.setDeleted(1);
+
+        when(userMapper.selectPage(any(), any())).thenReturn(page);
+        when(userRoleMapper.selectList(any())).thenReturn(List.of(
+                userRole(TARGET_USER_ID, 40L),
+                expired,
+                disabled,
+                deleted
+        ));
+        when(roleMapper.selectBatchIds(any())).thenReturn(List.of(
+                role(40L, "STUDENT"),
+                role(31L, "TEACHER"),
+                role(10L, "ADMIN"),
+                role(20L, "SCHOOL_ADMIN")
+        ));
+
+        UserPageVO result = userAccessService.pageUsers(query(1, 20, null, null, null));
+
+        assertThat(result.getItems()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getRoleCodes()).containsExactly("STUDENT");
+                    assertThat(item.getUserType()).isEqualTo("STUDENT");
+                });
     }
 
     @Test
@@ -298,6 +384,22 @@ class UserAccessServiceImplTest {
         SysUserRoleDO relation = new SysUserRoleDO();
         relation.setUserId(userId);
         relation.setRoleId(roleId);
+        relation.setScopeType("GLOBAL");
+        relation.setScopeId(0L);
+        relation.setStatus(1);
+        relation.setDeleted(0);
+        return relation;
+    }
+
+    private SysUserRoleDO scopedUserRole(
+            Long userId,
+            Long roleId,
+            String scopeType,
+            Long scopeId
+    ) {
+        SysUserRoleDO relation = userRole(userId, roleId);
+        relation.setScopeType(scopeType);
+        relation.setScopeId(scopeId);
         return relation;
     }
 }

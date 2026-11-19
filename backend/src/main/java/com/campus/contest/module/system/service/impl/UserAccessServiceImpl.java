@@ -63,6 +63,10 @@ public class UserAccessServiceImpl implements UserAccessService {
     private static final int MAX_SIZE = 100;
     private static final Duration IDEMPOTENCY_TTL = Duration.ofHours(24);
     private static final String OP_UPDATE = "RBAC_USER_ACCESS_UPDATE";
+    private static final int GRANT_ACTIVE = 1;
+    private static final int NOT_DELETED = 0;
+    private static final String BASE_SCOPE_TYPE = "GLOBAL";
+    private static final long BASE_SCOPE_ID = 0L;
 
     private static final List<String> TYPE_PRIORITY = List.of("ADMIN", "TEACHER", "REVIEWER", "STUDENT");
 
@@ -216,7 +220,11 @@ public class UserAccessServiceImpl implements UserAccessService {
             Long operatorId
     ) {
         SysUserDO existing = requireUser(userId);
-        List<String> beforeRoles = roleCodesOfUser(userId);
+        RoleAssignments beforeAssignments = summarizeRoleLinks(effectiveUserRoleLinks(userId));
+        List<String> beforeRoles = beforeAssignments.allRoleCodes()
+                .getOrDefault(userId, List.of());
+        List<String> preservedScopedRoles = beforeAssignments.scopedRoleCodes()
+                .getOrDefault(userId, List.of());
         Map<String, Object> before = new LinkedHashMap<>();
         before.put("user_id", String.valueOf(userId));
         before.put("status", existing.getStatus());
@@ -237,15 +245,10 @@ public class UserAccessServiceImpl implements UserAccessService {
                 throw versionConflict();
             }
             if (roleIds != null) {
-                userRoleMapper.delete(
-                        Wrappers.<SysUserRoleDO>lambdaQuery().eq(SysUserRoleDO::getUserId, userId)
-                );
                 for (Long roleId : roleIds) {
-                    SysUserRoleDO relation = new SysUserRoleDO();
-                    relation.setUserId(userId);
-                    relation.setRoleId(roleId);
-                    userRoleMapper.insert(relation);
+                    userRoleMapper.upsertBaseRole(userId, roleId, operatorId);
                 }
+                userRoleMapper.deleteBaseRolesExcept(userId, roleIds, operatorId);
             }
             return (long) (version + 1);
         });
@@ -254,7 +257,9 @@ public class UserAccessServiceImpl implements UserAccessService {
         }
 
         Integer effectiveStatus = status == null ? existing.getStatus() : status;
-        List<String> afterRoles = roleCodes == null ? beforeRoles : roleCodes;
+        List<String> afterRoles = roleCodes == null
+                ? beforeRoles
+                : mergedRoleCodes(roleCodes, preservedScopedRoles);
         Map<String, Object> after = new LinkedHashMap<>();
         after.put("user_id", String.valueOf(userId));
         after.put("status", effectiveStatus);
@@ -323,9 +328,13 @@ public class UserAccessServiceImpl implements UserAccessService {
         if (role == null) {
             return List.of();
         }
-        return userRoleMapper.selectList(
-                        Wrappers.<SysUserRoleDO>lambdaQuery().eq(SysUserRoleDO::getRoleId, role.getId())
-                ).stream()
+        LambdaQueryWrapper<SysUserRoleDO> grantQuery = effectiveRoleGrants();
+        grantQuery.eq(SysUserRoleDO::getRoleId, role.getId());
+        List<SysUserRoleDO> links = userRoleMapper.selectList(grantQuery);
+        return Optional.ofNullable(links)
+                .orElseGet(List::of)
+                .stream()
+                .filter(this::isEffectiveGrant)
                 .map(SysUserRoleDO::getUserId)
                 .filter(Objects::nonNull)
                 .distinct()
@@ -347,47 +356,115 @@ public class UserAccessServiceImpl implements UserAccessService {
         return tags;
     }
 
-    private List<String> roleCodesOfUser(Long userId) {
+    private List<SysUserRoleDO> effectiveUserRoleLinks(Long userId) {
         List<SysUserRoleDO> links = userRoleMapper.selectList(
-                Wrappers.<SysUserRoleDO>lambdaQuery().eq(SysUserRoleDO::getUserId, userId)
+                effectiveRoleGrants().eq(SysUserRoleDO::getUserId, userId)
         );
-        return roleCodesOf(links).getOrDefault(userId, new ArrayList<>());
+        return links == null
+                ? List.of()
+                : links.stream().filter(this::isEffectiveGrant).toList();
+    }
+
+    private LambdaQueryWrapper<SysUserRoleDO> effectiveRoleGrants() {
+        LocalDateTime now = LocalDateTime.now();
+        return Wrappers.<SysUserRoleDO>lambdaQuery()
+                .eq(SysUserRoleDO::getStatus, GRANT_ACTIVE)
+                .and(validFrom -> validFrom.isNull(SysUserRoleDO::getValidFrom)
+                        .or()
+                        .le(SysUserRoleDO::getValidFrom, now))
+                .and(validTo -> validTo.isNull(SysUserRoleDO::getValidTo)
+                        .or()
+                        .gt(SysUserRoleDO::getValidTo, now));
+    }
+
+    private boolean isEffectiveGrant(SysUserRoleDO link) {
+        LocalDateTime now = LocalDateTime.now();
+        return link != null
+                && Objects.equals(GRANT_ACTIVE, link.getStatus())
+                && Objects.equals(NOT_DELETED, link.getDeleted())
+                && (link.getValidFrom() == null || !link.getValidFrom().isAfter(now))
+                && (link.getValidTo() == null || link.getValidTo().isAfter(now));
+    }
+
+    private boolean isBaseGrant(SysUserRoleDO link) {
+        if (!StringUtils.hasText(link.getScopeType())) {
+            return true;
+        }
+        return BASE_SCOPE_TYPE.equalsIgnoreCase(link.getScopeType().trim())
+                && (link.getScopeId() == null || Objects.equals(BASE_SCOPE_ID, link.getScopeId()));
+    }
+
+    private List<String> mergedRoleCodes(List<String> baseRoles, List<String> scopedRoles) {
+        Set<String> merged = new LinkedHashSet<>(baseRoles);
+        merged.addAll(scopedRoles);
+        return new ArrayList<>(merged);
     }
 
     /** 批量把 user_id -> role_code 列表，按 role_id 升序保持稳定顺序 */
     private Map<Long, List<String>> roleCodesOf(Collection<SysUserRoleDO> links) {
+        return summarizeRoleLinks(links).allRoleCodes();
+    }
+
+    private RoleAssignments summarizeRoleLinks(Collection<SysUserRoleDO> links) {
         if (links == null || links.isEmpty()) {
-            return Map.of();
+            return new RoleAssignments(Map.of(), Map.of());
         }
         Set<Long> roleIds = links.stream()
                 .map(SysUserRoleDO::getRoleId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         if (roleIds.isEmpty()) {
-            return Map.of();
+            return new RoleAssignments(Map.of(), Map.of());
         }
         Map<Long, SysRoleDO> roleById = Optional.ofNullable(roleMapper.selectBatchIds(roleIds))
                 .orElseGet(List::of)
                 .stream()
                 .collect(Collectors.toMap(SysRoleDO::getId, role -> role, (left, right) -> left));
-        Map<Long, List<Long>> roleIdsByUser = new LinkedHashMap<>();
+        Map<Long, List<Long>> allRoleIdsByUser = new LinkedHashMap<>();
+        Map<Long, List<Long>> scopedRoleIdsByUser = new LinkedHashMap<>();
         for (SysUserRoleDO link : links) {
-            if (link.getUserId() == null || link.getRoleId() == null) {
+            if (link == null
+                    || link.getUserId() == null
+                    || link.getRoleId() == null
+                    || !isEffectiveGrant(link)) {
                 continue;
             }
-            roleIdsByUser.computeIfAbsent(link.getUserId(), key -> new ArrayList<>()).add(link.getRoleId());
+            allRoleIdsByUser.computeIfAbsent(link.getUserId(), key -> new ArrayList<>())
+                    .add(link.getRoleId());
+            if (!isBaseGrant(link)) {
+                scopedRoleIdsByUser.computeIfAbsent(link.getUserId(), key -> new ArrayList<>())
+                        .add(link.getRoleId());
+            }
         }
+        return new RoleAssignments(
+                codesByRoleIds(allRoleIdsByUser, roleById),
+                codesByRoleIds(scopedRoleIdsByUser, roleById)
+        );
+    }
+
+    private Map<Long, List<String>> codesByRoleIds(
+            Map<Long, List<Long>> roleIdsByUser,
+            Map<Long, SysRoleDO> roleById
+    ) {
         Map<Long, List<String>> result = new LinkedHashMap<>();
-        roleIdsByUser.forEach((userId, ids) -> {
-            List<String> codes = ids.stream()
-                    .sorted()
-                    .map(roleById::get)
-                    .filter(Objects::nonNull)
-                    .map(SysRoleDO::getRoleCode)
-                    .toList();
-            result.put(userId, codes);
-        });
+        roleIdsByUser.forEach((userId, ids) -> result.put(
+                userId,
+                ids.stream()
+                        .distinct()
+                        .sorted()
+                        .map(roleById::get)
+                        .filter(Objects::nonNull)
+                        .map(SysRoleDO::getRoleCode)
+                        .distinct()
+                        .toList()
+        ));
         return result;
+    }
+
+    private record RoleAssignments(
+            Map<Long, List<String>> allRoleCodes,
+            Map<Long, List<String>> scopedRoleCodes
+    ) {
     }
 
     private List<UserItemVO> toItems(List<SysUserDO> users) {
@@ -395,11 +472,14 @@ public class UserAccessServiceImpl implements UserAccessService {
             return List.of();
         }
         Set<Long> userIds = users.stream().map(SysUserDO::getId).collect(Collectors.toCollection(LinkedHashSet::new));
-        Map<Long, List<String>> codesByUser = roleCodesOf(
-                userRoleMapper.selectList(
-                        Wrappers.<SysUserRoleDO>lambdaQuery().in(SysUserRoleDO::getUserId, userIds)
-                )
-        );
+        LambdaQueryWrapper<SysUserRoleDO> grantQuery = effectiveRoleGrants();
+        grantQuery.in(SysUserRoleDO::getUserId, userIds);
+        List<SysUserRoleDO> links = Optional.ofNullable(userRoleMapper.selectList(grantQuery))
+                .orElseGet(List::of)
+                .stream()
+                .filter(this::isEffectiveGrant)
+                .toList();
+        Map<Long, List<String>> codesByUser = roleCodesOf(links);
         List<UserItemVO> items = new ArrayList<>(users.size());
         for (SysUserDO user : users) {
             UserItemVO item = new UserItemVO();

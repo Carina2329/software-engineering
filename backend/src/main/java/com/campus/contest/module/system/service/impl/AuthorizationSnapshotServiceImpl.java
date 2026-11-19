@@ -18,6 +18,7 @@ import com.campus.contest.module.system.service.AuthorizationSnapshotService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,6 +31,8 @@ import java.util.stream.Collectors;
 public class AuthorizationSnapshotServiceImpl implements AuthorizationSnapshotService {
 
     private static final int USER_ACTIVE = 1;
+    private static final int ROLE_GRANT_ACTIVE = 1;
+    private static final int NOT_DELETED = 0;
     private static final int RESOURCE_ENABLED = 1;
 
     private final SysUserMapper userMapper;
@@ -45,9 +48,23 @@ public class AuthorizationSnapshotServiceImpl implements AuthorizationSnapshotSe
             throw new BizException(ErrorCode.UNAUTHENTICATED.getCode(), "账号或凭证不正确");
         }
 
-        List<SysUserRoleDO> userRoles = userRoleMapper.selectList(
-                Wrappers.<SysUserRoleDO>lambdaQuery().eq(SysUserRoleDO::getUserId, userId)
+        LocalDateTime now = LocalDateTime.now();
+        List<SysUserRoleDO> storedUserRoles = userRoleMapper.selectList(
+                Wrappers.<SysUserRoleDO>lambdaQuery()
+                        .eq(SysUserRoleDO::getUserId, userId)
+                        .eq(SysUserRoleDO::getStatus, ROLE_GRANT_ACTIVE)
+                        .and(validFrom -> validFrom.isNull(SysUserRoleDO::getValidFrom)
+                                .or()
+                                .le(SysUserRoleDO::getValidFrom, now))
+                        .and(validTo -> validTo.isNull(SysUserRoleDO::getValidTo)
+                                .or()
+                                .gt(SysUserRoleDO::getValidTo, now))
         );
+        List<SysUserRoleDO> userRoles = storedUserRoles == null
+                ? List.of()
+                : storedUserRoles.stream()
+                        .filter(roleGrant -> isEffective(roleGrant, now))
+                        .toList();
         Set<Long> roleIds = userRoles.stream()
                 .map(SysUserRoleDO::getRoleId)
                 .filter(Objects::nonNull)
@@ -94,5 +111,13 @@ public class AuthorizationSnapshotServiceImpl implements AuthorizationSnapshotSe
                 .filter(Objects::nonNull)
                 .filter(value -> !value.isBlank())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private boolean isEffective(SysUserRoleDO roleGrant, LocalDateTime now) {
+        return roleGrant != null
+                && Objects.equals(ROLE_GRANT_ACTIVE, roleGrant.getStatus())
+                && Objects.equals(NOT_DELETED, roleGrant.getDeleted())
+                && (roleGrant.getValidFrom() == null || !roleGrant.getValidFrom().isAfter(now))
+                && (roleGrant.getValidTo() == null || roleGrant.getValidTo().isAfter(now));
     }
 }
