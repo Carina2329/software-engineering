@@ -171,6 +171,11 @@ class SchoolAffiliationServiceImplTest {
         when(userMapper.selectById(TARGET_USER_ID)).thenReturn(
                 user(TARGET_USER_ID, 10L, "PENDING", 3)
         );
+        when(organizationMapper.selectById(10L)).thenReturn(
+                school(10L, "四川A大学", "510000", 1)
+        );
+        when(dictionaryQueryService.containsEnabledValue("CN_PROVINCE", "510000"))
+                .thenReturn(true);
         when(schoolAffiliationMapper.updateReview(
                 eq(TARGET_USER_ID),
                 eq("VERIFIED"),
@@ -307,6 +312,11 @@ class SchoolAffiliationServiceImplTest {
         when(userMapper.selectById(TARGET_USER_ID)).thenReturn(
                 user(TARGET_USER_ID, 10L, "PENDING", 2)
         );
+        when(organizationMapper.selectById(10L)).thenReturn(
+                school(10L, "四川A大学", "510000", 1)
+        );
+        when(dictionaryQueryService.containsEnabledValue("CN_PROVINCE", "510000"))
+                .thenReturn(true);
         when(schoolAffiliationMapper.updateReview(
                 any(), any(), any(), any(), any(), any()
         )).thenReturn(1);
@@ -397,6 +407,34 @@ class SchoolAffiliationServiceImplTest {
         assertThat(result.schoolId()).isEqualTo(20L);
         assertThat(result.targetStatus()).isEqualTo("PENDING");
         assertThat(result.noChange()).isFalse();
+        assertThat(result.clearPreviousReview()).isTrue();
+    }
+
+    @Test
+    @DisplayName("PENDING 用户只能保持原学校，不能直接更换")
+    void pendingUserCannotSwitchSchool() {
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(
+                user(TARGET_USER_ID, 10L, "PENDING", 3)
+        );
+        when(authorizationSnapshotService.loadRequired(TARGET_USER_ID)).thenReturn(
+                snapshot(TARGET_USER_ID, "STUDENT")
+        );
+        when(organizationMapper.selectById(10L)).thenReturn(
+                school(10L, "四川A大学", "510000", 1)
+        );
+        when(organizationMapper.selectById(20L)).thenReturn(
+                school(20L, "四川B大学", "510000", 1)
+        );
+
+        SchoolSelectionValidation unchanged =
+                service.validateSelection(TARGET_USER_ID, 10L, 3);
+        assertThat(unchanged.noChange()).isTrue();
+        assertThat(unchanged.clearPreviousReview()).isFalse();
+
+        assertBizCode(
+                () -> service.validateSelection(TARGET_USER_ID, 20L, 3),
+                ErrorCode.BUSINESS_CONFLICT
+        );
     }
 
     @Test
@@ -435,6 +473,123 @@ class SchoolAffiliationServiceImplTest {
                 () -> service.validateSelection(TARGET_USER_ID, 20L, 3),
                 ErrorCode.BUSINESS_CONFLICT
         );
+    }
+
+    @Test
+    @DisplayName("停用学校上的申请不能 APPROVE，且不写库不写审计")
+    void cannotApproveDisabledSchool() {
+        when(organizationScopeService.loadEffectiveGrants(OPERATOR_ID)).thenReturn(List.of(
+                new EffectiveGrant("SCHOOL_ADMIN", ScopeType.ORGANIZATION, 10L)
+        ));
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(
+                user(TARGET_USER_ID, 10L, "PENDING", 2)
+        );
+        when(organizationMapper.selectById(10L)).thenReturn(
+                school(10L, "四川A大学", "510000", 0)
+        );
+
+        assertBizCode(
+                () -> service.reviewAffiliation(
+                        TARGET_USER_ID,
+                        reviewRequest("APPROVE", null, 2),
+                        null
+                ),
+                ErrorCode.BUSINESS_CONFLICT
+        );
+        verify(schoolAffiliationMapper, never()).updateReview(
+                any(), any(), any(), any(), any(), any()
+        );
+        verify(auditLogService, never()).record(any());
+    }
+
+    @Test
+    @DisplayName("省份字典不可用的学校不能 APPROVE")
+    void cannotApproveSchoolWithUnavailableProvince() {
+        when(organizationScopeService.loadEffectiveGrants(OPERATOR_ID)).thenReturn(List.of(
+                new EffectiveGrant("SCHOOL_ADMIN", ScopeType.ORGANIZATION, 10L)
+        ));
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(
+                user(TARGET_USER_ID, 10L, "PENDING", 2)
+        );
+        when(organizationMapper.selectById(10L)).thenReturn(
+                school(10L, "四川A大学", "510000", 1)
+        );
+        when(dictionaryQueryService.containsEnabledValue("CN_PROVINCE", "510000"))
+                .thenReturn(false);
+
+        assertBizCode(
+                () -> service.reviewAffiliation(
+                        TARGET_USER_ID,
+                        reviewRequest("APPROVE", null, 2),
+                        null
+                ),
+                ErrorCode.BUSINESS_CONFLICT
+        );
+        verify(schoolAffiliationMapper, never()).updateReview(
+                any(), any(), any(), any(), any(), any()
+        );
+    }
+
+    @Test
+    @DisplayName("学校消失或非 SCHOOL 类型时不能 APPROVE")
+    void cannotApproveMissingOrNonSchoolOrganization() {
+        when(organizationScopeService.loadEffectiveGrants(OPERATOR_ID)).thenReturn(List.of(
+                new EffectiveGrant("SCHOOL_ADMIN", ScopeType.ORGANIZATION, 10L)
+        ));
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(
+                user(TARGET_USER_ID, 10L, "PENDING", 2)
+        );
+        when(organizationMapper.selectById(10L))
+                .thenReturn(null)
+                .thenReturn(organization(10L, "PROVINCE_ORGANIZER", "510000", 1));
+
+        assertBizCode(
+                () -> service.reviewAffiliation(
+                        TARGET_USER_ID,
+                        reviewRequest("APPROVE", null, 2),
+                        null
+                ),
+                ErrorCode.BUSINESS_CONFLICT
+        );
+        assertBizCode(
+                () -> service.reviewAffiliation(
+                        TARGET_USER_ID,
+                        reviewRequest("APPROVE", null, 2),
+                        null
+                ),
+                ErrorCode.BUSINESS_CONFLICT
+        );
+        verify(schoolAffiliationMapper, never()).updateReview(
+                any(), any(), any(), any(), any(), any()
+        );
+    }
+
+    @Test
+    @DisplayName("学校停用后仍可以 REJECT 清理待审核申请")
+    void canRejectWhenSchoolIsDisabled() {
+        when(organizationScopeService.loadEffectiveGrants(OPERATOR_ID)).thenReturn(List.of(
+                new EffectiveGrant("SCHOOL_ADMIN", ScopeType.ORGANIZATION, 10L)
+        ));
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(
+                user(TARGET_USER_ID, 10L, "PENDING", 2)
+        );
+        when(schoolAffiliationMapper.updateReview(
+                eq(TARGET_USER_ID),
+                eq("REJECTED"),
+                eq(OPERATOR_ID),
+                any(LocalDateTime.class),
+                eq("学校已停用"),
+                eq(2)
+        )).thenReturn(1);
+
+        SchoolAffiliationReviewVO result = service.reviewAffiliation(
+                TARGET_USER_ID,
+                reviewRequest("REJECT", "学校已停用", 2),
+                null
+        );
+
+        assertThat(result.getStatus()).isEqualTo("REJECTED");
+        verify(auditLogService).record(any(AuditLogCommand.class));
     }
 
     private void assertBizCode(Runnable action, ErrorCode expected) {
@@ -477,11 +632,21 @@ class SchoolAffiliationServiceImplTest {
             String provinceCode,
             int status
     ) {
+        OrganizationDO school = organization(id, "SCHOOL", provinceCode, status);
+        school.setOrgName(name);
+        return school;
+    }
+
+    private OrganizationDO organization(
+            Long id,
+            String type,
+            String provinceCode,
+            int status
+    ) {
         OrganizationDO school = new OrganizationDO();
         school.setId(id);
         school.setOrgCode("ORG-" + id);
-        school.setOrgName(name);
-        school.setOrgType("SCHOOL");
+        school.setOrgType(type);
         school.setProvinceCode(provinceCode);
         school.setStatus(status);
         school.setDeleted(0);

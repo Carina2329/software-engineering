@@ -8,6 +8,7 @@ public record SchoolSelectionValidation(
         Long schoolId,
         String targetStatus,
         Integer version,
-        boolean noChange
+        boolean noChange,
+        boolean clearPreviousReview
 ) {
 }

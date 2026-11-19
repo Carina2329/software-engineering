@@ -249,11 +249,15 @@ public class SchoolAffiliationServiceImpl implements SchoolAffiliationService {
                     school.getId(),
                     user.getSchoolVerificationStatus(),
                     user.getVersion(),
-                    true
+                    true,
+                    false
             );
         }
         if (verified && !sameSchool) {
             throw stateConflict("已确认学校不能由本人直接切换");
+        }
+        if (pending) {
+            throw stateConflict("待审核学校不能直接更换");
         }
         if (!Objects.equals(ACTIVE_ORGANIZATION, school.getStatus())) {
             throw stateConflict("学校已停用，不能选择");
@@ -270,7 +274,8 @@ public class SchoolAffiliationServiceImpl implements SchoolAffiliationService {
                 school.getId(),
                 STATUS_PENDING,
                 user.getVersion(),
-                false
+                false,
+                true
         );
     }
 
@@ -296,6 +301,9 @@ public class SchoolAffiliationServiceImpl implements SchoolAffiliationService {
             }
             if (!Objects.equals(existing.getVersion(), version)) {
                 throw versionConflict();
+            }
+            if (DECISION_APPROVE.equals(decision)) {
+                requireApprovableSchool(existing.getSchoolId());
             }
 
             String targetStatus = DECISION_APPROVE.equals(decision)
@@ -419,11 +427,32 @@ public class SchoolAffiliationServiceImpl implements SchoolAffiliationService {
     }
 
     private OrganizationDO requireSchoolExists(Long schoolId) {
+        if (schoolId == null) {
+            throw invalidParam("school_id 不能为空");
+        }
         OrganizationDO school = organizationMapper.selectById(schoolId);
         if (school == null || !SCHOOL_TYPE.equals(school.getOrgType())) {
             throw notFound("学校不存在");
         }
         return school;
+    }
+
+    private void requireApprovableSchool(Long schoolId) {
+        OrganizationDO school = schoolId == null
+                ? null
+                : organizationMapper.selectById(schoolId);
+        if (school == null
+                || !SCHOOL_TYPE.equals(school.getOrgType())
+                || !Objects.equals(ACTIVE_ORGANIZATION, school.getStatus())) {
+            throw stateConflict("当前学校已停用、不可用或不是学校组织，不能通过审核");
+        }
+        if (school.getProvinceCode() == null
+                || !dictionaryQueryService.containsEnabledValue(
+                        PROVINCE_DICTIONARY,
+                        school.getProvinceCode()
+                )) {
+            throw stateConflict("当前学校所在省份不可用，不能通过审核");
+        }
     }
 
     private String normalizeStatus(String value) {
