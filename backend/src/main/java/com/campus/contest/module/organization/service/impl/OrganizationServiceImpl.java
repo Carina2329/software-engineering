@@ -203,8 +203,8 @@ public class OrganizationServiceImpl implements OrganizationService {
         Long operatorId = currentUserProvider.requireUserId();
         EffectiveScope scope = organizationScopeService.loadCurrentRequired();
         OrganizationDO existing = requireOrganization(organizationId);
-        if (!canAccessForOrganizationEndpoints(scope, organizationId)) {
-            throw dataForbidden("无权管理该组织");
+        if (!scope.global()) {
+            throw dataForbidden("仅平台管理员可修改组织");
         }
 
         Map<String, Object> fingerprint = new LinkedHashMap<>();

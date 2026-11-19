@@ -210,13 +210,31 @@ class OrganizationServiceImplTest {
     }
 
     @Test
-    @DisplayName("修改使用真实版本乐观锁，停用只更新状态")
-    void updatesVersionAndDisablesWithoutDeleting() {
-        OrganizationDO existing = organization(10L, "SCHOOL", "510000", 1, 3);
+    @DisplayName("组织范围用户即使拥有功能权限也不能修改本组织")
+    void organizationScopeCannotUpdateOwnOrganization() {
         when(currentUserProvider.requireUserId()).thenReturn(OPERATOR_ID);
         when(organizationScopeService.loadCurrentRequired()).thenReturn(
                 new EffectiveScope(false, Set.of(10L), Set.of(), Set.of())
         );
+        when(organizationMapper.selectById(10L)).thenReturn(
+                organization(10L, "SCHOOL", "510000", 1, 3)
+        );
+
+        assertBizCode(
+                () -> service.updateOrganization(10L, updateStatusRequest(0, 3), null),
+                ErrorCode.DATA_FORBIDDEN
+        );
+
+        verify(organizationMapper, never()).updateById(any(OrganizationDO.class));
+        verify(auditLogService, never()).record(any());
+    }
+
+    @Test
+    @DisplayName("修改使用真实版本乐观锁，停用只更新状态")
+    void updatesVersionAndDisablesWithoutDeleting() {
+        OrganizationDO existing = organization(10L, "SCHOOL", "510000", 1, 3);
+        when(currentUserProvider.requireUserId()).thenReturn(OPERATOR_ID);
+        when(organizationScopeService.loadCurrentRequired()).thenReturn(globalScope());
         when(organizationMapper.selectById(10L)).thenReturn(existing);
         when(organizationMapper.updateById(any(OrganizationDO.class))).thenReturn(1);
 
