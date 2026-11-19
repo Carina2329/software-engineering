@@ -4,11 +4,11 @@
 | --- | --- |
 | 任务编号 | `BIZ-ORG-SCOPE-001` |
 | 认领人 | 罗同学 |
-| 当前状态 | 第 1～3 阶段已验收；公共 RBAC 范围授权风险已修订；第 4 阶段待开始 |
+| 当前状态 | 第 1～4 阶段已验收；第 5 阶段待开始 |
 | 业务域 | 平台公共基础 / 组织与范围权限 |
 | 建议分支 | `feature/business-organization-scope` |
 | PR 目标分支 | `feature/business-core` |
-| 公共契约基线 | 最新 `feature/business-core`，业务契约 v1.4.2 |
+| 公共契约基线 | 最新 `feature/business-core`，业务契约 v1.4.3 |
 | 协调与合入 | 段欣懿 |
 
 本任务只允许从最新 `origin/feature/business-core` 开发，分支 `HEAD` 必须能追溯到上述基线。不得把尚未完成的个人档案、竞赛与届次或高并发分支作为依赖。
