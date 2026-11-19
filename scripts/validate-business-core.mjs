@@ -11,7 +11,7 @@ const assert = (condition, message) => {
 }
 
 const openapi = JSON.parse(read('docs/api/openapi-v1.json'))
-assert(openapi.info.version === '1.4.3', 'OpenAPI version must be 1.4.3')
+assert(openapi.info.version === '1.4.4', 'OpenAPI version must be 1.4.4')
 assert(openapi['x-business-baseline']?.source_branch === 'develop@63c2a14', 'business baseline must use PR12 develop')
 assert(openapi['x-database-tables'] === 27, 'OpenAPI database table count must be 27')
 assert(openapi['x-endpoint-count'] === 93, 'OpenAPI endpoint count must be 93')
@@ -160,6 +160,16 @@ for (const [path, method] of [
     )
   }
 }
+assert(
+  openapi.paths['/school-affiliations'].get.responses['404'],
+  'EP-092 must declare 404'
+)
+for (const responseCode of ['404', '503']) {
+  assert(
+    openapi.paths['/school-affiliations/{user_id}'].patch.responses[responseCode],
+    `EP-093 must declare ${responseCode}`
+  )
+}
 
 const authContract = read('docs/auth-rbac/contract.md')
 assert(authContract.includes('文档版本：0.3.1'), 'auth contract version is not 0.3.1')
@@ -169,7 +179,7 @@ assert(
 )
 
 const summary = read('docs/api/接口汇总.md')
-assert(summary.includes('文档版本：v1.4.3'), 'interface summary version is not v1.4.3')
+assert(summary.includes('文档版本：v1.4.4'), 'interface summary version is not v1.4.4')
 assert(summary.includes('archive/接口汇总-v1.4.0.md'), 'v1.4.0 archive link is missing')
 assert(summary.includes('archive/接口汇总-v1.3.1.md'), 'v1.3.1 archive link is missing')
 assert(summary.includes('archive/接口汇总-v1.3.0.md'), 'v1.3.0 archive link is missing')

@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AI学科竞赛全流程智能服务平台接口",
-    "version": "1.4.3",
-    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.4.0 将平台冻结为多学校、多主办方赛事托管模式；1.4.1 修正 EP-004 同校学号语义，补充学校归属审核、CN_PROVINCE 公共字典和范围权限边界；1.4.2 明确 EP-007 只替换全局基础角色，并补充 EP-089 的 409 冲突响应；1.4.3 补齐 EP-090/EP-091 的 404、409 和 503 响应。",
+    "version": "1.4.4",
+    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.4.0 将平台冻结为多学校、多主办方赛事托管模式；1.4.1 修正 EP-004 同校学号语义，补充学校归属审核、CN_PROVINCE 公共字典和范围权限边界；1.4.2 明确 EP-007 只替换全局基础角色，并补充 EP-089 的 409 冲突响应；1.4.3 补齐 EP-090/EP-091 的 404、409 和 503 响应；1.4.4 补齐学校归属查询和审核的 404、503 响应。",
     "contact": {
       "name": "第6组",
       "email": "group6@example.edu"
@@ -20,6 +20,15 @@
     }
   ],
   "x-changelog": [
+    {
+      "version": "1.4.4",
+      "date": "2026-11-19",
+      "changes": [
+        "EP-092 补充指定学校不存在时的 404 响应。",
+        "EP-093 补充目标用户或学校归属不存在时的 404，以及幂等依赖不可用时的 503 响应。",
+        "不修改路径、请求字段、成功响应或权限范围。"
+      ]
+    },
     {
       "version": "1.4.3",
       "date": "2026-11-19",
@@ -13322,6 +13331,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
@@ -13330,6 +13342,7 @@
           }
         },
         "x-endpoint-id": "EP-092",
+        "x-permission": "school:affiliation:list",
         "x-permission": "school:affiliation:list",
         "x-data-scope": "GLOBAL / ORGANIZATION",
         "x-audit": false,
@@ -13460,11 +13473,17 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
           }
         },
         "x-endpoint-id": "EP-093",
