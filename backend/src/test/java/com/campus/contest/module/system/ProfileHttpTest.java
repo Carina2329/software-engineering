@@ -6,6 +6,9 @@ import com.campus.contest.common.idempotency.IdempotencyScope;
 import com.campus.contest.common.idempotency.IdempotencyService;
 import com.campus.contest.common.trace.TraceIdFilter;
 import com.campus.contest.config.CorsConfig;
+import com.campus.contest.module.organization.model.SchoolAffiliationState;
+import com.campus.contest.module.organization.model.SchoolSelectionValidation;
+import com.campus.contest.module.organization.service.SchoolAffiliationService;
 import com.campus.contest.module.system.controller.UserController;
 import com.campus.contest.module.system.controller.support.RbacAccessDeniedAdvice;
 import com.campus.contest.module.system.entity.SysMenuDO;
@@ -54,6 +57,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -103,6 +107,9 @@ class ProfileHttpTest {
 
     @Autowired
     private SysMenuMapper menuMapper;
+
+    @Autowired
+    private SchoolAffiliationService schoolAffiliationService;
 
     // ------------------------------------------------------------------
     // EP-003 查询
@@ -354,6 +361,90 @@ class ProfileHttpTest {
     // 测试数据
     // ------------------------------------------------------------------
 
+    // ------------------------------------------------------------------
+    // 学校字段（公共能力 BIZ-ORG-SCOPE-001）
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("EP-003 返回学校字段：school_id、school_name、状态与 school_verified")
+    void studentReadsSchoolFields() throws Exception {
+        stubStudentProfile();
+        when(schoolAffiliationService.getState(STUDENT_ID)).thenReturn(
+                new SchoolAffiliationState(STUDENT_ID, 42L, "四川师范大学", "510000",
+                        "VERIFIED", null, 9L, null, 3));
+
+        MvcResult result = mockMvc.perform(get("/api/v1/users/me")
+                .with(authentication(studentAuth()))).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        JsonNode data = body(result).path("data");
+        assertThat(data.path("school_id").asText()).isEqualTo("42");
+        assertThat(data.path("school_name").asText()).isEqualTo("四川师范大学");
+        assertThat(data.path("province_code").asText()).isEqualTo("510000");
+        assertThat(data.path("school_verified").asBoolean()).isTrue();
+        assertThat(data.path("school_verification_status").asText()).isEqualTo("VERIFIED");
+        assertThat(data.path("school_review_reason").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("EP-004 首次选校返回 200 并写入 PENDING")
+    void studentSelectsSchoolOverHttp() throws Exception {
+        stubStudentProfile();
+        when(schoolAffiliationService.validateSelection(STUDENT_ID, 42L, 3))
+                .thenReturn(new SchoolSelectionValidation(STUDENT_ID, 42L, "PENDING", 3, false, true));
+        when(userMapper.update(any(), any())).thenReturn(1);
+
+        MvcResult result = mockMvc.perform(patch("/api/v1/users/me")
+                .with(authentication(studentAuth()))
+                .with(csrf())
+                .header("Idempotency-Key", "profile-school-select-0001")
+                .contentType("application/json")
+                .content("{\"school_id\":\"42\",\"version\":3}")
+        ).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        JsonNode data = body(result).path("data");
+        assertThat(data.path("version").asInt()).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("EP-004 学校传空串返回 400 + 10001，不被当成未提交")
+    void blankSchoolIdReturnsBadRequest() throws Exception {
+        stubStudentProfile();
+
+        MvcResult result = mockMvc.perform(patch("/api/v1/users/me")
+                .with(authentication(studentAuth()))
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"school_id\":\"\",\"version\":3}")
+        ).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(body(result).path("code").asInt()).isEqualTo(ErrorCode.INVALID_PARAM.getCode());
+    }
+
+    @Test
+    @DisplayName("已确认学校由本人切换返回 HTTP 409 + 20001，并保留公共校验的具体原因")
+    void verifiedSchoolSwitchReturnsConflictOverHttp() throws Exception {
+        stubStudentProfile();
+        when(schoolAffiliationService.validateSelection(STUDENT_ID, 43L, 3))
+                .thenThrow(new com.campus.contest.common.BizException(
+                        ErrorCode.BUSINESS_CONFLICT.getCode(), "已确认学校不能由本人直接切换"));
+
+        MvcResult result = mockMvc.perform(patch("/api/v1/users/me")
+                .with(authentication(studentAuth()))
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"school_id\":\"43\",\"version\":3}")
+        ).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(409);
+        JsonNode body = body(result);
+        assertThat(body.path("code").asInt()).isEqualTo(ErrorCode.BUSINESS_CONFLICT.getCode());
+        assertThat(body.path("message").asText()).contains("已确认学校");
+        verify(userMapper, never()).update(any(), any());
+    }
+
     private void stubStudentProfile() {
         SysUserDO student = new SysUserDO();
         student.setId(STUDENT_ID);
@@ -404,6 +495,13 @@ class ProfileHttpTest {
         SysUserRoleDO relation = new SysUserRoleDO();
         relation.setUserId(userId);
         relation.setRoleId(roleId);
+        // 多组织基线按 status=1 与有效期过滤角色授权，测试替身必须给出有效授权
+        relation.setScopeType("GLOBAL");
+        relation.setScopeId(0L);
+        relation.setStatus(1);
+        relation.setValidFrom(LocalDateTime.now().minusDays(1));
+        relation.setValidTo(LocalDateTime.now().plusDays(1));
+        relation.setDeleted(0);
         return relation;
     }
 
@@ -489,6 +587,11 @@ class ProfileHttpTest {
         @Bean
         AuditLogService auditLogService() {
             return mock(AuditLogService.class);
+        }
+
+        @Bean
+        SchoolAffiliationService schoolAffiliationService() {
+            return mock(SchoolAffiliationService.class);
         }
 
         @Bean

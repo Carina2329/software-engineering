@@ -3,6 +3,9 @@ package com.campus.contest.module.system;
 import com.campus.contest.TestInfrastructure;
 import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
+import com.campus.contest.module.organization.model.SchoolAffiliationState;
+import com.campus.contest.module.organization.model.SchoolSelectionValidation;
+import com.campus.contest.module.organization.service.SchoolAffiliationService;
 import com.campus.contest.module.system.dto.AuditLogCommand;
 import com.campus.contest.module.system.dto.AuthorizationSnapshot;
 import com.campus.contest.module.system.dto.ProfileUpdateRequest;
@@ -57,6 +60,8 @@ class ProfileServiceImplTest {
     private CurrentUserProvider currentUserProvider;
     @Mock
     private AuditLogService auditLogService;
+    @Mock
+    private SchoolAffiliationService schoolAffiliationService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -71,7 +76,8 @@ class ProfileServiceImplTest {
                 TestInfrastructure.transactionTemplate(),
                 auditLogService,
                 TestInfrastructure.passthroughIdempotencyService(),
-                objectMapper
+                objectMapper,
+                schoolAffiliationService
         );
     }
 
@@ -457,6 +463,160 @@ class ProfileServiceImplTest {
     // 测试数据构造
     // ------------------------------------------------------------------
 
+    // ------------------------------------------------------------------
+    // 学校字段（公共能力 BIZ-ORG-SCOPE-001）
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("EP-003 从公共 getState 补齐学校字段：已确认学校 school_verified=true")
+    void applyProfileFieldsIncludesVerifiedSchool() {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUser());
+        when(schoolAffiliationService.getState(STUDENT_ID)).thenReturn(
+                new SchoolAffiliationState(STUDENT_ID, 42L, "四川师范大学", "510000",
+                        "VERIFIED", null, 9L, null, 3));
+
+        CurrentUserVO vo = new CurrentUserVO();
+        vo.setUserType("STUDENT");
+        profileService.applyProfileFields(vo);
+
+        assertThat(vo.getSchoolId()).isEqualTo("42");
+        assertThat(vo.getSchoolName()).isEqualTo("四川师范大学");
+        assertThat(vo.getProvinceCode()).isEqualTo("510000");
+        assertThat(vo.getSchoolVerified()).isTrue();
+        assertThat(vo.getSchoolVerificationStatus()).isEqualTo("VERIFIED");
+        assertThat(vo.getSchoolReviewReason()).isNull();
+    }
+
+    @Test
+    @DisplayName("EP-003 未选校时学校字段全为 null，不能把库内默认 PENDING 当成待审核")
+    void applyProfileFieldsWithoutSchoolReturnsNullStatus() {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUser());
+        when(schoolAffiliationService.getState(STUDENT_ID)).thenReturn(
+                new SchoolAffiliationState(STUDENT_ID, null, null, null,
+                        "PENDING", null, null, null, 3));
+
+        CurrentUserVO vo = new CurrentUserVO();
+        vo.setUserType("STUDENT");
+        profileService.applyProfileFields(vo);
+
+        assertThat(vo.getSchoolId()).isNull();
+        assertThat(vo.getSchoolVerificationStatus()).isNull();
+        assertThat(vo.getSchoolVerified()).isFalse();
+    }
+
+    @Test
+    @DisplayName("首次选校：写入 school_id 并置 PENDING，档案与学校在同一条 UPDATE、同一事务内生效")
+    void firstSchoolSelectionIsPersistedAsPending() throws Exception {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUser());
+        when(authorizationSnapshotService.loadRequired(STUDENT_ID)).thenReturn(snapshot(STUDENT_ID, "STUDENT"));
+        when(schoolAffiliationService.validateSelection(STUDENT_ID, 42L, 3))
+                .thenReturn(new SchoolSelectionValidation(STUDENT_ID, 42L, "PENDING", 3, false, true));
+        when(userMapper.update(any(), any())).thenReturn(1);
+
+        ProfileUpdateRequest request = request(3, null);
+        request.setSchoolId("42");
+
+        IdVersionVO result = profileService.updateMyProfile(request, null);
+
+        assertThat(result.getVersion()).isEqualTo(4);
+        verify(userMapper, never()).updateById(any(SysUserDO.class));
+        JsonNode audit = capturedAuditParams(0);
+        assertThat(audit.path("changed_fields").toString()).contains("school_id");
+        assertThat(audit.path("after").path("school_verification_status").asText()).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("提交与当前一致的学校：不写库、不涨版本、不写审计")
+    void sameSchoolSelectionIsNoop() {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUser());
+        when(authorizationSnapshotService.loadRequired(STUDENT_ID)).thenReturn(snapshot(STUDENT_ID, "STUDENT"));
+        when(schoolAffiliationService.validateSelection(STUDENT_ID, 42L, 3))
+                .thenReturn(new SchoolSelectionValidation(STUDENT_ID, 42L, "PENDING", 3, true, false));
+
+        ProfileUpdateRequest request = request(3, null);
+        request.setSchoolId("42");
+
+        IdVersionVO result = profileService.updateMyProfile(request, null);
+
+        assertThat(result.getVersion()).isEqualTo(3);
+        verify(userMapper, never()).update(any(), any());
+        verify(auditLogService, never()).record(any(AuditLogCommand.class));
+    }
+
+    @Test
+    @DisplayName("已确认学校不允许本人切换：公共校验抛出的 20001 原样返回给调用方")
+    void verifiedSchoolSwitchIsRejectedByPublicValidation() {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUser());
+        when(authorizationSnapshotService.loadRequired(STUDENT_ID)).thenReturn(snapshot(STUDENT_ID, "STUDENT"));
+        when(schoolAffiliationService.validateSelection(STUDENT_ID, 43L, 3))
+                .thenThrow(new BizException(ErrorCode.BUSINESS_CONFLICT.getCode(), "已确认学校不能由本人直接切换"));
+
+        ProfileUpdateRequest request = request(3, null);
+        request.setSchoolId("43");
+
+        assertThatThrownBy(() -> profileService.updateMyProfile(request, null))
+                .isInstanceOfSatisfying(BizException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_CONFLICT.getCode());
+                    assertThat(error.getMessage()).contains("已确认学校");
+                });
+        verify(userMapper, never()).update(any(), any());
+        verify(userMapper, never()).updateById(any(SysUserDO.class));
+    }
+
+    @Test
+    @DisplayName("已选校学生的学号按同校口径预检：同校冲突返回 20002")
+    void studentNoUniquenessUsesSameSchoolScope() {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUserInSchool());
+        when(authorizationSnapshotService.loadRequired(STUDENT_ID)).thenReturn(snapshot(STUDENT_ID, "STUDENT"));
+        when(userMapper.countByStudentNoInSchoolExcluding("202678090111", 42L, STUDENT_ID)).thenReturn(1L);
+
+        ProfileUpdateRequest request = request(3, null);
+        request.setStudentNo("202678090111");
+
+        assertThatThrownBy(() -> profileService.updateMyProfile(request, null))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.DUPLICATE_RELATION.getCode()));
+        verify(userMapper, never()).updateById(any(SysUserDO.class));
+        verify(userMapper, never()).countByStudentNoExcluding(anyString(), eq(STUDENT_ID));
+    }
+
+    @Test
+    @DisplayName("不同学校允许相同学号：同校口径返回 0 时正常保存")
+    void sameStudentNoIsAllowedInDifferentSchool() {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUserInSchool());
+        when(authorizationSnapshotService.loadRequired(STUDENT_ID)).thenReturn(snapshot(STUDENT_ID, "STUDENT"));
+        when(userMapper.countByStudentNoInSchoolExcluding("202678090111", 42L, STUDENT_ID)).thenReturn(0L);
+        when(userMapper.updateById(any(SysUserDO.class))).thenReturn(1);
+
+        ProfileUpdateRequest request = request(3, null);
+        request.setStudentNo("202678090111");
+
+        assertThat(profileService.updateMyProfile(request, null).getVersion()).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("学校 ID 非数字返回 400，不落库")
+    void nonNumericSchoolIdIsRejected() {
+        when(currentUserProvider.requireUserId()).thenReturn(STUDENT_ID);
+        when(userMapper.selectById(STUDENT_ID)).thenReturn(studentUser());
+        when(authorizationSnapshotService.loadRequired(STUDENT_ID)).thenReturn(snapshot(STUDENT_ID, "STUDENT"));
+
+        ProfileUpdateRequest request = request(3, null);
+        request.setSchoolId("abc");
+
+        assertThatThrownBy(() -> profileService.updateMyProfile(request, null))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.INVALID_PARAM.getCode()));
+        verify(userMapper, never()).update(any(), any());
+    }
+
     private ProfileUpdateRequest request(Integer version, String realName) {
         ProfileUpdateRequest request = new ProfileUpdateRequest();
         request.setVersion(version);
@@ -478,6 +638,13 @@ class ProfileServiceImplTest {
         user.setGrade("2024");
         user.setStatus(1);
         user.setVersion(3);
+        return user;
+    }
+
+    private SysUserDO studentUserInSchool() {
+        SysUserDO user = studentUser();
+        user.setSchoolId(42L);
+        user.setSchoolVerificationStatus("VERIFIED");
         return user;
     }
 

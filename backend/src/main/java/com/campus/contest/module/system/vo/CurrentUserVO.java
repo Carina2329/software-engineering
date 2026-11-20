@@ -43,6 +43,33 @@ public class CurrentUserVO {
     /** 职称，仅教师档案使用；学生档案为 null */
     private String title;
 
+    /** 所属学校 organization.id；未选校或平台级管理员为 null */
+    @JsonProperty("school_id")
+    private String schoolId;
+
+    /** 所属学校显示名称，未选校为 null */
+    @JsonProperty("school_name")
+    private String schoolName;
+
+    /** 所属学校所在省份编码，未选校为 null */
+    @JsonProperty("province_code")
+    private String provinceCode;
+
+    /** 学校归属是否已由学校管理员确认（仅 VERIFIED 为 true） */
+    @JsonProperty("school_verified")
+    private Boolean schoolVerified = Boolean.FALSE;
+
+    /**
+     * 学校归属审核状态：PENDING / VERIFIED / REJECTED。
+     * 未选校时返回 null，用于区分“尚未选择学校”和“已提交待审核”。
+     */
+    @JsonProperty("school_verification_status")
+    private String schoolVerificationStatus;
+
+    /** 学校归属驳回原因或审核说明；非 REJECTED 为 null */
+    @JsonProperty("school_review_reason")
+    private String schoolReviewReason;
+
     /** 档案乐观锁版本号，修改档案时必须回传 */
     private Integer version;
 

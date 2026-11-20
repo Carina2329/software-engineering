@@ -7,18 +7,29 @@ import {
   fetchMyProfile,
   isDuplicateStudentNo,
   isProfileConflict,
+  isSchoolConflict,
   isUnknownConflict,
   profileErrorMessage,
   updateMyProfile,
 } from '../../../api/profile'
+import { fetchSchools, schoolOptionLabel } from '../../../api/schools'
 import {
   PROFILE_EMPTY_FORM,
   PROFILE_FIELD_DEFINITIONS,
   PROFILE_MESSAGES,
   PROFILE_ROLE_LABELS,
+  SCHOOL_STATUS_META,
+  canChangeSchool,
   profileFieldKeysFor,
+  supportsSchool,
 } from '../../../types/profile'
-import type { MyProfile, ProfileFieldKey, ProfileUpdatePayload } from '../../../types/profile'
+import type {
+  MyProfile,
+  ProfileFieldKey,
+  ProfileUpdatePayload,
+  SchoolOption,
+  SchoolVerificationStatus,
+} from '../../../types/profile'
 
 /**
  * 个人档案卡片（BIZ-PROFILE-001）。
@@ -49,6 +60,28 @@ const roleLabel = computed(() =>
 )
 
 const versionLabel = computed(() => (profile.value ? `v${profile.value.version}` : '-'))
+
+/** 学校归属（学生/教师才维护），选项来自组织与范围任务的 EP-085 学校主档 */
+const schoolOptions = ref<SchoolOption[]>([])
+const schoolLoading = ref(false)
+const schoolOptionsLoaded = ref(false)
+const selectedSchoolId = ref('')
+
+const schoolSupported = computed(() =>
+  profile.value ? supportsSchool(profile.value.user_type) : false,
+)
+
+const schoolEditable = computed(() =>
+  profile.value ? canChangeSchool(profile.value.school_verification_status) : false,
+)
+
+const schoolStatusMeta = computed(() => {
+  const status = profile.value?.school_verification_status
+  if (!status) {
+    return null
+  }
+  return SCHOOL_STATUS_META[status as SchoolVerificationStatus] ?? null
+})
 
 /** 与服务端长度规则、必填规则保持一致，避免前端放过、后端报 400 */
 const buildRules = (): FormRules => {
@@ -95,6 +128,27 @@ const applyProfileToForm = (data: MyProfile): void => {
   }
 }
 
+/**
+ * 学校下拉：默认加载一页，支持按名称远程搜索。
+ * 学校主档查询失败不能阻塞档案编辑，只提示不弹错。
+ */
+const loadSchoolOptions = async (keyword = ''): Promise<void> => {
+  schoolLoading.value = true
+  try {
+    const page = await fetchSchools({ keyword })
+    schoolOptions.value = page.items
+    schoolOptionsLoaded.value = true
+  } catch {
+    schoolOptions.value = []
+  } finally {
+    schoolLoading.value = false
+  }
+}
+
+const handleSchoolSearch = (keyword: string): void => {
+  void loadSchoolOptions(keyword)
+}
+
 const loadProfile = async (): Promise<void> => {
   loading.value = true
   loadError.value = ''
@@ -102,7 +156,11 @@ const loadProfile = async (): Promise<void> => {
     const data = await fetchMyProfile()
     profile.value = data
     applyProfileToForm(data)
+    selectedSchoolId.value = data.school_id ?? ''
     formRef.value?.clearValidate()
+    if (supportsSchool(data.user_type) && !schoolOptionsLoaded.value) {
+      void loadSchoolOptions()
+    }
   } catch (error) {
     loadError.value = profileErrorMessage(error, '档案加载失败')
   } finally {
@@ -124,6 +182,16 @@ const buildPayload = (): ProfileUpdatePayload | null => {
       payload[key] = current
       changed = true
     }
+  }
+  // 选校/改校：只有当前角色维护学校、且选项与库内不同才提交 school_id
+  if (
+    schoolSupported.value
+    && schoolEditable.value
+    && selectedSchoolId.value
+    && selectedSchoolId.value !== (profile.value.school_id ?? '')
+  ) {
+    payload.school_id = selectedSchoolId.value
+    changed = true
   }
   return changed ? payload : null
 }
@@ -156,6 +224,11 @@ const handleSave = async (): Promise<void> => {
     if (isDuplicateStudentNo(error)) {
       conflictNotice.value = false
       saveError.value = PROFILE_MESSAGES.duplicateStudentNo
+      ElMessage.error(saveError.value)
+    } else if (isSchoolConflict(error)) {
+      // 学校归属冲突与版本冲突共用 20001，必须展示服务端的具体原因
+      conflictNotice.value = false
+      saveError.value = profileErrorMessage(error)
       ElMessage.error(saveError.value)
     } else if (isProfileConflict(error)) {
       // 版本冲突：不静默覆盖，提示刷新后重试
@@ -246,6 +319,50 @@ onMounted(() => {
           <p class="field-hint">{{ PROFILE_FIELD_DEFINITIONS[key].hint }}</p>
         </el-form-item>
       </el-form>
+
+      <div v-if="schoolSupported" class="school-block">
+        <p class="card-label">学校归属</p>
+        <div class="school-state">
+          <span class="school-name">{{ profile.school_name || '未选择学校' }}</span>
+          <el-tag
+            v-if="schoolStatusMeta"
+            :type="schoolStatusMeta.tagType"
+            effect="plain"
+            size="small"
+          >
+            {{ schoolStatusMeta.label }}
+          </el-tag>
+          <span v-else class="school-plain">尚未提交审核</span>
+        </div>
+        <p v-if="profile.school_verification_status === 'REJECTED' && profile.school_review_reason" class="school-reason">
+          驳回原因：{{ profile.school_review_reason }}
+        </p>
+
+        <el-select
+          v-if="schoolEditable"
+          v-model="selectedSchoolId"
+          class="school-select"
+          filterable
+          remote
+          reserve-keyword
+          :remote-method="handleSchoolSearch"
+          :loading="schoolLoading"
+          placeholder="输入学校名称搜索并选择"
+        >
+          <el-option
+            v-for="school in schoolOptions"
+            :key="school.id"
+            :label="schoolOptionLabel(school)"
+            :value="school.id"
+          />
+        </el-select>
+
+        <p class="field-hint">
+          {{ schoolEditable
+            ? '选择或更换学校后将提交管理员审核，审核通过前不能再次更换。'
+            : (schoolStatusMeta ? schoolStatusMeta.description : '') }}
+        </p>
+      </div>
 
       <div v-if="profile.skill_tags.length > 0" class="readonly-block">
         <p class="card-label">技能标签（旧数据只读兼容）</p>
@@ -344,6 +461,42 @@ onMounted(() => {
   margin-top: 6px;
   padding-top: 14px;
   border-top: 1px dashed rgba(23, 63, 53, 0.12);
+}
+
+.school-block {
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(23, 63, 53, 0.12);
+}
+
+.school-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.school-name {
+  color: #24443b;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.school-plain {
+  color: #8b9692;
+  font-size: 12px;
+}
+
+.school-reason {
+  margin: 8px 0 0;
+  color: #c45656;
+  font-size: 12px;
+}
+
+.school-select {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .tag-list {

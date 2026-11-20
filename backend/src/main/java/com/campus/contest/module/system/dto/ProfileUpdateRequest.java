@@ -12,7 +12,9 @@ import java.util.Set;
 /**
  * EP-004 PATCH /api/v1/users/me 请求体。
  *
- * 只暴露个人档案冻结字段：real_name、student_no、college、major、grade、title 和 version。
+ * 只暴露个人档案冻结字段：real_name、student_no、college、major、grade、title、school_id 和 version。
+ * school_id 由公共 SchoolAffiliationService.validateSelection 校验（首次选择 / 驳回后重申），
+ * 档案服务只负责持久化与审计，不另造学校审核模型。
  * username、password_hash、email、status、角色和权限都不在本 DTO 中声明，
  * 一旦客户端提交这些字段，会被 {@link #collectUnexpectedField(String, Object)} 收集，
  * 由 Service 统一返回 400 + 10001，避免“字段被静默忽略”造成越权假象。
@@ -29,6 +31,7 @@ public class ProfileUpdateRequest {
     public static final String FIELD_MAJOR = "major";
     public static final String FIELD_GRADE = "grade";
     public static final String FIELD_TITLE = "title";
+    public static final String FIELD_SCHOOL_ID = "school_id";
     public static final String FIELD_VERSION = "version";
 
     private String realName;
@@ -37,6 +40,7 @@ public class ProfileUpdateRequest {
     private String major;
     private String grade;
     private String title;
+    private String schoolId;
     private Integer version;
 
     /** 请求体中出现过的档案字段名，用于区分“未提交”和“提交了空值” */
@@ -109,6 +113,17 @@ public class ProfileUpdateRequest {
     public void setTitle(String title) {
         presentFields.add(FIELD_TITLE);
         this.title = title;
+    }
+
+    @JsonProperty(FIELD_SCHOOL_ID)
+    public String getSchoolId() {
+        return schoolId;
+    }
+
+    @JsonProperty(FIELD_SCHOOL_ID)
+    public void setSchoolId(String schoolId) {
+        presentFields.add(FIELD_SCHOOL_ID);
+        this.schoolId = schoolId;
     }
 
     @JsonProperty(FIELD_VERSION)

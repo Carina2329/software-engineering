@@ -8,8 +8,9 @@ import com.campus.contest.module.system.vo.IdVersionVO;
  * 个人档案（BIZ-PROFILE-001 / EP-003 档案字段适配 / EP-004）。
  *
  * 本任务只开放“本人查看和修改本人档案”：
- * - 学生可维护姓名、学号、学院、专业、年级；
- * - 教师可维护姓名、学院、职称；
+ * - 学生可维护姓名、学校、学号、学院、专业、年级；
+ * - 教师可维护姓名、学校、学院、职称；
+ * - 学校的可选项与审核状态由公共 SchoolAffiliationService 提供，档案接口不自造学校接口；
  * - 账号状态、角色、权限、密码和登录方式不属于个人档案，接口不提供任何修改入口。
  */
 public interface ProfileService {

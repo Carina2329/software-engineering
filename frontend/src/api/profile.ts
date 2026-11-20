@@ -38,6 +38,14 @@ export function isDuplicateStudentNo(error: unknown): boolean {
 }
 
 /**
+ * 学校归属冲突：公共校验（SchoolAffiliationService.validateSelection）复用业务码 20001，
+ * 因此不能只看业务码，还要看服务端 message 是否在讲学校（已确认学校不能换、待审核不能换等）。
+ */
+export function isSchoolConflict(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 20001 && error.message.includes('学校')
+}
+
+/**
  * 未识别的 409：服务端返回了 HTTP 409，但业务码既不是 20001（版本冲突）也不是 20002（学号重复）。
  * 这类响应既不能当版本冲突提示，也不能静默吞掉，必须给出“冲突但原因未知”的明确提示。
  */
@@ -52,11 +60,16 @@ export function isUnknownConflict(error: unknown): boolean {
 
 /**
  * 档案相关错误提示。
- * 先判重复学号再判版本冲突：两者都返回 HTTP 409，只按状态码判断会把“学号已存在”误报成“资料已被修改”。
+ * 先判重复学号，再判学校冲突，最后判版本冲突：
+ * 三者都可能是 HTTP 409 / 业务码 20001，只按状态码判断会把具体原因误导成“资料已被修改”。
  */
 export function profileErrorMessage(error: unknown, fallback = '档案保存失败'): string {
   if (isDuplicateStudentNo(error)) {
     return PROFILE_MESSAGES.duplicateStudentNo
+  }
+  if (isSchoolConflict(error)) {
+    // 学校冲突的文案由服务端给出（已确认学校不能换 / 待审核不能换 / 学校不存在等）
+    return (error as ApiError).message
   }
   if (isProfileConflict(error)) {
     return PROFILE_MESSAGES.conflict

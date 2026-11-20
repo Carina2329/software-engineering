@@ -4,6 +4,11 @@ import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
 import com.campus.contest.common.idempotency.IdempotencyScope;
 import com.campus.contest.common.idempotency.IdempotencyService;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.campus.contest.module.organization.model.SchoolAffiliationState;
+import com.campus.contest.module.organization.model.SchoolSelectionValidation;
+import com.campus.contest.module.organization.service.SchoolAffiliationService;
 import com.campus.contest.module.system.dto.AuditLogCommand;
 import com.campus.contest.module.system.dto.ProfileUpdateRequest;
 import com.campus.contest.module.system.entity.SysUserDO;
@@ -42,8 +47,11 @@ import java.util.Set;
  * 1. 只处理当前登录用户，接口不接受目标用户 ID，水平越权没有入口；
  * 2. 角色边界以 AuthorizationSnapshotService 的服务端角色快照为准，不信任前端隐藏输入框；
  * 3. 更新走 sys_user 上的 @Version 乐观锁，版本落后返回 HTTP 409 + 20001；
- * 4. 学号依赖 uk_sys_user_student_no 全平台唯一，写库前预检、写库时兜底捕获唯一键冲突；
- * 5. 每次成功修改写一条审计日志，记录操作人、变更字段、追踪号和结果，不含密码、令牌等敏感数据。
+ * 4. 学号按多组织基线 uk_sys_user_school_student(school_id, student_no) 在同一学校内唯一，
+ *    已选校学生按同校口径预检，尚未选校时退化为全平台口径，写库时兜底捕获唯一键冲突；
+ * 5. 选校调用公共 SchoolAffiliationService.validateSelection 判定状态机，
+ *    持久化与审计由本服务在同一条 UPDATE、同一个事务内完成；
+ * 6. 每次成功修改写一条审计日志，记录操作人、变更字段、追踪号和结果，不含密码、令牌等敏感数据。
  */
 @Service
 @RequiredArgsConstructor
@@ -74,6 +82,10 @@ public class ProfileServiceImpl implements ProfileService {
     private static final String FIELD_MAJOR = "major";
     private static final String FIELD_GRADE = "grade";
     private static final String FIELD_TITLE = "title";
+    private static final String FIELD_SCHOOL_ID = "school_id";
+    private static final String FIELD_SCHOOL_STATUS = "school_verification_status";
+
+    private static final String SCHOOL_STATUS_VERIFIED = "VERIFIED";
 
     private final SysUserMapper userMapper;
     private final AuthorizationSnapshotService authorizationSnapshotService;
@@ -82,6 +94,8 @@ public class ProfileServiceImpl implements ProfileService {
     private final AuditLogService auditLogService;
     private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
+    /** 学校主档公共能力（BIZ-ORG-SCOPE-001）：只读状态与校验选校，持久化和审计仍由本服务负责 */
+    private final SchoolAffiliationService schoolAffiliationService;
 
     // ------------------------------------------------------------------
     // EP-003 档案字段适配
@@ -115,6 +129,35 @@ public class ProfileServiceImpl implements ProfileService {
             vo.setGrade(null);
             vo.setTitle(PROFILE_TEACHER.equals(profileType) ? user.getTitle() : null);
         }
+        applySchoolFields(vo, userId);
+    }
+
+    /**
+     * 补齐 EP-003 的学校字段。
+     *
+     * 数据来源是公共 SchoolAffiliationService.getState，不直接读 organization 表，
+     * 避免在个人档案模块复制学校主档与审核状态的判定逻辑。
+     *
+     * 约定：school_id 为空表示“尚未选择学校”，此时状态一律返回 null，
+     * 不能把数据库默认值 PENDING 当成“已提交待审核”展示。
+     */
+    private void applySchoolFields(CurrentUserVO vo, Long userId) {
+        SchoolAffiliationState state = schoolAffiliationService.getState(userId);
+        if (state == null || state.schoolId() == null) {
+            vo.setSchoolId(null);
+            vo.setSchoolName(null);
+            vo.setProvinceCode(null);
+            vo.setSchoolVerified(Boolean.FALSE);
+            vo.setSchoolVerificationStatus(null);
+            vo.setSchoolReviewReason(null);
+            return;
+        }
+        vo.setSchoolId(String.valueOf(state.schoolId()));
+        vo.setSchoolName(state.schoolName());
+        vo.setProvinceCode(state.provinceCode());
+        vo.setSchoolVerificationStatus(state.status());
+        vo.setSchoolVerified(SCHOOL_STATUS_VERIFIED.equals(state.status()));
+        vo.setSchoolReviewReason(state.reviewReason());
     }
 
     // ------------------------------------------------------------------
@@ -179,23 +222,47 @@ public class ProfileServiceImpl implements ProfileService {
         String profileType = profileTypeOfRoles(roleCodes);
 
         Map<String, String> changes = collectChanges(request, profileType);
+
+        // 选校：交给公共 SchoolAffiliationService 判定状态机，本服务不重复实现审核规则
+        SchoolSelectionValidation schoolSelection = null;
+        if (request.hasField(FIELD_SCHOOL_ID)) {
+            Long schoolId = parseSchoolId(request.getSchoolId());
+            schoolSelection = schoolAffiliationService.validateSelection(userId, schoolId, version);
+            if (!schoolSelection.noChange()) {
+                changes.put(FIELD_SCHOOL_ID, String.valueOf(schoolId));
+                changes.put(FIELD_SCHOOL_STATUS, schoolSelection.targetStatus());
+            }
+        }
         if (changes.isEmpty()) {
+            if (schoolSelection != null) {
+                // 提交的学校与当前状态一致：不写库、不涨版本、不写审计，直接返回当前版本
+                return new IdVersionVO(String.valueOf(userId), version);
+            }
             throw invalidParam("至少提交一个档案字段");
         }
 
         String newStudentNo = changes.get(FIELD_STUDENT_NO);
         if (newStudentNo != null && !Objects.equals(newStudentNo, existing.getStudentNo())) {
-            long conflicts = userMapper.countByStudentNoExcluding(newStudentNo, userId);
+            // 同校学号唯一：以本次请求生效后的学校为准；尚未选校时退化为全平台口径保守校验
+            Long compareSchoolId = changes.containsKey(FIELD_SCHOOL_ID)
+                    ? Long.valueOf(changes.get(FIELD_SCHOOL_ID))
+                    : existing.getSchoolId();
+            long conflicts = compareSchoolId == null
+                    ? userMapper.countByStudentNoExcluding(newStudentNo, userId)
+                    : userMapper.countByStudentNoInSchoolExcluding(newStudentNo, compareSchoolId, userId);
             if (conflicts > 0) {
                 throw duplicateStudentNo();
             }
         }
 
-        SysUserDO update = buildUpdateEntity(userId, version, changes);
+        boolean schoolChanged = changes.containsKey(FIELD_SCHOOL_ID);
         Integer newVersion = transactionTemplate.execute(status -> {
             int rows;
             try {
-                rows = userMapper.updateById(update);
+                // 学校与档案字段必须在同一条 UPDATE 中生效，避免出现“改了学校没改资料”或版本涨两次
+                rows = schoolChanged
+                        ? userMapper.update(null, schoolUpdateWrapper(userId, version, changes))
+                        : userMapper.updateById(buildUpdateEntity(userId, version, changes));
             } catch (DataIntegrityViolationException e) {
                 // 并发写入同一学号时，唯一索引是最后一道防线；这里转成明确业务错误而不是 500
                 if (changes.containsKey(FIELD_STUDENT_NO)) {
@@ -332,6 +399,82 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     /**
+     * 学校与档案字段的单条 UPDATE。
+     *
+     * 用 UpdateWrapper 而不是 {@link #buildUpdateEntity} 的原因：
+     * 选校成功要把 school_reviewed_by / school_reviewed_at / school_review_reason 显式清空，
+     * 而 MyBatis-Plus 的 updateById 默认忽略 null 字段，清不掉上一次的驳回原因。
+     * 版本号在这里手工 +1，并用 where version = ? 保证与乐观锁语义一致。
+     */
+    /**
+     * 学校与档案字段的单条 UPDATE。
+     *
+     * 用 UpdateWrapper 而不是 {@link #buildUpdateEntity} 的原因：
+     * 选校成功要把 school_reviewed_by / school_reviewed_at / school_review_reason 显式清空，
+     * 而 MyBatis-Plus 的 updateById 默认忽略 null 字段，清不掉上一次的驳回原因。
+     * 版本号在这里手工 +1，并用 where version = ? 保证与乐观锁语义一致。
+     *
+     * 这里刻意使用字符串列名（而不是 Lambda 列缓存）：Lambda 写法依赖 MyBatis-Plus
+     * 在运行期缓存的 entity 字段元数据，脱离 MyBatis 初始化（例如纯 Mockito 单测）
+     * 会抛 "can not find lambda cache for this entity"，使这条最关键的分支无法被单测覆盖。
+     */
+    private UpdateWrapper<SysUserDO> schoolUpdateWrapper(
+            Long userId,
+            Integer version,
+            Map<String, String> changes
+    ) {
+        UpdateWrapper<SysUserDO> wrapper = Wrappers.update();
+        wrapper.eq("id", userId)
+                .eq("version", version)
+                .eq("deleted", 0);
+        if (changes.containsKey(FIELD_REAL_NAME)) {
+            wrapper.set("real_name", changes.get(FIELD_REAL_NAME));
+        }
+        if (changes.containsKey(FIELD_STUDENT_NO)) {
+            wrapper.set("student_no", changes.get(FIELD_STUDENT_NO));
+        }
+        if (changes.containsKey(FIELD_COLLEGE)) {
+            wrapper.set("college", changes.get(FIELD_COLLEGE));
+        }
+        if (changes.containsKey(FIELD_MAJOR)) {
+            wrapper.set("major", changes.get(FIELD_MAJOR));
+        }
+        if (changes.containsKey(FIELD_GRADE)) {
+            wrapper.set("grade", changes.get(FIELD_GRADE));
+        }
+        if (changes.containsKey(FIELD_TITLE)) {
+            wrapper.set("title", changes.get(FIELD_TITLE));
+        }
+        wrapper.set("school_id", Long.valueOf(changes.get(FIELD_SCHOOL_ID)))
+                .set("school_verification_status", changes.get(FIELD_SCHOOL_STATUS))
+                .set("school_reviewed_by", null)
+                .set("school_reviewed_at", null)
+                .set("school_review_reason", null)
+                .set("updated_at", LocalDateTime.now())
+                .set("updated_by", userId)
+                .set("version", version + 1);
+        return wrapper;
+    }
+
+    /** school_id 在契约里是字符串，落库是 BIGINT organization.id */
+    private Long parseSchoolId(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            throw invalidParam("学校不能为空");
+        }
+        String value = rawValue.trim();
+        long schoolId;
+        try {
+            schoolId = Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            throw invalidParam("学校 ID 必须为数字");
+        }
+        if (schoolId <= 0) {
+            throw invalidParam("学校 ID 必须为正整数");
+        }
+        return schoolId;
+    }
+
+    /**
      * 成功变更的审计：由事务内调用，写入失败直接抛出，让档案更新一起回滚。
      * 这是“成功变更必须有审计”的实现方式，不做静默降级。
      */
@@ -403,6 +546,10 @@ public class ProfileServiceImpl implements ProfileService {
                 case FIELD_MAJOR -> before.put(field, user.getMajor());
                 case FIELD_GRADE -> before.put(field, user.getGrade());
                 case FIELD_TITLE -> before.put(field, user.getTitle());
+                case FIELD_SCHOOL_ID -> before.put(field, user.getSchoolId() == null
+                        ? null
+                        : String.valueOf(user.getSchoolId()));
+                case FIELD_SCHOOL_STATUS -> before.put(field, user.getSchoolVerificationStatus());
                 default -> {
                     // 白名单外的字段不会进入审计
                 }

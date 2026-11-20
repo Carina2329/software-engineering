@@ -19,6 +19,15 @@ export interface MyProfile {
   grade?: string | null
   student_no?: string | null
   title?: string | null
+  /** 学校主档 ID，未选校时为 null（EP-004 用字符串提交） */
+  school_id?: string | null
+  school_name?: string | null
+  province_code?: string | null
+  /** 学校归属是否已审核通过 */
+  school_verified?: boolean
+  /** PENDING / VERIFIED / REJECTED，未选校时为 null */
+  school_verification_status?: string | null
+  school_review_reason?: string | null
   version: number
   /** 旧数据只读兼容，不提供编辑入口 */
   skill_tags: string[]
@@ -44,6 +53,8 @@ export interface ProfileUpdatePayload {
   major?: string
   grade?: string
   title?: string
+  /** 选校/改校时提交；服务端调 SchoolAffiliationService 校验并置为待审核 */
+  school_id?: string
   version: number
 }
 
@@ -78,7 +89,7 @@ export const PROFILE_FIELD_DEFINITIONS: Record<ProfileFieldKey, ProfileFieldDefi
     maxLength: 20,
     required: true,
     placeholder: '请输入本人学号',
-    hint: '仅学生档案可修改，全平台唯一，不能包含空格',
+    hint: '仅学生档案可修改，同一学校内唯一，不能包含空格',
   },
   college: {
     key: 'college',
@@ -145,6 +156,59 @@ export const PROFILE_MESSAGES = {
   emptyPatch: '没有需要保存的修改',
   saved: '档案已保存，版本号已更新',
 } as const
+
+/** EP-085 返回的可选学校（学校主档由组织与范围权限任务维护） */
+export interface SchoolOption {
+  id: string
+  school_code: string
+  school_name: string
+  province_code: string
+  province_name: string
+}
+
+/** 学校归属审核状态：与后端 SchoolAffiliationState.status 对齐 */
+export type SchoolVerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED'
+
+interface SchoolStatusMeta {
+  label: string
+  tagType: 'success' | 'warning' | 'danger' | 'info'
+  description: string
+}
+
+export const SCHOOL_STATUS_META: Record<SchoolVerificationStatus, SchoolStatusMeta> = {
+  PENDING: {
+    label: '待审核',
+    tagType: 'warning',
+    description: '学校归属已提交，等待管理员审核；审核期间不能再次更换学校。',
+  },
+  VERIFIED: {
+    label: '已通过',
+    tagType: 'success',
+    description: '学校归属已审核通过，不能由本人直接更换；如确需变更请联系管理员。',
+  },
+  REJECTED: {
+    label: '未通过',
+    tagType: 'danger',
+    description: '学校归属审核未通过，可按驳回原因重新选择学校并再次提交。',
+  },
+}
+
+/**
+ * 是否允许本人在页面上更改学校。
+ * 依据公共校验语义：已通过（VERIFIED）与待审核（PENDING）都不能由本人直接切换，
+ * 只有未选校或审核未通过（REJECTED）可以重新选择。
+ */
+export function canChangeSchool(status?: string | null): boolean {
+  if (!status) {
+    return true
+  }
+  return status === 'REJECTED'
+}
+
+/** 学校归属是否属于当前角色可维护的档案范围 */
+export function supportsSchool(userType: string): boolean {
+  return userType === 'STUDENT' || userType === 'TEACHER'
+}
 
 export const PROFILE_ROLE_LABELS: Record<string, string> = {
   STUDENT: '学生档案',
