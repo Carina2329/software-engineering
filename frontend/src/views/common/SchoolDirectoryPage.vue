@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { listSchools } from '../../api/organization'
@@ -12,10 +12,29 @@ const schools = ref<SchoolItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const size = ref(20)
+const previousPath = ref<string | null>(
+  typeof window.history.state?.back === 'string' ? window.history.state.back : null,
+)
 const filters = reactive({
   keyword: '',
   province_code: '',
 })
+
+const backDestination = computed(() => {
+  if (previousPath.value?.startsWith('/admin')) {
+    return { label: '返回后台管理', fallback: '/admin' }
+  }
+  return { label: '返回账号中心', fallback: '/' }
+})
+
+const handleBack = (): void => {
+  const currentBack = window.history.state?.back
+  if (typeof currentBack === 'string' && currentBack !== router.currentRoute.value.fullPath) {
+    router.back()
+    return
+  }
+  void router.push(backDestination.value.fallback)
+}
 
 const loadSchools = async (): Promise<void> => {
   loading.value = true
@@ -48,7 +67,7 @@ onMounted(loadSchools)
         <h1>学校目录</h1>
         <p>仅展示已启用且省份有效的学校</p>
       </div>
-      <el-button plain @click="router.push('/')">返回账号中心</el-button>
+      <el-button plain @click="handleBack">{{ backDestination.label }}</el-button>
     </header>
 
     <el-card shadow="never">
