@@ -6,6 +6,11 @@ SET time_zone = '+08:00';
 
 INSERT INTO organization
   (org_code, org_name, org_type, province_code, status, created_by, version)
+SELECT 'PLATFORM', '赛事平台', 'PLATFORM', NULL, 1, 0, 0
+WHERE NOT EXISTS (SELECT 1 FROM organization WHERE org_code = 'PLATFORM' AND deleted = 0);
+
+INSERT INTO organization
+  (org_code, org_name, org_type, province_code, status, created_by, version)
 SELECT 'SC-SCHOOL-A', '四川A大学', 'SCHOOL', '510000', 1, 0, 0
 WHERE NOT EXISTS (SELECT 1 FROM organization WHERE org_code = 'SC-SCHOOL-A' AND deleted = 0);
 

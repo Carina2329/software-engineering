@@ -1,10 +1,8 @@
 -- 认证与 RBAC 数据库增量草案
 -- 目标：MySQL 8.0
--- 文档版本：0.2.4（2026-11-08）
--- 状态：已在独立联调库验证；执行前先核对真实库结构并备份数据。
+-- 文档版本：0.2.5（2026-11-20）
+-- 状态：仅用于旧库升级；执行前先选择目标数据库并备份数据。
 -- 本脚本不新增数据库表。
-
-USE contest_db;
 
 -- 1. 用户增加邮箱登录标识
 ALTER TABLE sys_user
@@ -17,7 +15,7 @@ CREATE UNIQUE INDEX uk_sys_role_role_code ON sys_role (role_code);
 
 -- 3. 关联表防止重复关系
 CREATE UNIQUE INDEX uk_sys_user_role_user_role
-    ON sys_user_role (user_id, role_id, scope_type, scope_id);
+    ON sys_user_role (user_id, role_id);
 
 -- 4. 复用 sys_menu 作为目录、菜单、按钮/API 权限资源树
 ALTER TABLE sys_menu

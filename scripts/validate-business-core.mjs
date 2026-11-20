@@ -133,6 +133,39 @@ assert(provinceSeed.includes("'CN_PROVINCE'"), 'province dictionary type is miss
 assert(provinceSeed.includes("'510000'"), 'Sichuan province code is missing')
 assert(provinceSeed.includes("'430000'"), 'Hunan province code is missing')
 
+const baseSql = read('docs/sql/2026-11-08-contest-db-base.sql')
+for (const token of [
+  '`email` VARCHAR(128)',
+  '`trace_id` VARCHAR(64)',
+  '`expected_sha256` CHAR(64)',
+  'UNIQUE KEY `uk_file_sha256_storage` (`sha256`, `storage_type`)',
+  '`parent_id` BIGINT NULL'
+]) {
+  assert(baseSql.includes(token), `consolidated base schema is missing ${token}`)
+}
+
+const authSeed = read('docs/sql/2026-11-20-auth-dev-seed.sql')
+for (const token of ["'ADMIN'", "'student_a'", "'system:user:list'", "'file:upload'"]) {
+  assert(authSeed.includes(token), `auth development seed is missing ${token}`)
+}
+
+const rbacIncrement = read('docs/sql/2026-11-03-rbac-auth-foundation.sql')
+assert(!rbacIncrement.includes('USE contest_db;'), 'RBAC increment must not hardcode contest_db')
+assert(
+  rbacIncrement.includes('ON sys_user_role (user_id, role_id);'),
+  'RBAC increment must create the legacy two-column unique index'
+)
+
+const readme = read('README.md')
+assert(
+  readme.includes('2026-11-20-auth-dev-seed.sql'),
+  'README fresh setup is missing the auth development seed'
+)
+assert(
+  readme.includes('不要再叠加历史增量'),
+  'README must distinguish fresh setup from legacy upgrades'
+)
+
 for (const path of [
   '/schools',
   '/organizations',

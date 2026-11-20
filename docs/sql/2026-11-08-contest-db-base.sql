@@ -1,5 +1,5 @@
 -- AI 学科竞赛全流程智能服务平台 数据库建表脚本（MySQL 8.0）
--- 版本：1.2.0（2026-11-18）
+-- 版本：1.3.0（2026-11-20）
 -- 说明：业务关系由应用层保证，相关字段均已建索引；关联表仅含 id 与 created_at。
 -- 注意：脚本会先 DROP 同名表再重建，只能在开发库执行，切勿在生产库运行！
 -- 字符集：utf8mb4；引擎：InnoDB
@@ -39,6 +39,7 @@ CREATE TABLE `sys_user` (
   `username` VARCHAR(32) NOT NULL COMMENT '登录账号',
   `real_name` VARCHAR(32) NOT NULL COMMENT '真实姓名',
   `password_hash` VARCHAR(100) NOT NULL COMMENT '密码散列值',
+  `email` VARCHAR(128) COMMENT '登录邮箱',
   `student_no` VARCHAR(20) COMMENT '学号',
   `school_id` BIGINT DEFAULT NULL COMMENT '所属学校 organization.id',
   `school_verification_status` VARCHAR(16) NOT NULL DEFAULT 'PENDING'
@@ -62,6 +63,7 @@ CREATE TABLE `sys_user` (
   `deleted_at` DATETIME COMMENT '删除时间',
   `version` INT NOT NULL DEFAULT 0 COMMENT '版本号（乐观锁）',
   UNIQUE KEY `uk_sys_user_username` (username),
+  UNIQUE KEY `uk_sys_user_email` (email),
   UNIQUE KEY `uk_sys_user_school_student` (`school_id`, `student_no`),
   KEY `idx_user_school` (`school_id`, `status`, `deleted`),
   KEY `idx_user_school_verification` (`school_id`, `school_verification_status`, `deleted`),
@@ -83,6 +85,7 @@ CREATE TABLE `sys_role` (
   `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标志',
   `deleted_at` DATETIME COMMENT '删除时间',
   `version` INT NOT NULL DEFAULT 0 COMMENT '版本号（乐观锁）',
+  UNIQUE KEY `uk_sys_role_role_code` (role_code),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='保存角色及其权限范围（FR-01，RBAC）';
 
@@ -458,7 +461,7 @@ CREATE TABLE `appeal` (
 DROP TABLE IF EXISTS `sys_menu`;
 CREATE TABLE `sys_menu` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `parent_id` BIGINT NOT NULL COMMENT '上级菜单',
+  `parent_id` BIGINT NULL COMMENT '上级权限资源；根节点为空',
   `menu_name` VARCHAR(64) NOT NULL COMMENT '菜单名称',
   `menu_type` TINYINT NOT NULL COMMENT '菜单类型',
   `path` VARCHAR(128) COMMENT '前端路由',
@@ -473,7 +476,8 @@ CREATE TABLE `sys_menu` (
   `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标志',
   `deleted_at` DATETIME COMMENT '删除时间',
   `version` INT NOT NULL DEFAULT 0 COMMENT '版本号（乐观锁）',
-  KEY `idx_sys_menu_parent` (parent_id),
+  UNIQUE KEY `uk_sys_menu_perms` (perms),
+  KEY `idx_sys_menu_parent_status` (parent_id, status),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RBAC 的权限点：目录、菜单、按钮三级（满足“菜单按角色区分”）';
 
@@ -540,7 +544,7 @@ CREATE TABLE `file` (
   `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标志',
   `deleted_at` DATETIME COMMENT '删除时间',
   `version` INT NOT NULL DEFAULT 0 COMMENT '版本号（乐观锁）',
-  UNIQUE KEY `uk_file_sha256` (sha256),
+  UNIQUE KEY `uk_file_sha256_storage` (`sha256`, `storage_type`),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='所有上传文件的唯一元数据（作品附件、规则文档等共用），文件本体存磁盘或 OSS';
 
@@ -553,6 +557,7 @@ CREATE TABLE `upload_task` (
   `chunk_size` INT NOT NULL DEFAULT 5 COMMENT '分片大小',
   `total_chunks` INT NOT NULL COMMENT '分片总数',
   `uploaded_chunks` INT NOT NULL DEFAULT 0 COMMENT '已传分片数',
+  `expected_sha256` CHAR(64) DEFAULT NULL COMMENT '客户端完整文件SHA-256',
   `status` TINYINT NOT NULL COMMENT '任务状态',
   `expire_at` DATETIME DEFAULT NULL COMMENT '过期时间',
   `uploader_id` BIGINT NOT NULL COMMENT '上传人',
@@ -607,7 +612,7 @@ CREATE TABLE `ai_precheck_report` (
 DROP TABLE IF EXISTS `sys_oper_log`;
 CREATE TABLE `sys_oper_log` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `user_id` BIGINT NOT NULL COMMENT '操作人',
+  `user_id` BIGINT NULL COMMENT '操作人；未知账号失败登录时可为空',
   `module` VARCHAR(64) NOT NULL COMMENT '业务模块',
   `operation` VARCHAR(128) NOT NULL COMMENT '操作描述',
   `request_uri` VARCHAR(255) COMMENT '请求地址',
@@ -616,6 +621,7 @@ CREATE TABLE `sys_oper_log` (
   `ip` VARCHAR(45) COMMENT '来源 IP',
   `duration_ms` INT COMMENT '耗时',
   `result` TINYINT NOT NULL COMMENT '执行结果',
+  `trace_id` VARCHAR(64) NULL COMMENT '请求追踪号',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `created_by` BIGINT NOT NULL COMMENT '创建人',
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后修改时间',

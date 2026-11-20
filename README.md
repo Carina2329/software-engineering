@@ -23,11 +23,10 @@ AI 大学生学科竞赛全流程智能服务平台。
 # 1. 启动 MySQL、Redis、Mailpit 和认证邮件 RabbitMQ
 cd docker && docker compose up -d
 
-# 2. 按顺序初始化数据库
+# 2. 初始化全新的开发数据库
+#    当前完整建表脚本已包含 RBAC、业务核心和多组织字段，不要再叠加历史增量。
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-08-contest-db-base.sql
-mysql -uroot -proot123 contest_db < ../docs/sql/2026-10-29-file-sha256-storage-unique.sql
-mysql -uroot -proot123 contest_db < ../docs/sql/2026-10-30-upload-task-expected-sha256.sql
-mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-03-rbac-auth-foundation.sql
+mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-20-auth-dev-seed.sql
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-15-business-core-permissions-seed.sql
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-19-cn-province-dictionary-seed.sql
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-18-multitenant-permissions-seed.sql
@@ -40,9 +39,30 @@ mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-18-multitenant-dev-seed.
 cd frontend && pnpm install && pnpm dev
 ```
 
+### 旧数据库升级
+
+只有数据库仍是引入认证、业务核心或多组织字段之前的旧结构时，才按以下顺序升级。升级前必须备份，并在独立测试库先演练。
+
+```bash
+# 在仓库根目录执行
+mysql -uroot -proot123 contest_db < docs/sql/2026-11-03-rbac-auth-foundation.sql
+mysql -uroot -proot123 contest_db < docs/sql/2026-11-15-business-core-foundation.sql
+mysql -uroot -proot123 contest_db < docs/sql/2026-11-18-multitenant-foundation.sql
+
+mysql -uroot -proot123 contest_db < docs/sql/2026-10-29-file-sha256-storage-unique.sql
+mysql -uroot -proot123 contest_db < docs/sql/2026-10-30-upload-task-expected-sha256.sql
+mysql -uroot -proot123 contest_db < docs/sql/2026-11-20-auth-dev-seed.sql
+mysql -uroot -proot123 contest_db < docs/sql/2026-11-15-business-core-permissions-seed.sql
+mysql -uroot -proot123 contest_db < docs/sql/2026-11-19-cn-province-dictionary-seed.sql
+mysql -uroot -proot123 contest_db < docs/sql/2026-11-18-multitenant-permissions-seed.sql
+mysql -uroot -proot123 contest_db < docs/sql/2026-11-18-multitenant-dev-seed.sql
+```
+
+数据库名称由命令中的 `contest_db` 参数选择。不要把整套历史增量重复应用到由当前 `2026-11-08-contest-db-base.sql` 新建的数据库。
+
 ## 验证
 
-1. 按“启动步骤”的顺序执行 `docs/sql` 下的完整基础结构和增量脚本；
+1. 按“启动步骤”的全新库顺序执行完整建表和种子脚本；
 2. 浏览器访问 `http://localhost:8080/api/v1/auth/captcha?scene=LOGIN`，返回图片验证码和 `trace_id`；
 3. 接口文档：`http://localhost:8080/doc.html`；
 4. 打开 `http://localhost:5173/#/login`，登录页应能加载真实验证码。
@@ -56,6 +76,7 @@ cd frontend && pnpm install && pnpm dev
 - RabbitMQ 不可用只影响新的 OTP 发送任务；用户名密码登录和已有 OTP 校验不依赖 MQ。
 - Nginx 只限制登录、图片验证码、邮件 OTP 和找回密码申请等敏感认证路径，不影响普通页面、普通 API 和文件上传下载。
 - Nginx 直接返回 429 时使用统一 JSON，trace_id 必须真实展开 `$request_id` 并与 `X-Trace-Id` 一致。
+- Redis 连接和命令超时默认 3 秒、可通过 `REDIS_CONNECT_TIMEOUT` 和 `REDIS_COMMAND_TIMEOUT` 调整；Redis 不可用时认证依赖返回 HTTP 503 + `50003`。
 - 高并发任务边界和集成顺序见 `docs/auth-rbac/high-concurrency-task-briefs.md` 与 `docs/auth-rbac/high-concurrency-integration-plan.md`。
 
 高并发公共基线验证命令：
