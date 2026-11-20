@@ -11,6 +11,8 @@ const auth = useAuthStore()
 const loggingOut = ref(false)
 const adminEntryPath = computed(() => {
   if (auth.can('system:user:list')) return '/admin/users'
+  if (auth.can('school:affiliation:list')) return '/admin/school-affiliations'
+  if (auth.can('organization:list')) return '/admin/organizations'
   if (auth.can('system:role:list')) return '/admin/roles'
   if (auth.can('system:menu:list')) return '/admin/menus'
   return null
@@ -46,7 +48,7 @@ async function handleLogout(): Promise<void> {
       </div>
       <div class="header-actions">
         <el-button v-if="adminEntryPath" type="primary" plain @click="router.push(adminEntryPath)">
-          权限管理
+          管理后台
         </el-button>
         <el-button :loading="loggingOut" plain @click="handleLogout">退出登录</el-button>
       </div>

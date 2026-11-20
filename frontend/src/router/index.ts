@@ -56,10 +56,16 @@ const router = createRouter({
         requiresAuth: true,
         title: '权限管理',
       },
-      redirect: {
-        name: 'admin-users',
-      },
       children: [
+        {
+          path: '',
+          name: 'admin-entry',
+          component: () => import('../views/admin/AdminEntryPage.vue'),
+          meta: {
+            requiresAuth: true,
+            title: '管理后台',
+          },
+        },
         {
           path: 'users',
           name: 'admin-users',
@@ -90,7 +96,37 @@ const router = createRouter({
             title: '权限资源',
           },
         },
+        {
+          path: 'organizations',
+          name: 'admin-organizations',
+          component: () => import('../views/admin/OrganizationManagementPage.vue'),
+          meta: {
+            requiresAuth: true,
+            permissions: ['organization:list'],
+            title: '组织与学校',
+          },
+        },
+        {
+          path: 'school-affiliations',
+          name: 'admin-school-affiliations',
+          component: () => import('../views/admin/SchoolAffiliationReviewPage.vue'),
+          meta: {
+            requiresAuth: true,
+            permissions: ['school:affiliation:list'],
+            title: '学校归属审核',
+          },
+        },
       ],
+    },
+    {
+      path: '/schools',
+      name: 'schools',
+      component: () => import('../views/common/SchoolDirectoryPage.vue'),
+      meta: {
+        requiresAuth: true,
+        permissions: ['school:list'],
+        title: '学校目录',
+      },
     },
     {
       path: '/403',
