@@ -407,6 +407,10 @@ class RbacHttpAccessTest {
         SysUserRoleDO relation = new SysUserRoleDO();
         relation.setUserId(userId);
         relation.setRoleId(roleId);
+        relation.setScopeType("GLOBAL");
+        relation.setScopeId(0L);
+        relation.setStatus(1);
+        relation.setDeleted(0);
         return relation;
     }
 

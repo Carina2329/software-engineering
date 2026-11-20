@@ -20,6 +20,11 @@ public class SysUserDO {
     private String passwordHash;
     private String email;
     private String studentNo;
+    private Long schoolId;
+    private String schoolVerificationStatus;
+    private Long schoolReviewedBy;
+    private LocalDateTime schoolReviewedAt;
+    private String schoolReviewReason;
     private String college;
     private String major;
     private String grade;
