@@ -5,14 +5,12 @@ import com.campus.contest.module.system.service.AuditLogService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class ContestAuditService {
 
     private static final String MODULE = "CONTEST";
@@ -35,9 +33,8 @@ public class ContestAuditService {
                     0,
                     null
             ));
-        } catch (RuntimeException | com.fasterxml.jackson.core.JsonProcessingException exception) {
-            log.warn("竞赛业务审计写入失败: operation={}, error={}",
-                    operation, exception.getClass().getSimpleName());
+        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            throw new IllegalStateException("竞赛业务审计参数无法序列化", exception);
         }
     }
 

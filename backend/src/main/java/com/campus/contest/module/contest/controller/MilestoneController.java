@@ -27,7 +27,7 @@ public class MilestoneController {
     public Result<MilestoneVersionVO> update(
             @PathVariable("milestone_id") Long milestoneId,
             @Valid @RequestBody MilestoneUpdateRequest request,
-            @RequestHeader("Idempotency-Key") String idempotencyKey
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
     ) {
         return Result.ok(milestoneService.update(milestoneId, request, idempotencyKey));
     }

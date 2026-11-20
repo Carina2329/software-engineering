@@ -47,6 +47,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -54,6 +55,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 @SpringBootTest(classes = ContestHttpAccessTest.TestApplication.class)
@@ -85,6 +87,7 @@ class ContestHttpAccessTest {
                         .content("""
                                 {
                                   "contest_name": "测试竞赛",
+                                  "series_code": "TEST_SERIES",
                                   "level": "SCHOOL",
                                   "organizer": "计算机学院",
                                   "intro": "用于 HTTP 测试"
@@ -111,6 +114,7 @@ class ContestHttpAccessTest {
                         .content("""
                                 {
                                   "contest_name": "越权竞赛",
+                                  "series_code": "FORBIDDEN_SERIES",
                                   "level": "SCHOOL"
                                 }
                                 """))
@@ -133,6 +137,7 @@ class ContestHttpAccessTest {
                         .content("""
                                 {
                                   "contest_name": "缺少幂等键",
+                                  "series_code": "NO_KEY_SERIES",
                                   "level": "SCHOOL"
                                 }
                                 """))
@@ -142,6 +147,31 @@ class ContestHttpAccessTest {
         assertThat(objectMapper.readTree(
                         result.getResponse().getContentAsString(StandardCharsets.UTF_8))
                 .path("code").asInt()).isEqualTo(ErrorCode.INVALID_PARAM.getCode());
+    }
+
+    @Test
+    @DisplayName("EP-014 无 Idempotency-Key 时由 version 兜底并正常进入 Service")
+    void optionalIdempotencyKeyFallsBackToVersion() throws Exception {
+        when(contestService.update(eq(1L), any(), isNull()))
+                .thenReturn(new com.campus.contest.module.contest.vo.ContestVersionVO("1", 2));
+
+        MvcResult result = mockMvc.perform(patch("/api/v1/contests/1")
+                        .with(authentication(managerAuth()))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "organizer": "测试主办方",
+                                  "version": 1
+                                }
+                                """))
+                .andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        assertThat(objectMapper.readTree(
+                        result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("data").path("version").asInt()).isEqualTo(2);
+        verify(contestService).update(eq(1L), any(), isNull());
     }
 
     @Test
@@ -170,6 +200,14 @@ class ContestHttpAccessTest {
                 deadline.plusDays(5),
                 true,
                 true,
+                false,
+                "10",
+                "测试学校",
+                "SCHOOL",
+                "10",
+                null,
+                "SCHOOL",
+                "OPEN",
                 false
         ));
 
@@ -197,7 +235,8 @@ class ContestHttpAccessTest {
                         "计算机学院",
                         "简介",
                         7,
-                        List.of("2026 年校赛")
+                        List.of("2026 年校赛"),
+                        "TEST_SERIES"
                 ));
 
         MvcResult result = mockMvc.perform(get("/api/v1/contests/1")
@@ -244,7 +283,7 @@ class ContestHttpAccessTest {
                 1L,
                 "session-manager",
                 Set.of("ADMIN"),
-                Set.of("contest:create", "edition:publish"),
+                Set.of("contest:create", "contest:update", "edition:publish"),
                 Set.of("ALL")
         );
         return new UsernamePasswordAuthenticationToken(

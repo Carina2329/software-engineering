@@ -16,8 +16,12 @@ public class ContestEditionDO {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long contestId;
+    private Long ownerOrgId;
     private String editionName;
     private Integer year;
+    private String level;
+    private Long schoolId;
+    private String provinceCode;
     private Integer status;
     private LocalDateTime registerDeadline;
     private LocalDateTime workDeadline;
@@ -32,6 +36,9 @@ public class ContestEditionDO {
     private Integer topicReviewRequired;
     private String topicAllocationMode;
     private Integer topicChangeLimit;
+    private String visibility;
+    private String entryMode;
+    private Integer crossSchoolTeamAllowed;
     private LocalDateTime createdAt;
     private Long createdBy;
     private LocalDateTime updatedAt;

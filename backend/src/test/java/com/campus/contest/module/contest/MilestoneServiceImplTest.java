@@ -8,6 +8,8 @@ import com.campus.contest.module.contest.dto.MilestoneUpdateRequest;
 import com.campus.contest.module.contest.entity.ContestEditionDO;
 import com.campus.contest.module.contest.entity.ContestMilestoneDO;
 import com.campus.contest.module.contest.enums.EditionStatus;
+import com.campus.contest.module.contest.mapper.ContestAccessCriteria;
+import com.campus.contest.module.contest.mapper.ContestAccessMapper;
 import com.campus.contest.module.contest.mapper.ContestEditionMapper;
 import com.campus.contest.module.contest.mapper.ContestMilestoneMapper;
 import com.campus.contest.module.contest.service.ContestAuditService;
@@ -18,7 +20,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,6 +46,8 @@ class MilestoneServiceImplTest {
 
     @Mock
     private ContestEditionMapper editionMapper;
+    @Mock
+    private ContestAccessMapper accessMapper;
     @Mock
     private ContestMilestoneMapper milestoneMapper;
     @Mock
@@ -59,6 +63,7 @@ class MilestoneServiceImplTest {
     void setUp() {
         service = new MilestoneServiceImpl(
                 editionMapper,
+                accessMapper,
                 milestoneMapper,
                 authorizationService,
                 TestInfrastructure.passthroughIdempotencyService(),
@@ -67,7 +72,8 @@ class MilestoneServiceImplTest {
                 TestInfrastructure.transactionTemplate()
         );
         lenient().when(currentUserProvider.requireUserId()).thenReturn(10L);
-        lenient().when(authorizationService.canManage()).thenReturn(true);
+        lenient().when(authorizationService.currentAccessCriteria())
+                .thenReturn(new ContestAccessCriteria());
     }
 
     @Test
@@ -89,6 +95,7 @@ class MilestoneServiceImplTest {
         request.setEndTime(start.plusHours(1).atOffset(OFFSET));
 
         assertThat(service.create(31L, request, "milestone-key").id()).isEqualTo("51");
+        verify(authorizationService, times(2)).requireEventManageable(31L);
         verify(auditService).record(eq(10L), eq("EDITION_MILESTONE_CREATE"), any());
     }
 
@@ -129,21 +136,14 @@ class MilestoneServiceImplTest {
     }
 
     @Test
-    @DisplayName("EP-020 返回节点版本，使用该版本修改赛程节点成功")
+    @DisplayName("EP-020 返回节点版本，使用该版本修改成功")
     void queriedMilestoneVersionCanUpdateNode() {
         ContestEditionDO edition = edition(EditionStatus.REGISTERING);
-        ContestMilestoneDO milestone = new ContestMilestoneDO();
-        milestone.setId(51L);
-        milestone.setEditionId(31L);
-        milestone.setNodeType("WORK_END");
-        milestone.setNodeName("作品截止");
-        milestone.setStartTime(edition.getWorkDeadline().minusHours(2));
-        milestone.setEndTime(edition.getWorkDeadline().minusHours(1));
-        milestone.setEnabled(1);
-        milestone.setVersion(4);
-        when(editionMapper.selectById(31L)).thenReturn(edition);
+        ContestMilestoneDO milestone = milestone(edition, 4);
+        when(accessMapper.selectEditionById(any())).thenReturn(edition);
         when(milestoneMapper.selectList(any())).thenReturn(List.of(milestone));
         when(milestoneMapper.selectById(51L)).thenReturn(milestone);
+        when(editionMapper.selectById(31L)).thenReturn(edition);
         when(milestoneMapper.updateById(any(ContestMilestoneDO.class))).thenReturn(1);
 
         int version = service.list(31L).get(0).version();
@@ -151,26 +151,20 @@ class MilestoneServiceImplTest {
         request.setNodeName("作品提交结束");
         request.setVersion(version);
 
-        assertThat(service.update(51L, request, "milestone-version-update-key").version())
-                .isEqualTo(5);
+        assertThat(service.update(51L, request, null).version()).isEqualTo(5);
     }
 
     @Test
     @DisplayName("赛程节点使用旧版本修改返回 409")
     void staleMilestoneVersionIsRejected() {
-        ContestMilestoneDO milestone = new ContestMilestoneDO();
-        milestone.setId(51L);
-        milestone.setEditionId(31L);
-        milestone.setNodeType("WORK_END");
-        milestone.setNodeName("作品截止");
-        milestone.setVersion(4);
+        ContestMilestoneDO milestone = milestone(edition(EditionStatus.REGISTERING), 4);
         when(milestoneMapper.selectById(51L)).thenReturn(milestone);
 
         MilestoneUpdateRequest request = new MilestoneUpdateRequest();
         request.setNodeName("旧版本修改");
         request.setVersion(3);
 
-        assertThatThrownBy(() -> service.update(51L, request, "stale-milestone-key"))
+        assertThatThrownBy(() -> service.update(51L, request, null))
                 .isInstanceOfSatisfying(BizException.class, error ->
                         assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_CONFLICT.getCode()));
         verify(milestoneMapper, never()).updateById(any(ContestMilestoneDO.class));
@@ -180,6 +174,10 @@ class MilestoneServiceImplTest {
         LocalDateTime base = LocalDateTime.now(SHANGHAI).plusDays(1);
         ContestEditionDO edition = new ContestEditionDO();
         edition.setId(31L);
+        edition.setOwnerOrgId(10L);
+        edition.setLevel("SCHOOL");
+        edition.setSchoolId(10L);
+        edition.setVisibility("SCHOOL");
         edition.setStatus(status.getDatabaseValue());
         edition.setRegisterDeadline(base);
         edition.setWorkDeadline(base.plusDays(2));
@@ -187,5 +185,18 @@ class MilestoneServiceImplTest {
         edition.setPublishStart(base.plusDays(4));
         edition.setPublishEnd(base.plusDays(5));
         return edition;
+    }
+
+    private ContestMilestoneDO milestone(ContestEditionDO edition, int version) {
+        ContestMilestoneDO milestone = new ContestMilestoneDO();
+        milestone.setId(51L);
+        milestone.setEditionId(31L);
+        milestone.setNodeType("WORK_END");
+        milestone.setNodeName("作品截止");
+        milestone.setStartTime(edition.getWorkDeadline().minusHours(2));
+        milestone.setEndTime(edition.getWorkDeadline().minusHours(1));
+        milestone.setEnabled(1);
+        milestone.setVersion(version);
+        return milestone;
     }
 }

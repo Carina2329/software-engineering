@@ -18,6 +18,10 @@ export type TopicMode =
 
 export type TopicAllocationMode = 'REVIEW' | 'FIRST_COME'
 
+export type EditionVisibility = 'DRAFT' | 'UNLISTED' | 'SCHOOL' | 'PROVINCE' | 'PUBLIC'
+
+export type EntryMode = 'OPEN' | 'INVITED' | 'QUALIFIED'
+
 export type MilestoneNodeType =
   | 'REGISTER_END'
   | 'WORK_END'
@@ -37,6 +41,7 @@ export interface ContestItem {
   contest_name: string
   level: ContestLevel
   organizer: string | null
+  series_code: string
 }
 
 export interface ContestListQuery {
@@ -55,11 +60,13 @@ export interface ContestDetail {
   intro: string | null
   version: number
   editions: string[]
+  series_code: string
 }
 
 export interface ContestCreateRequest {
   contest_name: string
   level: ContestLevel
+  series_code: string
   organizer?: string
   intro?: string
 }
@@ -67,6 +74,7 @@ export interface ContestCreateRequest {
 export interface ContestUpdateRequest {
   contest_name?: string
   level?: ContestLevel
+  series_code?: string
   organizer?: string
   intro?: string
   version: number
@@ -87,6 +95,12 @@ export interface EditionItem {
   edition_name: string
   year: number
   status: EditionStatus
+  owner_org_id: string
+  owner_org_name: string | null
+  level: ContestLevel
+  school_id: string | null
+  province_code: string | null
+  visibility: EditionVisibility
 }
 
 export interface EditionListQuery {
@@ -95,6 +109,11 @@ export interface EditionListQuery {
   sort?: string
   year?: number
   status?: EditionStatus | ''
+  level?: ContestLevel | ''
+  owner_org_id?: string
+  province_code?: string
+  school_id?: string
+  visibility?: EditionVisibility | ''
 }
 
 export interface EditionDetail {
@@ -120,6 +139,14 @@ export interface EditionDetail {
   registration_open: boolean
   submission_open: boolean
   read_only: boolean
+  owner_org_id: string
+  owner_org_name: string | null
+  level: ContestLevel
+  school_id: string | null
+  province_code: string | null
+  visibility: EditionVisibility
+  entry_mode: EntryMode
+  cross_school_team_allowed: boolean
 }
 
 export interface EditionCreateRequest {
@@ -138,6 +165,13 @@ export interface EditionCreateRequest {
   topic_change_limit?: number
   team_size_mode: TeamSizeMode
   max_teams_per_teacher?: number
+  owner_org_id?: string
+  level: ContestLevel
+  school_id?: string | null
+  province_code?: string | null
+  visibility?: EditionVisibility
+  entry_mode?: EntryMode
+  cross_school_team_allowed?: boolean
 }
 
 export interface EditionUpdateRequest {
@@ -156,6 +190,13 @@ export interface EditionUpdateRequest {
   version: number
   team_size_mode?: TeamSizeMode
   max_teams_per_teacher?: number
+  owner_org_id?: string
+  level?: ContestLevel
+  school_id?: string | null
+  province_code?: string | null
+  visibility?: EditionVisibility
+  entry_mode?: EntryMode
+  cross_school_team_allowed?: boolean
 }
 
 export interface EditionCreateResult {
@@ -223,6 +264,34 @@ export const EDITION_STATUS_LABELS: Record<EditionStatus, string> = {
   PUBLISHING: '公示中',
   ARCHIVED: '已归档',
 }
+
+export const EDITION_VISIBILITY_LABELS: Record<EditionVisibility, string> = {
+  DRAFT: '仅管理员',
+  UNLISTED: '定向可见',
+  SCHOOL: '本校可见',
+  PROVINCE: '本省可见',
+  PUBLIC: '公开可见',
+}
+
+export const EDITION_VISIBILITY_OPTIONS: Array<{
+  value: EditionVisibility
+  label: string
+}> = Object.entries(EDITION_VISIBILITY_LABELS).map(([value, label]) => ({
+  value: value as EditionVisibility,
+  label,
+}))
+
+export const ENTRY_MODE_LABELS: Record<EntryMode, string> = {
+  OPEN: '公开报名',
+  INVITED: '邀请参加',
+  QUALIFIED: '晋级名单',
+}
+
+export const ENTRY_MODE_OPTIONS: Array<{ value: EntryMode; label: string }> = [
+  { value: 'OPEN', label: ENTRY_MODE_LABELS.OPEN },
+  { value: 'INVITED', label: ENTRY_MODE_LABELS.INVITED },
+  { value: 'QUALIFIED', label: ENTRY_MODE_LABELS.QUALIFIED },
+]
 
 export const TEAM_SIZE_OPTIONS: Array<{ value: TeamSizeMode; label: string }> = [
   { value: 'RANGE', label: '范围人数' },

@@ -23,6 +23,10 @@ public class ContestUpdateRequest {
     @JsonProperty("intro")
     private String intro;
 
+    @Size(min = 1, max = 32)
+    @JsonProperty("series_code")
+    private String seriesCode;
+
     @NotNull
     @JsonProperty("version")
     private Integer version;

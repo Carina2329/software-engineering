@@ -48,7 +48,7 @@ public class EditionController {
     public Result<EditionVersionVO> update(
             @PathVariable("edition_id") Long editionId,
             @Valid @RequestBody EditionUpdateRequest request,
-            @RequestHeader("Idempotency-Key") String idempotencyKey
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
     ) {
         return Result.ok(editionService.update(editionId, request, idempotencyKey));
     }

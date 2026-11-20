@@ -11,6 +11,8 @@ import com.campus.contest.module.contest.entity.ContestEditionDO;
 import com.campus.contest.module.contest.entity.ContestMilestoneDO;
 import com.campus.contest.module.contest.enums.EditionStatus;
 import com.campus.contest.module.contest.enums.MilestoneNodeType;
+import com.campus.contest.module.contest.mapper.ContestAccessCriteria;
+import com.campus.contest.module.contest.mapper.ContestAccessMapper;
 import com.campus.contest.module.contest.mapper.ContestEditionMapper;
 import com.campus.contest.module.contest.mapper.ContestMilestoneMapper;
 import com.campus.contest.module.contest.service.ContestAuditService;
@@ -44,6 +46,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     private static final Duration IDEMPOTENCY_TTL = Duration.ofHours(24);
 
     private final ContestEditionMapper editionMapper;
+    private final ContestAccessMapper accessMapper;
     private final ContestMilestoneMapper milestoneMapper;
     private final ContestAuthorizationService authorizationService;
     private final IdempotencyService idempotencyService;
@@ -92,8 +95,10 @@ public class MilestoneServiceImpl implements MilestoneService {
         return executeIdempotently(
                 operatorId, "EDITION_MILESTONE_CREATE", idempotencyKey,
                 fingerprint, MilestoneCreateVO.class,
-                () -> doCreate(editionId, nodeType, nodeName, start, end,
-                        !Boolean.FALSE.equals(request.getEnabled()), operatorId)
+                () -> doCreate(
+                        editionId, nodeType, nodeName, start, end,
+                        !Boolean.FALSE.equals(request.getEnabled()), operatorId
+                )
         );
     }
 
@@ -113,8 +118,10 @@ public class MilestoneServiceImpl implements MilestoneService {
                 && request.getEnabled() == null) {
             throw invalidParam("至少提交一个需要修改的赛程节点字段");
         }
-        requireIdempotencyKey(idempotencyKey);
+        ContestMilestoneDO existing = requireMilestone(milestoneId);
+        authorizationService.requireEventManageable(existing.getEditionId());
         String nodeName = request.getNodeName() == null ? null : requiredText(request.getNodeName());
+        String optionalKey = trimToNull(idempotencyKey);
         Long operatorId = currentUserProvider.requireUserId();
 
         Map<String, Object> fingerprint = new LinkedHashMap<>();
@@ -125,8 +132,8 @@ public class MilestoneServiceImpl implements MilestoneService {
         fingerprint.put("enabled", request.getEnabled());
         fingerprint.put("version", request.getVersion());
 
-        return executeIdempotently(
-                operatorId, "EDITION_MILESTONE_UPDATE", idempotencyKey,
+        return executeOptionallyIdempotently(
+                operatorId, "EDITION_MILESTONE_UPDATE", optionalKey,
                 fingerprint, MilestoneVersionVO.class,
                 () -> doUpdate(milestoneId, request, nodeName, operatorId)
         );
@@ -225,7 +232,8 @@ public class MilestoneServiceImpl implements MilestoneService {
                 }
             }
             case WORK_END -> {
-                if (edition.getRegisterDeadline() != null && start.isBefore(edition.getRegisterDeadline())) {
+                if (edition.getRegisterDeadline() != null
+                        && start.isBefore(edition.getRegisterDeadline())) {
                     throw invalidParam("作品结束节点不能早于报名截止时间");
                 }
                 if (edition.getPublishStart() != null && end.isAfter(edition.getPublishStart())) {
@@ -233,7 +241,8 @@ public class MilestoneServiceImpl implements MilestoneService {
                 }
             }
             case REVIEW -> {
-                if (edition.getWorkDeadline() != null && start.isBefore(edition.getWorkDeadline())) {
+                if (edition.getWorkDeadline() != null
+                        && start.isBefore(edition.getWorkDeadline())) {
                     throw invalidParam("评审节点不能早于作品截止时间");
                 }
                 if (edition.getPublishEnd() != null && end.isAfter(edition.getPublishEnd())) {
@@ -241,7 +250,8 @@ public class MilestoneServiceImpl implements MilestoneService {
                 }
             }
             case PUBLISH -> {
-                if (edition.getReviewStart() != null && start.isBefore(edition.getReviewStart())) {
+                if (edition.getReviewStart() != null
+                        && start.isBefore(edition.getReviewStart())) {
                     throw invalidParam("公示节点不能早于评审开始时间");
                 }
                 if (edition.getPublishEnd() != null && end.isAfter(edition.getPublishEnd())) {
@@ -252,16 +262,21 @@ public class MilestoneServiceImpl implements MilestoneService {
     }
 
     private ContestEditionDO requireVisibleEdition(Long editionId) {
-        ContestEditionDO edition = requireEdition(editionId);
-        if (!authorizationService.canManage()
-                && !EditionStatus.fromDatabaseValue(edition.getStatus()).isVisibleToOrdinaryUser()) {
+        ContestAccessCriteria criteria = authorizationService.currentAccessCriteria();
+        criteria.setEditionId(editionId);
+        ContestEditionDO edition = accessMapper.selectEditionById(criteria);
+        if (edition == null) {
             throw notFound("届次不存在或对当前用户不可见");
         }
         return edition;
     }
 
     private ContestEditionDO requireEditableEdition(Long editionId) {
-        ContestEditionDO edition = requireEdition(editionId);
+        ContestEditionDO edition = editionMapper.selectById(editionId);
+        if (edition == null) {
+            throw notFound("届次不存在");
+        }
+        authorizationService.requireEventManageable(editionId);
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
         if (EditionStatus.fromDatabaseValue(edition.getStatus()) == EditionStatus.ARCHIVED
                 || (edition.getPublishEnd() != null && now.isAfter(edition.getPublishEnd()))) {
@@ -273,19 +288,11 @@ public class MilestoneServiceImpl implements MilestoneService {
         return edition;
     }
 
-    private ContestEditionDO requireEdition(Long editionId) {
-        ContestEditionDO edition = editionId == null ? null : editionMapper.selectById(editionId);
-        if (edition == null) {
-            throw notFound("届次不存在或对当前用户不可见");
-        }
-        return edition;
-    }
-
     private ContestMilestoneDO requireMilestone(Long milestoneId) {
         ContestMilestoneDO milestone =
                 milestoneId == null ? null : milestoneMapper.selectById(milestoneId);
         if (milestone == null) {
-            throw notFound("赛程节点不存在或对当前用户不可见");
+            throw notFound("赛程节点不存在");
         }
         return milestone;
     }
@@ -299,11 +306,15 @@ public class MilestoneServiceImpl implements MilestoneService {
     }
 
     private String requiredText(String value) {
-        String normalized = value == null ? null : value.trim();
-        if (normalized == null || normalized.isEmpty() || normalized.length() > 64) {
+        String normalized = trimToNull(value);
+        if (normalized == null || normalized.length() > 64) {
             throw invalidParam("node_name 长度必须为 1-64");
         }
         return normalized;
+    }
+
+    private String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private LocalDateTime toBusinessTime(OffsetDateTime value) {
@@ -331,13 +342,34 @@ public class MilestoneServiceImpl implements MilestoneService {
             Supplier<T> action
     ) {
         return idempotencyService.execute(
-                new IdempotencyScope(IdempotencyScope.PrincipalType.USER, String.valueOf(operatorId)),
-                operation,
-                idempotencyKey,
-                fingerprint,
-                IDEMPOTENCY_TTL,
-                resultType,
-                action
+                scopeOf(operatorId), operation, idempotencyKey, fingerprint,
+                IDEMPOTENCY_TTL, resultType, action
+        );
+    }
+
+    private <T> T executeOptionallyIdempotently(
+            Long operatorId,
+            String operation,
+            String idempotencyKey,
+            Object fingerprint,
+            Class<T> resultType,
+            Supplier<T> action
+    ) {
+        if (idempotencyKey == null) {
+            return action.get();
+        }
+        if (idempotencyKey.length() > 64) {
+            throw invalidParam("Idempotency-Key 长度不能超过 64");
+        }
+        return executeIdempotently(
+                operatorId, operation, idempotencyKey, fingerprint, resultType, action
+        );
+    }
+
+    private IdempotencyScope scopeOf(Long operatorId) {
+        return new IdempotencyScope(
+                IdempotencyScope.PrincipalType.USER,
+                String.valueOf(operatorId)
         );
     }
 

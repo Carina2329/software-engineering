@@ -12,7 +12,8 @@ public record ContestDetailVO(
         String organizer,
         String intro,
         int version,
-        List<String> editions
+        List<String> editions,
+        @JsonProperty("series_code") String seriesCode
 ) {
     public static ContestDetailVO from(ContestDO contest, List<String> editions) {
         return new ContestDetailVO(
@@ -22,7 +23,8 @@ public record ContestDetailVO(
                 contest.getOrganizer(),
                 contest.getIntro(),
                 contest.getVersion(),
-                editions
+                editions,
+                contest.getSeriesCode()
         );
     }
 }

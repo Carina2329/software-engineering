@@ -18,6 +18,9 @@ import {
 } from '../../api/contest'
 import {
   EDITION_STATUS_LABELS,
+  EDITION_VISIBILITY_OPTIONS,
+  ENTRY_MODE_OPTIONS,
+  CONTEST_LEVEL_OPTIONS,
   MILESTONE_NODE_OPTIONS,
   TEAM_SIZE_OPTIONS,
   TOPIC_ALLOCATION_OPTIONS,
@@ -28,20 +31,32 @@ import {
 } from '../../types/contest'
 import type {
   ContestDetail,
+  ContestLevel,
   EditionDetail,
   EditionItem,
   EditionStatus,
+  EditionVisibility,
+  EntryMode,
   Milestone,
   MilestoneNodeType,
   TeamSizeMode,
   TopicAllocationMode,
   TopicMode,
 } from '../../types/contest'
+import { listOrganizations, listSchools } from '../../api/organization'
+import type { OrganizationItem, SchoolItem } from '../../types/organization'
 import { useCurrentMenus } from '../../layouts/useCurrentMenus'
 
 interface EditionForm {
   edition_name: string
   year: number
+  owner_org_id: string
+  level: ContestLevel
+  school_id: string
+  province_code: string
+  visibility: EditionVisibility
+  entry_mode: EntryMode
+  cross_school_team_allowed: boolean
   register_deadline: string
   work_deadline: string
   review_start: string
@@ -90,6 +105,8 @@ const page = ref(1)
 const size = ref(20)
 const yearFilter = ref<number | undefined>()
 const statusFilter = ref<EditionStatus | ''>('')
+const organizations = ref<OrganizationItem[]>([])
+const schools = ref<SchoolItem[]>([])
 
 const editorVisible = ref(false)
 const editorMode = ref<'create' | 'edit'>('create')
@@ -131,9 +148,47 @@ const editable = computed(() => {
   return canUpdate.value && !(selectedEdition.value?.read_only ?? false)
 })
 
+const availableOwners = computed(() => {
+  const expectedType = form.level === 'SCHOOL'
+    ? 'SCHOOL'
+    : form.level === 'PROVINCE'
+      ? 'PROVINCE_ORGANIZER'
+      : 'NATIONAL_ORGANIZER'
+  return organizations.value.filter((item) => item.org_type === expectedType)
+})
+
+const provinceOptions = computed(() => {
+  const values = new Map<string, string>()
+  for (const school of schools.value) {
+    values.set(school.province_code, school.province_name)
+  }
+  for (const organization of organizations.value) {
+    if (organization.province_code) {
+      values.set(organization.province_code, organization.province_code)
+    }
+  }
+  if (form.province_code && !values.has(form.province_code)) {
+    values.set(form.province_code, form.province_code)
+  }
+  return [...values.entries()].map(([value, label]) => ({ value, label }))
+})
+
 const loadContest = async (): Promise<void> => {
   if (!contestId.value) return
   contest.value = await getContest(contestId.value)
+}
+
+const loadScopeOptions = async (): Promise<void> => {
+  try {
+    const [organizationPage, schoolPage] = await Promise.all([
+      listOrganizations({ page: 1, size: 100 }),
+      listSchools({ page: 1, size: 100 }),
+    ])
+    organizations.value = organizationPage.items
+    schools.value = schoolPage.items
+  } catch (error) {
+    formError.value = getContestErrorMessage(error, '组织与学校选项加载失败')
+  }
 }
 
 const loadEditions = async (): Promise<void> => {
@@ -156,7 +211,7 @@ const loadEditions = async (): Promise<void> => {
 
 const loadAll = async (): Promise<void> => {
   try {
-    await Promise.all([loadContest(), loadEditions()])
+    await Promise.all([loadContest(), loadEditions(), loadScopeOptions()])
   } catch (error) {
     ElMessage.error(getContestErrorMessage(error, '竞赛届次加载失败'))
   }
@@ -194,6 +249,28 @@ const normalizeTeamSize = (): void => {
   }
 }
 
+const handleLevelChange = (): void => {
+  form.school_id = ''
+  form.province_code = ''
+  form.owner_org_id = ''
+  if (form.level === 'SCHOOL') {
+    form.visibility = form.visibility === 'PUBLIC' ? 'DRAFT' : form.visibility
+  }
+}
+
+const handleSchoolChange = (): void => {
+  const school = schools.value.find((item) => item.id === form.school_id)
+  form.owner_org_id = form.school_id
+  form.province_code = school?.province_code ?? ''
+}
+
+const handleProvinceChange = (): void => {
+  const owner = availableOwners.value.find(
+    (item) => item.province_code === form.province_code,
+  )
+  form.owner_org_id = owner?.id ?? ''
+}
+
 const validateEditionForm = (): string => {
   if (!form.edition_name.trim()) return '届次名称不能为空'
   if (form.year < 2000 || form.year > 2100) return '举办年份必须在 2000 到 2100 之间'
@@ -212,6 +289,9 @@ const validateEditionForm = (): string => {
   if (form.max_teams_per_teacher < 1 || form.max_teams_per_teacher > 10) {
     return '每位教师指导队伍上限必须在 1 到 10 之间'
   }
+  if (!form.owner_org_id) return '请选择主办组织'
+  if (form.level === 'SCHOOL' && !form.school_id) return '校级比赛必须选择所属学校'
+  if (form.level === 'PROVINCE' && !form.province_code) return '省级比赛必须选择省份'
   if (
     form.topic_allocation_mode === 'FIRST_COME'
     && form.topic_mode !== 'PRESET_LIMITED'
@@ -240,6 +320,13 @@ const saveEdition = async (): Promise<void> => {
   try {
     const payload = {
       edition_name: form.edition_name.trim(),
+      owner_org_id: form.owner_org_id,
+      level: form.level,
+      school_id: form.level === 'SCHOOL' ? form.school_id : null,
+      province_code: form.level === 'PROVINCE' ? form.province_code : null,
+      visibility: form.visibility,
+      entry_mode: form.entry_mode,
+      cross_school_team_allowed: form.cross_school_team_allowed,
       register_deadline: toApiDateTime(form.register_deadline),
       work_deadline: toApiDateTime(form.work_deadline),
       review_start: toApiDateTime(form.review_start),
@@ -414,6 +501,13 @@ function emptyEditionForm(): EditionForm {
   return {
     edition_name: '',
     year: now.getFullYear(),
+    owner_org_id: '',
+    level: 'SCHOOL',
+    school_id: '',
+    province_code: '',
+    visibility: 'DRAFT',
+    entry_mode: 'OPEN',
+    cross_school_team_allowed: false,
     register_deadline: toDateTimeInput(
       new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     ),
@@ -462,6 +556,13 @@ function editionToForm(detail: EditionDetail): EditionForm {
   return {
     edition_name: detail.edition_name,
     year: detail.year,
+    owner_org_id: detail.owner_org_id,
+    level: detail.level,
+    school_id: detail.school_id ?? '',
+    province_code: detail.province_code ?? '',
+    visibility: detail.visibility,
+    entry_mode: detail.entry_mode,
+    cross_school_team_allowed: detail.cross_school_team_allowed,
     register_deadline: toDateTimeInput(detail.register_deadline),
     work_deadline: toDateTimeInput(detail.work_deadline),
     review_start: toDateTimeInput(detail.review_start),
@@ -519,6 +620,13 @@ function editionToForm(detail: EditionDetail): EditionForm {
       <el-table v-loading="loading" :data="editions" border row-key="id">
         <el-table-column prop="edition_name" label="届次名称" min-width="220" />
         <el-table-column prop="year" label="年份" width="100" />
+        <el-table-column label="级别/范围" min-width="180">
+          <template #default="{ row }">
+            {{ CONTEST_LEVEL_OPTIONS.find((item) => item.value === row.level)?.label }}
+            <span class="muted"> · {{ EDITION_VISIBILITY_OPTIONS.find((item) => item.value === row.visibility)?.label }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="owner_org_name" label="主办组织" min-width="160" />
         <el-table-column label="状态" width="130">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.status)">
@@ -612,6 +720,93 @@ function editionToForm(detail: EditionDetail): EditionForm {
               />
             </el-form-item>
           </div>
+        </section>
+
+        <section class="form-section">
+          <h2>比赛归属与范围</h2>
+          <p class="section-hint">
+            校级比赛绑定学校，省级比赛绑定省份，国家级比赛不绑定学校或省份。草稿仅管理范围内管理员可见。
+          </p>
+          <div class="two-column">
+            <el-form-item label="比赛级别">
+              <el-select v-model="form.level" class="full-width" @change="handleLevelChange">
+                <el-option
+                  v-for="option in CONTEST_LEVEL_OPTIONS"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="主办组织">
+              <el-select
+                v-model="form.owner_org_id"
+                class="full-width"
+                filterable
+                placeholder="请选择授权范围内的主办组织"
+              >
+                <el-option
+                  v-for="item in availableOwners"
+                  :key="item.id"
+                  :label="`${item.org_name}（${item.org_code}）`"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item v-if="form.level === 'SCHOOL'" label="所属学校">
+              <el-select
+                v-model="form.school_id"
+                class="full-width"
+                filterable
+                @change="handleSchoolChange"
+              >
+                <el-option
+                  v-for="school in schools"
+                  :key="school.id"
+                  :label="`${school.school_name}（${school.province_name}）`"
+                  :value="school.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item v-if="form.level === 'PROVINCE'" label="所属省份">
+              <el-select
+                v-model="form.province_code"
+                class="full-width"
+                filterable
+                @change="handleProvinceChange"
+              >
+                <el-option
+                  v-for="province in provinceOptions"
+                  :key="province.value"
+                  :label="province.label"
+                  :value="province.value"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="可见范围">
+              <el-select v-model="form.visibility" class="full-width">
+                <el-option
+                  v-for="option in EDITION_VISIBILITY_OPTIONS"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="参赛资格模式">
+              <el-select v-model="form.entry_mode" class="full-width">
+                <el-option
+                  v-for="option in ENTRY_MODE_OPTIONS"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+            </el-form-item>
+          </div>
+          <el-form-item label="允许跨校组队">
+            <el-switch v-model="form.cross_school_team_allowed" />
+          </el-form-item>
         </section>
 
         <section class="form-section">
@@ -1029,6 +1224,10 @@ function editionToForm(detail: EditionDetail): EditionForm {
 }
 
 .option-copy small {
+  color: #8d9995;
+}
+
+.muted {
   color: #8d9995;
 }
 

@@ -13,9 +13,13 @@ public class ContestCreateRequest {
     @JsonProperty("contest_name")
     private String contestName;
 
-    @NotBlank
     @JsonProperty("level")
     private String level;
+
+    @NotBlank
+    @Size(max = 32)
+    @JsonProperty("series_code")
+    private String seriesCode;
 
     @Size(max = 128)
     @JsonProperty("organizer")

@@ -56,4 +56,25 @@ public class EditionUpdateRequest {
 
     @JsonProperty("max_teams_per_teacher")
     private Integer maxTeamsPerTeacher;
+
+    @JsonProperty("owner_org_id")
+    private String ownerOrgId;
+
+    @JsonProperty("level")
+    private String level;
+
+    @JsonProperty("school_id")
+    private String schoolId;
+
+    @JsonProperty("province_code")
+    private String provinceCode;
+
+    @JsonProperty("visibility")
+    private String visibility;
+
+    @JsonProperty("entry_mode")
+    private String entryMode;
+
+    @JsonProperty("cross_school_team_allowed")
+    private Boolean crossSchoolTeamAllowed;
 }

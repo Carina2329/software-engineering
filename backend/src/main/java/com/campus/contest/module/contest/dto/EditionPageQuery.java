@@ -9,4 +9,9 @@ public class EditionPageQuery {
     private String sort;
     private Integer year;
     private String status;
+    private String level;
+    private String ownerOrgId;
+    private String provinceCode;
+    private String schoolId;
+    private String visibility;
 }

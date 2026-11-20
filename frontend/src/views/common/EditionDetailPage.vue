@@ -168,6 +168,42 @@ onMounted(load)
         </el-card>
       </section>
 
+      <el-card shadow="never" class="detail-card ownership-card">
+        <template #header>
+          <h2>比赛归属</h2>
+        </template>
+        <dl class="rule-list">
+          <div>
+            <dt>主办组织</dt>
+            <dd>{{ edition.owner_org_name || edition.owner_org_id }}</dd>
+          </div>
+          <div>
+            <dt>比赛级别</dt>
+            <dd>{{ edition.level }}</dd>
+          </div>
+          <div>
+            <dt>学校范围</dt>
+            <dd>{{ edition.school_id || '不限学校' }}</dd>
+          </div>
+          <div>
+            <dt>省份范围</dt>
+            <dd>{{ edition.province_code || '不限省份' }}</dd>
+          </div>
+          <div>
+            <dt>可见范围</dt>
+            <dd>{{ edition.visibility }}</dd>
+          </div>
+          <div>
+            <dt>参赛资格</dt>
+            <dd>{{ edition.entry_mode }}</dd>
+          </div>
+          <div>
+            <dt>跨校组队</dt>
+            <dd>{{ edition.cross_school_team_allowed ? '允许' : '不允许' }}</dd>
+          </div>
+        </dl>
+      </el-card>
+
       <el-card shadow="never" class="milestone-card">
         <template #header>
           <div class="milestone-heading">
@@ -372,6 +408,10 @@ dd {
 }
 
 .milestone-card {
+  margin-top: 16px;
+}
+
+.ownership-card {
   margin-top: 16px;
 }
 

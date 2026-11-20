@@ -12,6 +12,7 @@ import {
   CONTEST_LEVEL_LABELS,
   CONTEST_LEVEL_OPTIONS,
   EDITION_STATUS_LABELS,
+  EDITION_VISIBILITY_LABELS,
 } from '../../types/contest'
 import type {
   ContestDetail,
@@ -123,6 +124,7 @@ onMounted(loadContests)
           <span>{{ contestItem.organizer || '主办方待补充' }}</span>
         </div>
         <h2>{{ contestItem.contest_name }}</h2>
+        <p class="series-code">{{ contestItem.series_code }}</p>
         <p class="contest-note">
           竞赛主档可包含多个历史或当前届次，进入后查看每一届独立赛程。
         </p>
@@ -159,7 +161,10 @@ onMounted(loadContests)
           >
             <span>
               <strong>{{ edition.edition_name }}</strong>
-              <small>{{ edition.year }} 年</small>
+              <small>
+                {{ edition.year }} 年 · {{ edition.owner_org_name || '主办组织' }}
+                · {{ EDITION_VISIBILITY_LABELS[edition.visibility] }}
+              </small>
             </span>
             <el-tag :type="edition.status === 'DRAFT' ? 'info' : 'success'">
               {{ EDITION_STATUS_LABELS[edition.status] }}
@@ -263,6 +268,14 @@ onMounted(loadContests)
   color: #7d8b86;
   font-size: 13px;
   line-height: 1.7;
+}
+
+.series-code {
+  margin: -2px 0 10px;
+  color: #9a8770;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
 }
 
 .contest-card .el-button {

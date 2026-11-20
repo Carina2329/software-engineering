@@ -33,7 +33,15 @@ public record EditionDetailVO(
         @JsonProperty("publish_end") OffsetDateTime publishEnd,
         @JsonProperty("registration_open") boolean registrationOpen,
         @JsonProperty("submission_open") boolean submissionOpen,
-        @JsonProperty("read_only") boolean readOnly
+        @JsonProperty("read_only") boolean readOnly,
+        @JsonProperty("owner_org_id") String ownerOrgId,
+        @JsonProperty("owner_org_name") String ownerOrgName,
+        String level,
+        @JsonProperty("school_id") String schoolId,
+        @JsonProperty("province_code") String provinceCode,
+        String visibility,
+        @JsonProperty("entry_mode") String entryMode,
+        @JsonProperty("cross_school_team_allowed") boolean crossSchoolTeamAllowed
 ) {
     private static final ZoneOffset SHANGHAI_OFFSET = ZoneOffset.ofHours(8);
 
@@ -41,7 +49,8 @@ public record EditionDetailVO(
             ContestEditionDO edition,
             boolean registrationOpen,
             boolean submissionOpen,
-            boolean readOnly
+            boolean readOnly,
+            String ownerOrgName
     ) {
         return new EditionDetailVO(
                 String.valueOf(edition.getId()),
@@ -65,7 +74,15 @@ public record EditionDetailVO(
                 offset(edition.getPublishEnd()),
                 registrationOpen,
                 submissionOpen,
-                readOnly
+                readOnly,
+                edition.getOwnerOrgId() == null ? null : String.valueOf(edition.getOwnerOrgId()),
+                ownerOrgName,
+                edition.getLevel(),
+                edition.getSchoolId() == null ? null : String.valueOf(edition.getSchoolId()),
+                edition.getProvinceCode(),
+                edition.getVisibility(),
+                edition.getEntryMode(),
+                Integer.valueOf(1).equals(edition.getCrossSchoolTeamAllowed())
         );
     }
 

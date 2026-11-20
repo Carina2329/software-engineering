@@ -67,7 +67,7 @@ public class ContestController {
     public Result<ContestVersionVO> update(
             @PathVariable("contest_id") Long contestId,
             @Valid @RequestBody ContestUpdateRequest request,
-            @RequestHeader("Idempotency-Key") String idempotencyKey
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
     ) {
         return Result.ok(contestService.update(contestId, request, idempotencyKey));
     }

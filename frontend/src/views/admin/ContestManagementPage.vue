@@ -25,6 +25,7 @@ import { useCurrentMenus } from '../../layouts/useCurrentMenus'
 
 interface ContestForm {
   contest_name: string
+  series_code: string
   level: ContestLevel
   organizer: string
   intro: string
@@ -55,6 +56,7 @@ const editingId = ref('')
 const idempotencyKey = ref('')
 const form = reactive<ContestForm>({
   contest_name: '',
+  series_code: '',
   level: 'SCHOOL',
   organizer: '',
   intro: '',
@@ -64,6 +66,14 @@ const rules: FormRules = {
   contest_name: [
     { required: true, message: '请输入竞赛名称', trigger: 'blur' },
     { max: 128, message: '竞赛名称不能超过 128 个字符', trigger: 'blur' },
+  ],
+  series_code: [
+    { required: true, message: '请输入竞赛系列编码', trigger: 'blur' },
+    {
+      pattern: /^[A-Z0-9][A-Z0-9_-]{1,31}$/,
+      message: '系列编码需为 2-32 位大写字母、数字、下划线或短横线',
+      trigger: 'blur',
+    },
   ],
   level: [{ required: true, message: '请选择竞赛级别', trigger: 'change' }],
   organizer: [{ max: 128, message: '主办方不能超过 128 个字符', trigger: 'blur' }],
@@ -92,6 +102,7 @@ const loadContests = async (): Promise<void> => {
 
 const resetForm = (): void => {
   form.contest_name = ''
+  form.series_code = ''
   form.level = 'SCHOOL'
   form.organizer = ''
   form.intro = ''
@@ -114,6 +125,7 @@ const openEdit = async (row: ContestItem): Promise<void> => {
   try {
     const detail = await getContest(row.id)
     form.contest_name = detail.contest_name
+    form.series_code = detail.series_code
     form.level = detail.level
     form.organizer = detail.organizer ?? ''
     form.intro = detail.intro ?? ''
@@ -135,6 +147,7 @@ const submit = async (): Promise<void> => {
       const payload: ContestCreateRequest = {
         contest_name: form.contest_name,
         level: form.level,
+        series_code: form.series_code,
         organizer: form.organizer || undefined,
         intro: form.intro || undefined,
       }
@@ -146,6 +159,7 @@ const submit = async (): Promise<void> => {
         {
           contest_name: form.contest_name,
           level: form.level,
+          series_code: form.series_code,
           organizer: form.organizer,
           intro: form.intro,
           version: form.version,
@@ -226,6 +240,7 @@ onMounted(() => {
 
       <el-table v-loading="loading" :data="contests" border row-key="id">
         <el-table-column prop="contest_name" label="竞赛名称" min-width="220" />
+        <el-table-column prop="series_code" label="系列编码" min-width="150" />
         <el-table-column label="级别" width="110">
           <template #default="{ row }">
             <el-tag effect="plain">{{ CONTEST_LEVEL_LABELS[row.level as ContestLevel] }}</el-tag>
@@ -273,6 +288,14 @@ onMounted(() => {
       <el-form ref="formRef" :model="form" :rules="rules" label-width="92px">
         <el-form-item label="竞赛名称" prop="contest_name">
           <el-input v-model="form.contest_name" maxlength="128" show-word-limit />
+        </el-form-item>
+        <el-form-item label="系列编码" prop="series_code">
+          <el-input
+            v-model="form.series_code"
+            maxlength="32"
+            show-word-limit
+            placeholder="例如 SOFTWARE_ENGINEERING"
+          />
         </el-form-item>
         <el-form-item label="竞赛级别" prop="level">
           <el-select v-model="form.level" class="full-width">

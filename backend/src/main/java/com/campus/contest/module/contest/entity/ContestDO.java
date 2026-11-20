@@ -16,6 +16,7 @@ public class ContestDO {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String contestName;
+    private String seriesCode;
     private String level;
     private String organizer;
     private String intro;

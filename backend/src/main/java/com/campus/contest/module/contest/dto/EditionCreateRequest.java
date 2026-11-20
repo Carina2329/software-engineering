@@ -23,6 +23,28 @@ public class EditionCreateRequest {
     @Max(2100)
     private Integer year;
 
+    @JsonProperty("owner_org_id")
+    private String ownerOrgId;
+
+    @NotBlank
+    @JsonProperty("level")
+    private String level;
+
+    @JsonProperty("school_id")
+    private String schoolId;
+
+    @JsonProperty("province_code")
+    private String provinceCode;
+
+    @JsonProperty("visibility")
+    private String visibility;
+
+    @JsonProperty("entry_mode")
+    private String entryMode;
+
+    @JsonProperty("cross_school_team_allowed")
+    private Boolean crossSchoolTeamAllowed;
+
     @JsonProperty("register_deadline")
     private OffsetDateTime registerDeadline;
 
