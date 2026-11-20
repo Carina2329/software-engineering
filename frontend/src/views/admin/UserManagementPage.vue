@@ -6,9 +6,17 @@ import { createIdempotencyKey, getErrorMessage, listRoles, listUsers, updateUser
 import { USER_STATUS_LABELS, USER_TYPE_OPTIONS } from '../../types/rbac'
 import type { Role, UserItem, UserListQuery, UserStatusValue } from '../../types/rbac'
 import { useCurrentMenus } from '../../layouts/useCurrentMenus'
+import ScopeAssignmentDrawer from '../../components/admin/ScopeAssignmentDrawer.vue'
 
 const { ensureCurrentMenus, hasPermission } = useCurrentMenus()
 const canUpdate = computed(() => hasPermission('system:user:update'))
+const canAssignScope = computed(() => hasPermission('organization:role:assign'))
+const SCOPED_ROLE_CODES = new Set([
+  'SCHOOL_ADMIN',
+  'PROVINCE_ADMIN',
+  'NATIONAL_ADMIN',
+  'EVENT_MANAGER',
+])
 
 const loading = ref(false)
 const saving = ref(false)
@@ -25,7 +33,9 @@ const filters = reactive<{ username: string; user_type: string; status: number |
 })
 
 const editVisible = ref(false)
+const scopeVisible = ref(false)
 const editingUser = ref<UserItem | null>(null)
+const scopeUser = ref<UserItem | null>(null)
 const editFormRef = ref<FormInstance>()
 const idempotencyKey = ref('')
 const editForm = reactive<{ status: UserStatusValue; role_codes: string[]; version: number }>({
@@ -34,9 +44,7 @@ const editForm = reactive<{ status: UserStatusValue; role_codes: string[]; versi
   version: 0,
 })
 
-const editRules: FormRules = {
-  role_codes: [{ required: true, message: '请至少选择一个角色', trigger: 'change' }],
-}
+const editRules: FormRules = {}
 
 const userTypeLabel = (value: string): string =>
   USER_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value
@@ -95,10 +103,15 @@ const handleSizeChange = (value: number): void => {
 const openEdit = (row: UserItem): void => {
   editingUser.value = row
   editForm.status = row.status === 1 ? 1 : 0
-  editForm.role_codes = [...row.role_codes]
+  editForm.role_codes = row.role_codes.filter((code) => !SCOPED_ROLE_CODES.has(code))
   editForm.version = row.version
   idempotencyKey.value = createIdempotencyKey()
   editVisible.value = true
+}
+
+const openScope = (row: UserItem): void => {
+  scopeUser.value = row
+  scopeVisible.value = true
 }
 
 const handleSave = async (): Promise<void> => {
@@ -109,14 +122,25 @@ const handleSave = async (): Promise<void> => {
   try {
     const result = await updateUser(
       editingUser.value.id,
-      { status: editForm.status, role_codes: [...editForm.role_codes], version: editForm.version },
+      {
+        status: editForm.status,
+        ...(editForm.role_codes.length > 0
+          ? { role_codes: [...editForm.role_codes] }
+          : {}),
+        version: editForm.version,
+      },
       idempotencyKey.value,
     )
     const row = users.value.find((item) => item.id === result.id)
     if (row) {
       row.version = result.version
       row.status = editForm.status
-      row.role_codes = [...editForm.role_codes]
+      row.role_codes = Array.from(
+        new Set([
+          ...row.role_codes.filter((code) => SCOPED_ROLE_CODES.has(code)),
+          ...editForm.role_codes,
+        ]),
+      )
     }
     editVisible.value = false
     ElMessage.success('用户信息已更新')
@@ -184,9 +208,21 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column label="版本" prop="version" width="80" />
-        <el-table-column label="操作" width="110" fixed="right">
+        <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="canUpdate" link type="primary" @click="openEdit(row)">编辑</el-button>
+            <template v-if="canUpdate || canAssignScope">
+              <el-button v-if="canUpdate" link type="primary" @click="openEdit(row)">
+                编辑
+              </el-button>
+              <el-button
+                v-if="canAssignScope"
+                link
+                type="primary"
+                @click="openScope(row)"
+              >
+                范围授权
+              </el-button>
+            </template>
             <span v-else class="readonly-text">只读</span>
           </template>
         </el-table-column>
@@ -216,8 +252,15 @@ onMounted(() => {
         </el-form-item>
         <el-form-item label="角色" prop="role_codes">
           <el-select v-model="editForm.role_codes" multiple placeholder="请选择角色" class="role-select">
-            <el-option v-for="role in roles" :key="role.id" :label="`${role.role_name}（${role.role_code}）`" :value="role.role_code" />
+            <el-option
+              v-for="role in roles"
+              :key="role.id"
+              :label="`${role.role_name}（${role.role_code}）`"
+              :value="role.role_code"
+              :disabled="SCOPED_ROLE_CODES.has(role.role_code)"
+            />
           </el-select>
+          <div class="role-hint">带组织、省份或赛事范围的角色请使用“范围授权”</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -225,6 +268,13 @@ onMounted(() => {
         <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
     </el-dialog>
+
+    <ScopeAssignmentDrawer
+      v-model="scopeVisible"
+      :user-id="scopeUser?.id"
+      :user-label="scopeUser ? `${scopeUser.real_name}（${scopeUser.username}）` : ''"
+      @saved="loadUsers"
+    />
   </div>
 </template>
 
@@ -260,6 +310,12 @@ onMounted(() => {
 
 .role-select {
   width: 100%;
+}
+
+.role-hint {
+  margin-top: 6px;
+  color: #909399;
+  font-size: 12px;
 }
 
 .role-tag {
