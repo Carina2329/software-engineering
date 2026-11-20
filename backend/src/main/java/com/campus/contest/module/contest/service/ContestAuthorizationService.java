@@ -16,6 +16,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Set;
 
 /**
@@ -59,9 +60,9 @@ public class ContestAuthorizationService {
         ContestAccessCriteria criteria = new ContestAccessCriteria();
         criteria.setManager(canManage());
         criteria.setGlobal(scope.global());
-        criteria.setOrganizationIds(scope.organizationIds());
-        criteria.setProvinceCodes(scope.provinceCodes());
-        criteria.setEventIds(scope.eventIds());
+        criteria.setOrganizationIds(new ArrayList<>(scope.organizationIds()));
+        criteria.setProvinceCodes(new ArrayList<>(scope.provinceCodes()));
+        criteria.setEventIds(new ArrayList<>(scope.eventIds()));
 
         SysUserDO user = userMapper.selectById(userId);
         if (user != null

@@ -1,12 +1,23 @@
 package com.campus.contest.module.contest.mapper;
 
+import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
 
 public class ContestAccessSqlProvider {
 
+    private static final Set<String> ALLOWED_SORT_COLUMNS = Set.of(
+            "c.created_at",
+            "c.contest_name",
+            "c.level",
+            "e.created_at",
+            "e.edition_name",
+            "e.year",
+            "e.status"
+    );
+
     public String selectContestPage(ContestAccessCriteria criteria) {
-        return contestBase(criteria) + order(criteria);
+        return contestBase(criteria) + order(criteria, "c.created_at");
     }
 
     public String selectContestById(ContestAccessCriteria criteria) {
@@ -14,11 +25,11 @@ public class ContestAccessSqlProvider {
     }
 
     public String selectEditionList(ContestAccessCriteria criteria) {
-        return editionBase(criteria) + order(criteria);
+        return editionBase(criteria) + order(criteria, "e.created_at");
     }
 
     public String selectEditionPage(ContestAccessCriteria criteria) {
-        return editionBase(criteria) + order(criteria);
+        return editionBase(criteria) + order(criteria, "e.created_at");
     }
 
     public String selectEditionById(ContestAccessCriteria criteria) {
@@ -40,7 +51,7 @@ public class ContestAccessSqlProvider {
         if (hasText(criteria.getSeriesLevel())) {
             sql.append(" AND c.level = #{criteria.seriesLevel}");
         }
-        sql.append(" AND ").append(contestAccessCondition(criteria, "c"));
+        sql.append(" AND ").append(contestAccessExpression(criteria));
         return sql.toString();
     }
 
@@ -74,75 +85,74 @@ public class ContestAccessSqlProvider {
         if (hasText(criteria.getVisibility())) {
             sql.append(" AND e.visibility = #{criteria.visibility}");
         }
-        sql.append(" AND ").append(editionAccessCondition(criteria, "e"));
+        sql.append(" AND ").append(editionAccessExpression(criteria, "e"));
         return sql.toString();
     }
 
-    private String contestAccessCondition(ContestAccessCriteria criteria, String alias) {
-        if (!criteria.isManager()) {
-            return "EXISTS (" + ordinaryEditionCondition(criteria, "visible_edition")
-                    + " AND visible_edition.contest_id = " + alias + ".id)";
-        }
-        if (criteria.isGlobal()) {
-            return "1 = 1";
-        }
-        return "EXISTS (" + managerEditionCondition(criteria, "visible_edition")
-                + " AND visible_edition.contest_id = " + alias + ".id)";
+    private String contestAccessExpression(ContestAccessCriteria criteria) {
+        String alias = "visible_edition";
+        String expression = criteria.isManager()
+                ? managerScopeExpression(criteria, alias)
+                : ordinaryVisibilityExpression(criteria, alias);
+        return "EXISTS (SELECT 1 FROM contest_edition " + alias
+                + " WHERE " + alias + ".deleted = 0 AND " + expression
+                + " AND " + alias + ".contest_id = c.id)";
     }
 
-    private String editionAccessCondition(ContestAccessCriteria criteria, String alias) {
-        if (!criteria.isManager()) {
-            String ordinary = ordinaryEditionCondition(criteria, alias);
-            return ordinary.substring("WHERE ".length()).replace(alias + ".deleted = 0 AND ", "");
-        }
-        if (criteria.isGlobal()) {
-            return "1 = 1";
-        }
-        return managerEditionCondition(criteria, alias)
-                .substring("WHERE ".length())
-                .replace(alias + ".deleted = 0 AND ", "");
+    private String editionAccessExpression(ContestAccessCriteria criteria, String alias) {
+        return criteria.isManager()
+                ? managerScopeExpression(criteria, alias)
+                : ordinaryVisibilityExpression(criteria, alias);
     }
 
-    private String ordinaryEditionCondition(ContestAccessCriteria criteria, String alias) {
-        StringBuilder condition = new StringBuilder(
-                "SELECT 1 FROM contest_edition " + alias
-                        + " WHERE " + alias + ".deleted = 0 AND " + alias + ".status <> 0 AND ("
-        );
-        condition.append(alias).append(".visibility = 'PUBLIC'");
+    private String ordinaryVisibilityExpression(ContestAccessCriteria criteria, String alias) {
+        StringBuilder expression = new StringBuilder(alias)
+                .append(".status <> 0 AND (")
+                .append(alias).append(".visibility = 'PUBLIC'");
         if (criteria.getViewerSchoolId() != null) {
-            condition.append(" OR (").append(alias).append(".visibility = 'SCHOOL' AND ")
+            expression.append(" OR (").append(alias).append(".visibility = 'SCHOOL' AND ")
                     .append(alias).append(".school_id = #{criteria.viewerSchoolId})");
         }
         if (criteria.getViewerProvinceCode() != null) {
-            condition.append(" OR (").append(alias).append(".visibility = 'PROVINCE' AND ")
-                    .append(alias).append(".province_code = ")
-                    .append("CONCAT('', #{criteria.viewerProvinceCode}))");
+            expression.append(" OR (").append(alias).append(".visibility = 'PROVINCE' AND ")
+                    .append(alias).append(".province_code = CONCAT('', ")
+                    .append("#{criteria.viewerProvinceCode}))");
         }
         if (!criteria.getEventIds().isEmpty()) {
-            condition.append(" OR (").append(alias).append(".visibility = 'UNLISTED' AND ")
+            expression.append(" OR (").append(alias).append(".visibility = 'UNLISTED' AND ")
                     .append(alias).append(".id IN (");
-            appendPlaceholders(condition, criteria.getEventIds(), "eventIds");
-            condition.append("))");
+            appendPlaceholders(expression, criteria.getEventIds(), "eventIds");
+            expression.append("))");
         }
-        condition.append(")");
-        return condition.toString();
+        return expression.append(")").toString();
     }
 
-    private String managerEditionCondition(ContestAccessCriteria criteria, String alias) {
-        StringBuilder condition = new StringBuilder(
-                "SELECT 1 FROM contest_edition " + alias
-                        + " WHERE " + alias + ".deleted = 0 AND (1 = 0"
+    private String managerScopeExpression(ContestAccessCriteria criteria, String alias) {
+        if (criteria.isGlobal()) {
+            return "1 = 1";
+        }
+        StringBuilder expression = new StringBuilder("(1 = 0");
+        appendIn(
+                expression,
+                criteria.getOrganizationIds(),
+                alias,
+                "owner_org_id",
+                "organizationIds"
         );
-        appendIn(condition, criteria.getOrganizationIds(), alias, "owner_org_id", "organizationIds");
-        appendIn(condition, criteria.getProvinceCodes(), alias, "province_code", "provinceCodes");
-        appendIn(condition, criteria.getEventIds(), alias, "id", "eventIds");
-        condition.append(")");
-        return condition.toString();
+        appendIn(
+                expression,
+                criteria.getProvinceCodes(),
+                alias,
+                "province_code",
+                "provinceCodes"
+        );
+        appendIn(expression, criteria.getEventIds(), alias, "id", "eventIds");
+        return expression.append(")").toString();
     }
 
     private void appendIn(
             StringBuilder sql,
-            Set<Long> values,
+            List<Long> values,
             String alias,
             String column,
             String property
@@ -157,20 +167,21 @@ public class ContestAccessSqlProvider {
 
     private void appendPlaceholders(
             StringBuilder sql,
-            Set<Long> values,
+            List<Long> values,
             String property
     ) {
         StringJoiner placeholders = new StringJoiner(", ");
-        int index = 0;
-        for (Long value : values) {
-            String path = "criteria." + property + "[" + index++ + "]";
-            placeholders.add("#{" + path + "}");
+        for (int index = 0; index < values.size(); index++) {
+            placeholders.add("#{criteria." + property + "[" + index + "]}");
         }
         sql.append(placeholders);
     }
 
-    private String order(ContestAccessCriteria criteria) {
-        String column = criteria.getSortColumn();
+    private String order(ContestAccessCriteria criteria, String defaultColumn) {
+        String column = hasText(criteria.getSortColumn())
+                && ALLOWED_SORT_COLUMNS.contains(criteria.getSortColumn())
+                ? criteria.getSortColumn()
+                : defaultColumn;
         String direction = "ASC".equals(criteria.getSortDirection()) ? "ASC" : "DESC";
         return " ORDER BY " + column + " " + direction;
     }

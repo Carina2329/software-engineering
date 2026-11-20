@@ -5,8 +5,7 @@ import com.campus.contest.module.contest.mapper.ContestAccessSqlProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,7 +20,7 @@ class ContestAccessSqlProviderTest {
         criteria.setManager(false);
         criteria.setViewerSchoolId(10L);
         criteria.setViewerProvinceCode(510000L);
-        criteria.setEventIds(new LinkedHashSet<>(Set.of(31L)));
+        criteria.setEventIds(List.of(31L));
         criteria.setContestId(1L);
 
         String sql = provider.selectEditionList(criteria);
@@ -40,9 +39,9 @@ class ContestAccessSqlProviderTest {
     void managerAccessUsesGrantedScopes() {
         ContestAccessCriteria criteria = new ContestAccessCriteria();
         criteria.setManager(true);
-        criteria.setOrganizationIds(new LinkedHashSet<>(Set.of(10L, 11L)));
-        criteria.setProvinceCodes(new LinkedHashSet<>(Set.of(510000L)));
-        criteria.setEventIds(new LinkedHashSet<>(Set.of(31L)));
+        criteria.setOrganizationIds(List.of(10L, 11L));
+        criteria.setProvinceCodes(List.of(510000L));
+        criteria.setEventIds(List.of(31L));
 
         String sql = provider.selectEditionList(criteria);
 

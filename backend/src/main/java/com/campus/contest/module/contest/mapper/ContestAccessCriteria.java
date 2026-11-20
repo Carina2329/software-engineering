@@ -2,17 +2,17 @@ package com.campus.contest.module.contest.mapper;
 
 import lombok.Data;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 public class ContestAccessCriteria {
 
     private boolean manager;
     private boolean global;
-    private Set<Long> organizationIds = new LinkedHashSet<>();
-    private Set<Long> provinceCodes = new LinkedHashSet<>();
-    private Set<Long> eventIds = new LinkedHashSet<>();
+    private List<Long> organizationIds = new ArrayList<>();
+    private List<Long> provinceCodes = new ArrayList<>();
+    private List<Long> eventIds = new ArrayList<>();
     private Long viewerSchoolId;
     private Long viewerProvinceCode;
 
@@ -28,6 +28,6 @@ public class ContestAccessCriteria {
     private String visibility;
     private String keyword;
 
-    private String sortColumn = "c.created_at";
+    private String sortColumn;
     private String sortDirection = "DESC";
 }
