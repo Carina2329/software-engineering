@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @EnabledIfEnvironmentVariable(named = "RUN_REDIS_TESTS", matches = "true")
 class RedisIdempotencyStoreIntegrationTest {
 
+    private static final long COLD_CONNECTION_TIMEOUT_SECONDS = 10;
     private static final IdempotencyScope USER_A =
             new IdempotencyScope(IdempotencyScope.PrincipalType.USER, "101");
     private static final IdempotencyScope USER_B =
@@ -51,7 +52,7 @@ class RedisIdempotencyStoreIntegrationTest {
                             return "done";
                         }
                 ));
-                assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
+                assertThat(started.await(COLD_CONNECTION_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
 
                 Future<String> second = executor.submit(() -> service.execute(
                         USER_A, "integration.create", key, Map.of("value", "same"),
@@ -65,8 +66,10 @@ class RedisIdempotencyStoreIntegrationTest {
                 Thread.sleep(150);
                 finish.countDown();
 
-                assertThat(first.get(3, TimeUnit.SECONDS)).isEqualTo("done");
-                assertThat(second.get(3, TimeUnit.SECONDS)).isEqualTo("done");
+                assertThat(first.get(COLD_CONNECTION_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                        .isEqualTo("done");
+                assertThat(second.get(COLD_CONNECTION_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                        .isEqualTo("done");
                 assertThat(executions).hasValue(1);
             } finally {
                 executor.shutdownNow();
@@ -142,7 +145,7 @@ class RedisIdempotencyStoreIntegrationTest {
 
     private static void await(CountDownLatch latch) {
         try {
-            if (!latch.await(2, TimeUnit.SECONDS)) {
+            if (!latch.await(COLD_CONNECTION_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("latch timeout");
             }
         } catch (InterruptedException e) {
