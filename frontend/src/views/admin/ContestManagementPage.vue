@@ -240,7 +240,11 @@ onMounted(() => {
 
       <el-table v-loading="loading" :data="contests" border row-key="id">
         <el-table-column prop="contest_name" label="竞赛名称" min-width="220" />
-        <el-table-column prop="series_code" label="系列编码" min-width="150" />
+        <el-table-column label="系列编码" min-width="180">
+          <template #default="{ row }">
+            <code class="series-code notranslate" translate="no">{{ row.series_code }}</code>
+          </template>
+        </el-table-column>
         <el-table-column label="级别" width="110">
           <template #default="{ row }">
             <el-tag effect="plain">{{ CONTEST_LEVEL_LABELS[row.level as ContestLevel] }}</el-tag>
@@ -292,6 +296,8 @@ onMounted(() => {
         <el-form-item label="系列编码" prop="series_code">
           <el-input
             v-model="form.series_code"
+            class="notranslate"
+            translate="no"
             maxlength="32"
             show-word-limit
             placeholder="例如 SOFTWARE_ENGINEERING"
@@ -389,5 +395,11 @@ onMounted(() => {
 
 .form-alert {
   margin-bottom: 16px;
+}
+
+.series-code {
+  color: #47665c;
+  font-family: Consolas, monospace;
+  font-size: 12px;
 }
 </style>

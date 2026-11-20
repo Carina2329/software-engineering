@@ -124,7 +124,7 @@ onMounted(loadContests)
           <span>{{ contestItem.organizer || '主办方待补充' }}</span>
         </div>
         <h2>{{ contestItem.contest_name }}</h2>
-        <p class="series-code">{{ contestItem.series_code }}</p>
+        <p class="series-code notranslate" translate="no">{{ contestItem.series_code }}</p>
         <p class="contest-note">
           竞赛主档可包含多个历史或当前届次，进入后查看每一届独立赛程。
         </p>
