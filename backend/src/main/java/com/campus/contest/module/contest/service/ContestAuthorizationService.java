@@ -3,6 +3,8 @@ package com.campus.contest.module.contest.service;
 import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
 import com.campus.contest.module.contest.mapper.ContestAccessCriteria;
+import com.campus.contest.module.contest.entity.ContestEditionDO;
+import com.campus.contest.module.contest.enums.ContestLevel;
 import com.campus.contest.module.organization.entity.OrganizationDO;
 import com.campus.contest.module.organization.mapper.OrganizationMapper;
 import com.campus.contest.module.organization.model.EffectiveScope;
@@ -97,6 +99,54 @@ public class ContestAuthorizationService {
 
     public void requireEventManageable(Long editionId) {
         organizationScopeService.requireEventManageable(editionId);
+    }
+
+    /**
+     * 竞赛实例的管理边界。
+     *
+     * 校级赛事只接受直属学校 ORGANIZATION 授权或该赛事 EVENT 授权；
+     * 不能因为省份管理员拥有同省范围就管理学校比赛。
+     */
+    public void requireContestEventManageable(ContestEditionDO edition) {
+        EffectiveScope scope = currentScope();
+        if (scope.global() || scope.eventIds().contains(edition.getId())) {
+            return;
+        }
+        boolean directOwner = edition.getOwnerOrgId() != null
+                && scope.organizationIds().contains(edition.getOwnerOrgId());
+        ContestLevel level = ContestLevel.parse(edition.getLevel());
+        boolean allowed = switch (level) {
+            case SCHOOL, NATIONAL -> directOwner;
+            case PROVINCE -> directOwner
+                    || normalizeProvince(edition.getProvinceCode()) != null
+                    && scope.provinceCodes().contains(normalizeProvince(edition.getProvinceCode()));
+        };
+        if (!allowed) {
+            throw dataForbidden("无权管理该赛事");
+        }
+    }
+
+    public void requireCreateScope(
+            ContestLevel level,
+            Long ownerOrgId,
+            String provinceCode
+    ) {
+        if (currentScope().global()) {
+            return;
+        }
+        if (level == ContestLevel.PROVINCE) {
+            requireProvinceManageable(provinceCode);
+            return;
+        }
+        requireDirectOrganizationManageable(ownerOrgId);
+    }
+
+    public void requireDirectOrganizationManageable(Long organizationId) {
+        EffectiveScope scope = currentScope();
+        if (!scope.global()
+                && (organizationId == null || !scope.organizationIds().contains(organizationId))) {
+            throw dataForbidden("无权管理该组织");
+        }
     }
 
     public OrganizationDO requireActiveOrganization(Long organizationId) {

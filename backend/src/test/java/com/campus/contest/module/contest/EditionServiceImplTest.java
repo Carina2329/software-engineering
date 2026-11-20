@@ -3,6 +3,8 @@ package com.campus.contest.module.contest;
 import com.campus.contest.TestInfrastructure;
 import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
+import com.campus.contest.common.idempotency.IdempotencyScope;
+import com.campus.contest.common.idempotency.IdempotencyService;
 import com.campus.contest.module.contest.dto.EditionCreateRequest;
 import com.campus.contest.module.contest.dto.EditionPublishRequest;
 import com.campus.contest.module.contest.dto.EditionUpdateRequest;
@@ -24,6 +26,7 @@ import com.campus.contest.module.organization.entity.OrganizationDO;
 import com.campus.contest.module.organization.mapper.OrganizationMapper;
 import com.campus.contest.module.organization.model.EffectiveScope;
 import com.campus.contest.security.CurrentUserProvider;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +39,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,6 +50,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -203,6 +210,41 @@ class EditionServiceImplTest {
     }
 
     @Test
+    @DisplayName("同一幂等键但创建配置不同返回幂等冲突")
+    void sameIdempotencyKeyWithDifferentConfigurationConflicts() {
+        EditionServiceImpl strictService = new EditionServiceImpl(
+                contestMapper,
+                editionMapper,
+                accessMapper,
+                teamMapper,
+                organizationMapper,
+                authorizationService,
+                new StrictIdempotencyService(),
+                currentUserProvider,
+                auditService,
+                TestInfrastructure.transactionTemplate()
+        );
+        when(editionMapper.selectCount(any())).thenReturn(0L);
+        when(editionMapper.insert(any(ContestEditionDO.class))).thenAnswer(invocation -> {
+            ContestEditionDO entity = invocation.getArgument(0);
+            entity.setId(23L);
+            return 1;
+        });
+
+        EditionCreateRequest first = validCreateRequest("幂等创建届次");
+        assertThat(strictService.create(1L, first, "same-key").id()).isEqualTo("23");
+
+        EditionCreateRequest changed = validCreateRequest("幂等创建届次");
+        changed.setMaxTeamsPerTeacher(4);
+
+        assertThatThrownBy(() -> strictService.create(1L, changed, "same-key"))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode())
+                                .isEqualTo(ErrorCode.IDEMPOTENCY_CONFLICT.getCode()));
+        verify(editionMapper, times(1)).insert(any(ContestEditionDO.class));
+    }
+
+    @Test
     @DisplayName("配置完整的校赛草稿发布为 REGISTERING，并默认使用 SCHOOL 可见")
     void publishesCompleteDraftWithoutTopicRows() {
         ContestEditionDO draft = validEdition(31L, EditionStatus.DRAFT);
@@ -218,7 +260,7 @@ class EditionServiceImplTest {
                 ArgumentCaptor.forClass(ContestEditionDO.class);
         verify(editionMapper).updateById(captor.capture());
         assertThat(captor.getValue().getVisibility()).isEqualTo("SCHOOL");
-        verify(authorizationService).requireEventManageable(31L);
+        verify(authorizationService).requireContestEventManageable(any(ContestEditionDO.class));
     }
 
     @Test
@@ -293,6 +335,18 @@ class EditionServiceImplTest {
     }
 
     @Test
+    @DisplayName("EP-015 竞赛不存在和不可见统一返回相同 404 文案")
+    void editionPageHidesContestExistence() {
+        when(accessMapper.selectContestById(any())).thenReturn(null);
+
+        assertThatThrownBy(() -> service.page(99L, new com.campus.contest.module.contest.dto.EditionPageQuery()))
+                .isInstanceOfSatisfying(BizException.class, error -> {
+                    assertThat(error.getCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND.getCode());
+                    assertThat(error.getMessage()).isEqualTo("竞赛不存在或对当前用户不可见");
+                });
+    }
+
+    @Test
     @DisplayName("产生队伍后不能修改人数、赛题模式、更换次数或教师上限")
     void teamPresenceFreezesStructuralFields() {
         ContestEditionDO edition = validEdition(31L, EditionStatus.REGISTERING);
@@ -327,16 +381,22 @@ class EditionServiceImplTest {
     }
 
     @Test
-    @DisplayName("DRAFT 届次可以提前核心时间")
-    void draftDeadlineCanBeChanged() {
+    @DisplayName("publish_end 已过去的 DRAFT 仍可修改")
+    void expiredDraftRemainsEditable() {
         ContestEditionDO edition = validEdition(31L, EditionStatus.DRAFT);
+        LocalDateTime past = LocalDateTime.now(SHANGHAI).minusDays(6);
+        edition.setRegisterDeadline(past);
+        edition.setWorkDeadline(past.plusDays(1));
+        edition.setReviewStart(past.plusDays(2));
+        edition.setPublishStart(past.plusDays(3));
+        edition.setPublishEnd(past.plusDays(4));
         when(editionMapper.selectById(31L)).thenReturn(edition);
         when(teamMapper.countByEditionId(31L)).thenReturn(0L);
         when(editionMapper.updateById(any(ContestEditionDO.class))).thenReturn(1);
 
         EditionUpdateRequest request = new EditionUpdateRequest();
         request.setVersion(0);
-        request.setRegisterDeadline(edition.getRegisterDeadline().minusHours(1).atOffset(OFFSET));
+        request.setEditionName("过期草稿仍可修改");
 
         assertThat(service.update(31L, request, null).version()).isEqualTo(1);
     }
@@ -431,5 +491,44 @@ class EditionServiceImplTest {
         organization.setProvinceCode("510000");
         organization.setStatus(1);
         return organization;
+    }
+
+    private static final class StrictIdempotencyService implements IdempotencyService {
+
+        private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        private final Map<String, String> fingerprints = new HashMap<>();
+        private final Map<String, Object> results = new HashMap<>();
+
+        @Override
+        public <T> T execute(
+                IdempotencyScope scope,
+                String operation,
+                String idempotencyKey,
+                Object request,
+                java.time.Duration ttl,
+                Class<T> resultType,
+                Supplier<T> action
+        ) {
+            String key = scope.principalId() + ":" + operation + ":" + idempotencyKey;
+            String fingerprint;
+            try {
+                fingerprint = objectMapper.writeValueAsString(request);
+            } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+                throw new BizException(ErrorCode.INVALID_PARAM.getCode(), "测试请求无法序列化");
+            }
+            String existing = fingerprints.putIfAbsent(key, fingerprint);
+            if (existing != null) {
+                if (!existing.equals(fingerprint)) {
+                    throw new BizException(
+                            ErrorCode.IDEMPOTENCY_CONFLICT.getCode(),
+                            ErrorCode.IDEMPOTENCY_CONFLICT.getMessage()
+                    );
+                }
+                return resultType.cast(results.get(key));
+            }
+            T result = action.get();
+            results.put(key, result);
+            return result;
+        }
     }
 }

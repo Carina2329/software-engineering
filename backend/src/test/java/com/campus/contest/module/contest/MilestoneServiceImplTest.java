@@ -95,7 +95,8 @@ class MilestoneServiceImplTest {
         request.setEndTime(start.plusHours(1).atOffset(OFFSET));
 
         assertThat(service.create(31L, request, "milestone-key").id()).isEqualTo("51");
-        verify(authorizationService, times(2)).requireEventManageable(31L);
+        verify(authorizationService, times(2))
+                .requireContestEventManageable(any(ContestEditionDO.class));
         verify(auditService).record(eq(10L), eq("EDITION_MILESTONE_CREATE"), any());
     }
 
@@ -133,6 +134,33 @@ class MilestoneServiceImplTest {
                 .isInstanceOfSatisfying(BizException.class, error ->
                         assertThat(error.getCode())
                                 .isEqualTo(ErrorCode.INVALID_STATE_TRANSITION.getCode()));
+    }
+
+    @Test
+    @DisplayName("publish_end 已过去的 DRAFT 仍可维护赛程节点")
+    void expiredDraftMilestoneRemainsEditable() {
+        ContestEditionDO edition = edition(EditionStatus.DRAFT);
+        LocalDateTime past = LocalDateTime.now(SHANGHAI).minusDays(6);
+        edition.setRegisterDeadline(past);
+        edition.setWorkDeadline(past.plusDays(1));
+        edition.setReviewStart(past.plusDays(2));
+        edition.setPublishStart(past.plusDays(3));
+        edition.setPublishEnd(past.plusDays(4));
+        when(editionMapper.selectById(31L)).thenReturn(edition);
+        when(milestoneMapper.insert(any(ContestMilestoneDO.class))).thenAnswer(invocation -> {
+            ContestMilestoneDO entity = invocation.getArgument(0);
+            entity.setId(52L);
+            return 1;
+        });
+
+        MilestoneCreateRequest request = new MilestoneCreateRequest();
+        request.setNodeType("REGISTER_END");
+        request.setNodeName("历史报名结束节点");
+        request.setStartTime(past.minusHours(2).atOffset(OFFSET));
+        request.setEndTime(past.minusHours(1).atOffset(OFFSET));
+
+        assertThat(service.create(31L, request, "expired-draft-key").id())
+                .isEqualTo("52");
     }
 
     @Test

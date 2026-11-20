@@ -276,10 +276,12 @@ public class MilestoneServiceImpl implements MilestoneService {
         if (edition == null) {
             throw notFound("届次不存在");
         }
-        authorizationService.requireEventManageable(editionId);
+        authorizationService.requireContestEventManageable(edition);
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
-        if (EditionStatus.fromDatabaseValue(edition.getStatus()) == EditionStatus.ARCHIVED
-                || (edition.getPublishEnd() != null && now.isAfter(edition.getPublishEnd()))) {
+        EditionStatus status = EditionStatus.fromDatabaseValue(edition.getStatus());
+        if (status != EditionStatus.DRAFT
+                && (status == EditionStatus.ARCHIVED
+                || (edition.getPublishEnd() != null && now.isAfter(edition.getPublishEnd())))) {
             throw new BizException(
                     ErrorCode.INVALID_STATE_TRANSITION.getCode(),
                     "届次已只读，不能修改赛程节点"

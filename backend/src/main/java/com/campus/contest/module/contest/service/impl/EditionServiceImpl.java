@@ -78,7 +78,6 @@ public class EditionServiceImpl implements EditionService {
 
     @Override
     public EditionPageVO page(Long contestId, EditionPageQuery query) {
-        requireContest(contestId);
         EditionPageQuery effective = query == null ? new EditionPageQuery() : query;
         int page = pageNumber(effective.getPage());
         int size = pageSize(effective.getSize());
@@ -142,6 +141,7 @@ public class EditionServiceImpl implements EditionService {
                 provinceCode
         );
         OrganizationDO owner = authorizationService.requireActiveOrganization(ownerOrgId);
+        authorizationService.requireCreateScope(level, ownerOrgId, provinceCode);
         validateScope(
                 level,
                 owner,
@@ -186,6 +186,23 @@ public class EditionServiceImpl implements EditionService {
         fingerprint.put("province_code", provinceCode);
         fingerprint.put("visibility", parseVisibilityOrDefault(
                 request.getVisibility(), EditionVisibility.DRAFT).name());
+        fingerprint.put("register_deadline", registerDeadline);
+        fingerprint.put("work_deadline", workDeadline);
+        fingerprint.put("review_start", reviewStart);
+        fingerprint.put("publish_start", publishStart);
+        fingerprint.put("publish_end", publishEnd);
+        fingerprint.put("min_team_size", request.getMinTeamSize());
+        fingerprint.put("max_team_size", request.getMaxTeamSize());
+        fingerprint.put("team_size_mode", teamSizeMode.name());
+        fingerprint.put("max_teams_per_teacher", teacherLimit);
+        fingerprint.put("topic_mode", topicMode == null ? null : topicMode.name());
+        fingerprint.put("topic_review_required", request.getTopicReviewRequired());
+        fingerprint.put("topic_allocation_mode", allocationMode.name());
+        fingerprint.put("topic_change_limit", changeLimit);
+        fingerprint.put("entry_mode", parseEntryModeOrDefault(
+                request.getEntryMode(), EntryMode.OPEN).name());
+        fingerprint.put("cross_school_team_allowed",
+                Boolean.TRUE.equals(request.getCrossSchoolTeamAllowed()));
 
         return executeIdempotently(
                 operatorId, "EDITION_CREATE", idempotencyKey, fingerprint,
@@ -238,7 +255,8 @@ public class EditionServiceImpl implements EditionService {
         }
         requireVersion(request.getVersion());
         requireAtLeastOneChange(request);
-        authorizationService.requireEventManageable(editionId);
+        ContestEditionDO managedEdition = requireEdition(editionId);
+        authorizationService.requireContestEventManageable(managedEdition);
         String optionalKey = trimToNull(idempotencyKey);
         Long operatorId = currentUserProvider.requireUserId();
         Map<String, Object> fingerprint = updateFingerprint(editionId, request);
@@ -260,7 +278,8 @@ public class EditionServiceImpl implements EditionService {
         }
         requireVersion(request.getVersion());
         requireIdempotencyKey(idempotencyKey);
-        authorizationService.requireEventManageable(editionId);
+        ContestEditionDO managedEdition = requireEdition(editionId);
+        authorizationService.requireContestEventManageable(managedEdition);
         Long operatorId = currentUserProvider.requireUserId();
         Map<String, Object> fingerprint = Map.of(
                 "edition_id", String.valueOf(editionId),
@@ -374,7 +393,6 @@ public class EditionServiceImpl implements EditionService {
                 throw dataForbidden("只有平台管理员可以变更主办组织");
             }
             Long ownerOrgId = requestedOwner == null ? existing.getOwnerOrgId() : requestedOwner;
-            authorizationService.requireOrganizationManageable(ownerOrgId);
             OrganizationDO owner = authorizationService.requireActiveOrganization(ownerOrgId);
 
             ContestLevel level = request.getLevel() == null
@@ -399,6 +417,13 @@ public class EditionServiceImpl implements EditionService {
             EditionVisibility visibility = request.getVisibility() == null
                     ? parseVisibility(existing.getVisibility())
                     : parseVisibility(request.getVisibility());
+            boolean scopeChanged = !Objects.equals(existing.getOwnerOrgId(), ownerOrgId)
+                    || !Objects.equals(existing.getLevel(), level.name())
+                    || !Objects.equals(existing.getSchoolId(), schoolId)
+                    || !Objects.equals(existing.getProvinceCode(), provinceCode);
+            if (scopeChanged) {
+                authorizationService.requireCreateScope(level, ownerOrgId, provinceCode);
+            }
             validateScope(level, owner, schoolId, provinceCode, visibility);
 
             String editionName = request.getEditionName() == null
@@ -572,18 +597,15 @@ public class EditionServiceImpl implements EditionService {
     ) {
         EffectiveScope scope = authorizationService.currentScope();
         if (requestedOwnerOrgId != null) {
-            authorizationService.requireOrganizationManageable(requestedOwnerOrgId);
             return requestedOwnerOrgId;
         }
         if (level == ContestLevel.SCHOOL && schoolId != null) {
-            authorizationService.requireOrganizationManageable(schoolId);
             return schoolId;
         }
         if (!scope.global() && scope.organizationIds().size() == 1) {
             return scope.organizationIds().iterator().next();
         }
         if (level == ContestLevel.PROVINCE && provinceCode != null) {
-            authorizationService.requireProvinceManageable(provinceCode);
             List<OrganizationDO> organizers = organizationMapper.selectList(
                     Wrappers.<OrganizationDO>lambdaQuery()
                             .eq(OrganizationDO::getOrgType, ORG_PROVINCE)
@@ -613,7 +635,6 @@ public class EditionServiceImpl implements EditionService {
                 if (!ORG_SCHOOL.equals(owner.getOrgType())) {
                     throw invalidParam("校级比赛主办组织类型必须为 SCHOOL");
                 }
-                authorizationService.requireOrganizationManageable(schoolId);
             }
             case PROVINCE -> {
                 if (schoolId != null || provinceCode == null) {
@@ -623,7 +644,6 @@ public class EditionServiceImpl implements EditionService {
                         || !Objects.equals(owner.getProvinceCode(), provinceCode)) {
                     throw invalidParam("省级比赛主办组织必须是同省份的省级主办方");
                 }
-                authorizationService.requireProvinceManageable(provinceCode);
             }
             case NATIONAL -> {
                 if (schoolId != null || provinceCode != null) {
@@ -833,7 +853,11 @@ public class EditionServiceImpl implements EditionService {
     }
 
     private boolean isReadOnly(ContestEditionDO edition, LocalDateTime now) {
-        return EditionStatus.fromDatabaseValue(edition.getStatus()) == EditionStatus.ARCHIVED
+        EditionStatus status = EditionStatus.fromDatabaseValue(edition.getStatus());
+        if (status == EditionStatus.DRAFT) {
+            return false;
+        }
+        return status == EditionStatus.ARCHIVED
                 || (edition.getPublishEnd() != null && now.isAfter(edition.getPublishEnd()));
     }
 
