@@ -184,7 +184,7 @@ export function useDashboardSocket() {
     heartbeatTimer = setInterval(() => {
       if (
         active &&
-        connectionState.value === 'connected' &&
+        (connectionState.value === 'connected' || connectionState.value === 'connecting') &&
         Date.now() - lastMessageAt > HEARTBEAT_TIMEOUT_MS
       ) {
         connectionState.value = 'reconnecting'
