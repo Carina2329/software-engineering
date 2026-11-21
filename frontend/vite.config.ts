@@ -12,6 +12,12 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      // 数字大屏实时更新
+      '/ws': {
+        target: 'ws://localhost:8080',
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 })
