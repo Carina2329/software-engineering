@@ -2,6 +2,7 @@ package com.campus.contest.module.contest;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.contest.config.MybatisPlusConfig;
+import com.campus.contest.module.contest.entity.ContestDO;
 import com.campus.contest.module.contest.entity.ContestEditionDO;
 import com.campus.contest.module.contest.mapper.ContestAccessCriteria;
 import com.campus.contest.module.contest.mapper.ContestAccessMapper;
@@ -50,6 +51,16 @@ class ContestMultitenantMysqlIT {
                         "2026年B大学统计建模校赛",
                         "2026年D大学统计建模校赛"
                 );
+    }
+
+    @Test
+    @DisplayName("学校管理员可以发现尚无本校届次的竞赛系列")
+    void managerCanDiscoverSeriesWithoutOwnEdition() {
+        ContestAccessCriteria criteria = managerCriteria();
+
+        assertThat(accessMapper.selectContestPage(new Page<>(1, 100), criteria).getRecords())
+                .extracting(ContestDO::getSeriesCode)
+                .contains("SERIES-STAT-MODEL", "SERIES-SICHUAN-SOFT");
     }
 
     @Test

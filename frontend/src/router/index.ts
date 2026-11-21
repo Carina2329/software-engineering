@@ -6,6 +6,7 @@ declare module 'vue-router' {
     requiresAuth?: boolean
     guestOnly?: boolean
     permissions?: string[]
+    anyPermissions?: string[]
     title?: string
   }
 }
@@ -116,7 +117,59 @@ const router = createRouter({
             title: '学校归属审核',
           },
         },
+        {
+          path: 'contests',
+          name: 'admin-contests',
+          component: () => import('../views/admin/ContestManagementPage.vue'),
+          meta: {
+            requiresAuth: true,
+            anyPermissions: [
+              'contest:create',
+              'contest:update',
+              'edition:create',
+              'edition:update',
+              'edition:publish',
+              'edition:milestone:create',
+              'edition:milestone:update',
+            ],
+            title: '竞赛管理',
+          },
+        },
+        {
+          path: 'contests/:contestId/editions',
+          name: 'admin-contest-editions',
+          component: () => import('../views/admin/EditionEditorPage.vue'),
+          meta: {
+            requiresAuth: true,
+            anyPermissions: [
+              'edition:create',
+              'edition:update',
+              'edition:publish',
+              'edition:milestone:create',
+              'edition:milestone:update',
+            ],
+            title: '届次配置',
+          },
+        },
       ],
+    },
+    {
+      path: '/contests',
+      name: 'contest-list',
+      component: () => import('../views/common/ContestListPage.vue'),
+      meta: {
+        requiresAuth: true,
+        title: '竞赛中心',
+      },
+    },
+    {
+      path: '/contests/:editionId',
+      name: 'edition-detail',
+      component: () => import('../views/common/EditionDetailPage.vue'),
+      meta: {
+        requiresAuth: true,
+        title: '届次详情',
+      },
     },
     {
       path: '/schools',
@@ -169,6 +222,16 @@ router.beforeEach(async (to) => {
 
   const requiredPermissions = to.meta.permissions ?? []
   if (requiredPermissions.some((permission) => !auth.can(permission))) {
+    return {
+      name: 'forbidden',
+      query: {
+        from: to.fullPath,
+      },
+    }
+  }
+
+  const anyPermissions = to.meta.anyPermissions ?? []
+  if (anyPermissions.length > 0 && !anyPermissions.some((permission) => auth.can(permission))) {
     return {
       name: 'forbidden',
       query: {

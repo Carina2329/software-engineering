@@ -38,6 +38,22 @@ SET @contest_center_id = (
 INSERT INTO sys_menu
     (parent_id, menu_name, menu_type, path, perms, sort_no, visible, status,
      created_at, created_by, deleted, version)
+SELECT @contest_root_id, '竞赛管理', 2, '/admin/contests', NULL,
+       20, 1, 1, NOW(), 0, 0, 0
+WHERE NOT EXISTS (
+    SELECT 1 FROM sys_menu
+    WHERE parent_id = @contest_root_id AND path = '/admin/contests' AND deleted = 0
+);
+
+SET @contest_manage_menu_id = (
+    SELECT id FROM sys_menu
+    WHERE parent_id = @contest_root_id AND path = '/admin/contests' AND deleted = 0
+    ORDER BY id LIMIT 1
+);
+
+INSERT INTO sys_menu
+    (parent_id, menu_name, menu_type, path, perms, sort_no, visible, status,
+     created_at, created_by, deleted, version)
 SELECT @contest_center_id, '创建竞赛', 3, NULL, 'contest:create',
        10, 0, 1, NOW(), 0, 0, 0
 WHERE NOT EXISTS (
@@ -105,6 +121,12 @@ JOIN sys_menu m ON m.id = @contest_root_id OR m.id = @contest_center_id
 WHERE r.role_code IN ('ADMIN', 'STUDENT', 'TEACHER', 'REVIEWER')
   AND r.deleted = 0
   AND m.deleted = 0;
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT r.id, @contest_manage_menu_id
+FROM sys_role r
+WHERE r.role_code = 'ADMIN'
+  AND r.deleted = 0;
 
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT r.id, m.id

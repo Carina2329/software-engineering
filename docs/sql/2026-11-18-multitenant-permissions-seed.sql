@@ -138,3 +138,14 @@ JOIN sys_menu m
   )
 WHERE r.role_code IN ('SCHOOL_ADMIN', 'PROVINCE_ADMIN', 'NATIONAL_ADMIN', 'EVENT_MANAGER')
   AND r.deleted = 0 AND m.deleted = 0;
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT r.id, m.id
+FROM sys_role r
+JOIN sys_menu m
+  ON (
+    (m.parent_id IS NULL AND m.menu_name = '竞赛中心')
+    OR m.path IN ('/contests', '/admin/contests')
+  )
+WHERE r.role_code IN ('SCHOOL_ADMIN', 'PROVINCE_ADMIN', 'NATIONAL_ADMIN', 'EVENT_MANAGER')
+  AND r.deleted = 0 AND m.deleted = 0;

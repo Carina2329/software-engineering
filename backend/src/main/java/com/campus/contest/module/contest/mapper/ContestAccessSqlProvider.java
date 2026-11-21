@@ -90,10 +90,12 @@ public class ContestAccessSqlProvider {
     }
 
     private String contestAccessExpression(ContestAccessCriteria criteria) {
+        // 竞赛系列是全局目录；具体届次的可见性和管理范围仍在 editionBase 中过滤。
+        if (criteria.isManager()) {
+            return "1 = 1";
+        }
         String alias = "visible_edition";
-        String expression = criteria.isManager()
-                ? managerScopeExpression(criteria, alias)
-                : ordinaryVisibilityExpression(criteria, alias);
+        String expression = ordinaryVisibilityExpression(criteria, alias);
         return "EXISTS (SELECT 1 FROM contest_edition " + alias
                 + " WHERE " + alias + ".deleted = 0 AND " + expression
                 + " AND " + alias + ".contest_id = c.id)";

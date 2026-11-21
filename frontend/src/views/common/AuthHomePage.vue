@@ -9,6 +9,15 @@ import ProfileEditorCard from './components/ProfileEditorCard.vue'
 const router = useRouter()
 const auth = useAuthStore()
 const loggingOut = ref(false)
+const contestManagePermissions = [
+  'contest:create',
+  'contest:update',
+  'edition:create',
+  'edition:update',
+  'edition:publish',
+  'edition:milestone:create',
+  'edition:milestone:update',
+]
 const adminEntryPath = computed(() => {
   if (auth.can('system:user:list')) return '/admin/users'
   if (auth.can('school:affiliation:list')) return '/admin/school-affiliations'
@@ -17,6 +26,9 @@ const adminEntryPath = computed(() => {
   if (auth.can('system:menu:list')) return '/admin/menus'
   return null
 })
+const contestManageAvailable = computed(
+  () => contestManagePermissions.some((permission) => auth.can(permission)),
+)
 
 const profileInitial = computed(
   () => auth.displayName.trim().slice(0, 1).toUpperCase() || '用',
@@ -47,6 +59,15 @@ async function handleLogout(): Promise<void> {
         </div>
       </div>
       <div class="header-actions">
+        <el-button plain @click="router.push('/contests')">竞赛中心</el-button>
+        <el-button
+          v-if="contestManageAvailable"
+          type="success"
+          plain
+          @click="router.push('/admin/contests')"
+        >
+          竞赛管理
+        </el-button>
         <el-button v-if="adminEntryPath" type="primary" plain @click="router.push(adminEntryPath)">
           管理后台
         </el-button>
@@ -160,7 +181,9 @@ async function handleLogout(): Promise<void> {
 
 .header-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
 }
 
