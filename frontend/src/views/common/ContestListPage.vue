@@ -98,22 +98,25 @@ onMounted(loadContests)
         <h1>竞赛中心</h1>
         <p>查看已发布赛事与届次，确认当前报名和作品提交窗口。</p>
       </div>
-      <div class="filter-panel">
-        <el-input
-          v-model="filters.keyword"
-          clearable
-          placeholder="搜索竞赛名称或主办方"
-          @keyup.enter="search"
-        />
-        <el-select v-model="filters.level" clearable placeholder="全部级别">
-          <el-option
-            v-for="option in CONTEST_LEVEL_OPTIONS"
-            :key="option.value"
-            :label="option.label"
-            :value="option.value"
+      <div class="header-side">
+        <el-button class="back-button" plain @click="router.push('/')">返回账号中心</el-button>
+        <div class="filter-panel">
+          <el-input
+            v-model="filters.keyword"
+            clearable
+            placeholder="搜索竞赛名称或主办方"
+            @keyup.enter="search"
           />
-        </el-select>
-        <el-button type="primary" @click="search">查询</el-button>
+          <el-select v-model="filters.level" clearable placeholder="全部级别">
+            <el-option
+              v-for="option in CONTEST_LEVEL_OPTIONS"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+          <el-button type="primary" @click="search">查询</el-button>
+        </div>
       </div>
     </header>
 
@@ -222,10 +225,25 @@ onMounted(loadContests)
   color: rgba(240, 245, 241, 0.7);
 }
 
+.header-side {
+  display: flex;
+  width: min(100%, 510px);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.back-button {
+  color: #e7eee9;
+  border-color: rgba(231, 238, 233, 0.34);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .filter-panel {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) 130px 80px;
   gap: 8px;
+  width: 100%;
   min-width: min(100%, 510px);
 }
 
@@ -340,6 +358,14 @@ onMounted(loadContests)
   .catalog-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .header-side {
+    align-items: stretch;
+  }
+
+  .back-button {
+    align-self: flex-start;
   }
 
   .contest-grid {

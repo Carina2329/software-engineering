@@ -54,6 +54,19 @@ class ContestAccessSqlProviderTest {
     }
 
     @Test
+    @DisplayName("管理员可见完整竞赛系列目录，不依赖系列下已有授权届次")
+    void managerContestCatalogDoesNotRequireVisibleEdition() {
+        ContestAccessCriteria criteria = new ContestAccessCriteria();
+        criteria.setManager(true);
+        criteria.setOrganizationIds(List.of(10L));
+
+        String sql = provider.selectContestPage(criteria);
+
+        assertThat(sql).doesNotContain("EXISTS (SELECT 1 FROM contest_edition");
+        assertThat(sql).contains("1 = 1");
+    }
+
+    @Test
     @DisplayName("全局管理员不附加组织范围限制")
     void globalManagerHasNoDataScopeRestriction() {
         ContestAccessCriteria criteria = new ContestAccessCriteria();

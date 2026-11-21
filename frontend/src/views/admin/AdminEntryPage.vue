@@ -5,6 +5,15 @@ import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
 const auth = useAuthStore()
+const contestManagePermissions = [
+  'contest:create',
+  'contest:update',
+  'edition:create',
+  'edition:update',
+  'edition:publish',
+  'edition:milestone:create',
+  'edition:milestone:update',
+]
 
 onMounted(async () => {
   await auth.ensureInitialized()
@@ -26,6 +35,10 @@ onMounted(async () => {
   }
   if (auth.can('system:menu:list')) {
     await router.replace('/admin/menus')
+    return
+  }
+  if (contestManagePermissions.some((permission) => auth.can(permission))) {
+    await router.replace('/admin/contests')
     return
   }
   await router.replace('/403')

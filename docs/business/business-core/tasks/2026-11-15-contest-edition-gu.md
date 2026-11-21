@@ -8,7 +8,7 @@
 | 开发分支 | `feature/business-contest-edition` |
 | PR 目标分支 | `feature/business-core` |
 | 公共契约基线 | 最新 `origin/feature/business-core`，必须包含 v1.4.0 多组织基线 |
-| 当前状态 | 已认领；PR #13 保持 Draft，按新基线返工 |
+| 当前状态 | PR #13 已合并；公共路由、首页入口和管理员菜单已接入，待集成验收 |
 | 最终确认人 | 段欣懿 |
 
 ## 一、本次要完成的小闭环
