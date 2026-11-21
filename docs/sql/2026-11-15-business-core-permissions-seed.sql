@@ -144,3 +144,24 @@ JOIN sys_menu m
 WHERE r.role_code = 'ADMIN'
   AND r.deleted = 0
   AND m.deleted = 0;
+
+INSERT INTO sys_menu
+    (parent_id, menu_name, menu_type, path, perms, sort_no, visible, status,
+     created_at, created_by, deleted, version)
+SELECT NULL, '查看数据大屏', 3, NULL, 'dashboard:view',
+       20, 0, 1, NOW(), 0, 0, 0
+WHERE NOT EXISTS (
+    SELECT 1 FROM sys_menu WHERE perms = 'dashboard:view' AND deleted = 0
+);
+
+SET @dashboard_view_id = (
+    SELECT id FROM sys_menu
+    WHERE perms = 'dashboard:view' AND deleted = 0
+    ORDER BY id LIMIT 1
+);
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT r.id, @dashboard_view_id
+FROM sys_role r
+WHERE r.role_code = 'ADMIN'
+  AND r.deleted = 0;
