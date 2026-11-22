@@ -8,7 +8,7 @@
 | 开发分支 | `feature/business-dashboard-backend` |
 | PR 目标分支 | `feature/business-core` |
 | 公共契约 | 最新 `feature/business-core` 和 `dashboard-contract.md` |
-| 当前状态 | 已认领，待开始 |
+| 当前状态 | 已完成并合并（PR #20，合并提交 `50e5f00815272b30ccd1948cacdebfe8c4b8f351`） |
 | 最终确认人 | 段欣懿 |
 
 ## 一、任务目标
