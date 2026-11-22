@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AI学科竞赛全流程智能服务平台接口",
-    "version": "1.4.4",
-    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.4.0 将平台冻结为多学校、多主办方赛事托管模式；1.4.1 修正 EP-004 同校学号语义，补充学校归属审核、CN_PROVINCE 公共字典和范围权限边界；1.4.2 明确 EP-007 只替换全局基础角色，并补充 EP-089 的 409 冲突响应；1.4.3 补齐 EP-090/EP-091 的 404、409 和 503 响应；1.4.4 补齐学校归属查询和审核的 404、503 响应。",
+    "version": "1.5.1",
+    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.4.0 将平台冻结为多学校、多主办方赛事托管模式；1.4.1 修正 EP-004 同校学号语义，补充学校归属审核、CN_PROVINCE 公共字典和范围权限边界；1.4.2 明确 EP-007 只替换全局基础角色，并补充 EP-089 的 409 冲突响应；1.4.3 补齐 EP-090/EP-091 的 404、409 和 503 响应；1.4.4 补齐学校归属查询和审核的 404、503 响应。 1.5.0 增加数字大屏一期共享契约与公共 WebSocket 基础；1.5.1 新增 EP-094、EP-095，明确平台管理员 GLOBAL 数据范围、一次性 ticket 和原生 WebSocket 推送协议。",
     "contact": {
       "name": "第6组",
       "email": "group6@example.edu"
@@ -13343,7 +13343,6 @@
         },
         "x-endpoint-id": "EP-092",
         "x-permission": "school:affiliation:list",
-        "x-permission": "school:affiliation:list",
         "x-data-scope": "GLOBAL / ORGANIZATION",
         "x-audit": false,
         "x-tables": [
@@ -13494,6 +13493,149 @@
         "x-tables": [
           "sys_user",
           "sys_oper_log"
+        ]
+      }
+    },
+    "/dashboard/overview": {
+      "get": {
+        "tags": [
+          "数字大屏"
+        ],
+        "summary": "查询数字大屏统计快照",
+        "description": "仅平台 GLOBAL 管理员可用。返回学校、用户、角色、竞赛系列、届次和近期报名截止数据；不包含尚未产生的队伍、作品和评审指标。",
+        "operationId": "ep_094",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DashboardOverview"
+                    },
+                    "trace_id": {
+                      "type": "string",
+                      "example": "01J8F8M4V8V2K4B6S2Y4H9Q7P1"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-094",
+        "x-permission": "dashboard:view",
+        "x-data-scope": "GLOBAL",
+        "x-idempotency": "否",
+        "x-rate-limit": "常规接口限流",
+        "x-audit": false,
+        "x-tables": [
+          "organization",
+          "sys_user",
+          "contest",
+          "contest_edition"
+        ]
+      }
+    },
+    "/dashboard/ws-ticket": {
+      "post": {
+        "tags": [
+          "数字大屏"
+        ],
+        "summary": "创建数字大屏 WebSocket ticket",
+        "description": "仅平台 GLOBAL 管理员可用。ticket 只保存用户和会话标识，有效期 30 秒且只能消费一次；不得包含 JWT、Refresh Token 或密码。",
+        "operationId": "ep_095",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DashboardWebSocketTicket"
+                    },
+                    "trace_id": {
+                      "type": "string",
+                      "example": "01J8F8M4V8V2K4B6S2Y4H9Q7P1"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthDependencyUnavailable"
+          }
+        },
+        "x-endpoint-id": "EP-095",
+        "x-permission": "dashboard:view",
+        "x-data-scope": "GLOBAL",
+        "x-idempotency": "ticket 单次消费",
+        "x-rate-limit": "常规接口限流",
+        "x-audit": false,
+        "x-tables": [],
+        "x-redis-keys": [
+          "dashboard:ws:ticket:{ticket}"
         ]
       }
     }
@@ -14050,6 +14192,203 @@
             }
           }
         }
+      },
+      "DashboardOverview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "generated_at",
+          "data_source",
+          "summary",
+          "contest_operations",
+          "province_schools",
+          "user_roles",
+          "upcoming_deadlines"
+        ],
+        "properties": {
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data_source": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "effective_school_count",
+              "active_user_count",
+              "registering_edition_count",
+              "pending_affiliation_count"
+            ],
+            "properties": {
+              "effective_school_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "active_user_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "registering_edition_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pending_affiliation_count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "contest_operations": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contest_series_count",
+              "published_edition_count",
+              "level_distribution"
+            ],
+            "properties": {
+              "contest_series_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "published_edition_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "level_distribution": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "level",
+                    "count"
+                  ],
+                  "properties": {
+                    "level": {
+                      "type": "string",
+                      "enum": [
+                        "SCHOOL",
+                        "PROVINCE",
+                        "NATIONAL"
+                      ]
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "province_schools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "province_code",
+                "province_name",
+                "school_count"
+              ],
+              "properties": {
+                "province_code": {
+                  "type": "string"
+                },
+                "province_name": {
+                  "type": "string"
+                },
+                "school_count": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "user_roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "role_code",
+                "role_name",
+                "user_count"
+              ],
+              "properties": {
+                "role_code": {
+                  "type": "string"
+                },
+                "role_name": {
+                  "type": "string"
+                },
+                "user_count": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "upcoming_deadlines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "edition_id",
+                "edition_name",
+                "contest_name",
+                "level",
+                "register_deadline"
+              ],
+              "properties": {
+                "edition_id": {
+                  "type": "string"
+                },
+                "edition_name": {
+                  "type": "string"
+                },
+                "contest_name": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "SCHOOL",
+                    "PROVINCE",
+                    "NATIONAL"
+                  ]
+                },
+                "register_deadline": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "DashboardWebSocketTicket": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ticket",
+          "expires_at"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "description": "一次性 WebSocket ticket；有效期 30 秒，不得记录到日志。"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     },
     "responses": {
@@ -14300,6 +14639,33 @@
       ],
       "failure": "ROLLBACK_AND_ERROR",
       "rejected_request_audit": "BEST_EFFORT"
+    }
+  },
+  "x-websocket": {
+    "/ws/dashboard": {
+      "description": "使用 EP-095 ticket 建立原生 WebSocket。服务端发送 CONNECTED 后每 30 秒推送 DASHBOARD_OVERVIEW。",
+      "authentication": "一次性 ticket，不得在 URL 中使用 JWT",
+      "closeCodes": {
+        "1013": "服务暂不可用",
+        "4401": "票据或会话无效",
+        "4403": "dashboard:view 或 GLOBAL 数据范围失效"
+      },
+      "messages": {
+        "CONNECTED": {
+          "type": "CONNECTED",
+          "version": 1,
+          "generated_at": "2026-11-21T17:30:00+08:00",
+          "data": null
+        },
+        "DASHBOARD_OVERVIEW": {
+          "type": "DASHBOARD_OVERVIEW",
+          "version": 1,
+          "generated_at": "2026-11-21T17:30:30+08:00",
+          "data": {
+            "$ref": "#/components/schemas/DashboardOverview"
+          }
+        }
+      }
     }
   }
 }
