@@ -80,9 +80,9 @@ class DashboardMysqlTest {
         long activeBefore = dashboardMapper.countActiveUsers();
         long pendingBefore = dashboardMapper.countPendingAffiliations();
         String suffix = suffix();
-        insertUser("du_active_" + suffix, 1, 0);
-        insertUser("du_disabled_" + suffix, 0, 0);
-        insertUser("du_deleted_" + suffix, 1, 1);
+        insertUser("du_active_" + suffix, 1, 0, null);
+        insertUser("du_disabled_" + suffix, 0, 0, null);
+        insertUser("du_deleted_" + suffix, 1, 1, null);
         long userId = jdbcTemplate.queryForObject(
                 "SELECT id FROM sys_user WHERE username = ?",
                 Long.class,
@@ -107,7 +107,18 @@ class DashboardMysqlTest {
         sqlSessionTemplate.clearCache();
 
         assertThat(dashboardMapper.countActiveUsers()).isEqualTo(activeBefore + 1);
+        assertThat(dashboardMapper.countPendingAffiliations())
+                .as("未选择学校的默认 PENDING 状态不能算待审核申请")
+                .isEqualTo(pendingBefore);
+
+        long schoolId = jdbcTemplate.queryForObject(
+                "SELECT id FROM organization WHERE org_type = 'SCHOOL' AND deleted = 0 ORDER BY id LIMIT 1",
+                Long.class
+        );
+        insertUser("du_pending_" + suffix, 1, 0, schoolId);
+        sqlSessionTemplate.clearCache();
         assertThat(dashboardMapper.countPendingAffiliations()).isEqualTo(pendingBefore + 1);
+
         List<DashboardUserRoleVO> roles = dashboardMapper.selectUserRoles(REFERENCE_TIME).stream()
                 .filter(row -> row.roleCode().equals("DASH_" + suffix))
                 .toList();
@@ -211,17 +222,18 @@ class DashboardMysqlTest {
         );
     }
 
-    private void insertUser(String username, int status, int deleted) {
+    private void insertUser(String username, int status, int deleted, Long schoolId) {
         jdbcTemplate.update(
                 """
                 INSERT INTO sys_user
-                    (username, real_name, password_hash, email, school_verification_status,
+                    (username, real_name, password_hash, email, school_id, school_verification_status,
                      status, created_by, deleted, version)
-                VALUES (?, '大屏测试用户', ?, ?, 'PENDING', ?, 0, ?, 0)
+                VALUES (?, '大屏测试用户', ?, ?, ?, 'PENDING', ?, 0, ?, 0)
                 """,
                 username,
                 TEST_PASSWORD_HASH,
                 username + "@example.edu",
+                schoolId,
                 status,
                 deleted
         );
