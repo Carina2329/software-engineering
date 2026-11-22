@@ -154,6 +154,16 @@ const router = createRouter({
       ],
     },
     {
+      path: '/dashboard',
+      name: 'dashboard',
+      component: () => import('../views/admin/DashboardPage.vue'),
+      meta: {
+        requiresAuth: true,
+        permissions: ['dashboard:view'],
+        title: '平台运行总览',
+      },
+    },
+    {
       path: '/contests',
       name: 'contest-list',
       component: () => import('../views/common/ContestListPage.vue'),
