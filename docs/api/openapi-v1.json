@@ -14237,7 +14237,8 @@
               },
               "pending_affiliation_count": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "description": "已选择学校（school_id 非空）且状态为 PENDING 的启用用户数；未选校用户的默认 PENDING 状态不计入"
               }
             }
           },

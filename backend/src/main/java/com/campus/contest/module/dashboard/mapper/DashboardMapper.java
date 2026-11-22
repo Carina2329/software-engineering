@@ -49,6 +49,7 @@ public interface DashboardMapper {
             FROM sys_user
             WHERE status = 1
               AND deleted = 0
+              AND school_id IS NOT NULL
               AND school_verification_status = 'PENDING'
             """)
     long countPendingAffiliations();

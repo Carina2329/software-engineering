@@ -411,6 +411,30 @@ class SchoolAffiliationServiceImplTest {
     }
 
     @Test
+    @DisplayName("未选校用户的默认 PENDING 状态允许首次选择学校")
+    void unassignedPendingUserCanSelectFirstSchool() {
+        when(userMapper.selectById(TARGET_USER_ID)).thenReturn(
+                user(TARGET_USER_ID, null, "PENDING", 0)
+        );
+        when(authorizationSnapshotService.loadRequired(TARGET_USER_ID)).thenReturn(
+                snapshot(TARGET_USER_ID, "STUDENT")
+        );
+        when(organizationMapper.selectById(20L)).thenReturn(
+                school(20L, "四川B大学", "510000", 1)
+        );
+        when(dictionaryQueryService.containsEnabledValue("CN_PROVINCE", "510000"))
+                .thenReturn(true);
+
+        SchoolSelectionValidation result =
+                service.validateSelection(TARGET_USER_ID, 20L, 0);
+
+        assertThat(result.schoolId()).isEqualTo(20L);
+        assertThat(result.targetStatus()).isEqualTo("PENDING");
+        assertThat(result.noChange()).isFalse();
+        assertThat(result.clearPreviousReview()).isTrue();
+    }
+
+    @Test
     @DisplayName("PENDING 用户只能保持原学校，不能直接更换")
     void pendingUserCannotSwitchSchool() {
         when(userMapper.selectById(TARGET_USER_ID)).thenReturn(

@@ -242,7 +242,8 @@ public class SchoolAffiliationServiceImpl implements SchoolAffiliationService {
         OrganizationDO school = requireSchoolExists(schoolId);
         boolean sameSchool = Objects.equals(user.getSchoolId(), school.getId());
         boolean verified = STATUS_VERIFIED.equals(user.getSchoolVerificationStatus());
-        boolean pending = STATUS_PENDING.equals(user.getSchoolVerificationStatus());
+        boolean pending = user.getSchoolId() != null
+                && STATUS_PENDING.equals(user.getSchoolVerificationStatus());
         if (sameSchool && (verified || pending)) {
             return new SchoolSelectionValidation(
                     userId,

@@ -40,7 +40,7 @@
 | `effective_school_count` | `organization.org_type=SCHOOL`、`status=1`、`deleted=0`，且 `province_code` 为启用状态的 `CN_PROVINCE` 字典项 |
 | `active_user_count` | `sys_user.status=1`、`deleted=0` 的用户数 |
 | `registering_edition_count` | 状态为 `REGISTERING`，且 `register_deadline >= 当前时间` 的届次数 |
-| `pending_affiliation_count` | 启用用户的 `school_verification_status=PENDING` 的申请数 |
+| `pending_affiliation_count` | 启用用户中已经选择学校（`school_id IS NOT NULL`）且 `school_verification_status=PENDING` 的申请数；未选校用户的默认 PENDING 状态不算申请 |
 | `contest_series_count` | `contest.deleted=0` 的竞赛系列数 |
 | `published_edition_count` | `contest_edition.deleted=0`，状态不等于 `DRAFT` 的届次数 |
 | `level_distribution` | 未删除届次按 `SCHOOL`、`PROVINCE`、`NATIONAL` 分组计数 |
