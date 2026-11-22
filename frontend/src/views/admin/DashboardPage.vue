@@ -10,8 +10,14 @@ import UserRoleChart from '../../components/dashboard/UserRoleChart.vue'
 import type { DashboardContestOperations } from '../../types/dashboard'
 import { formatShanghaiTime } from './dashboard/formatShanghaiTime'
 import { useDashboardSocket } from './dashboard/useDashboardSocket'
+import { useContextualReturn } from '../../composables/useContextualReturn'
 
 const { snapshot, connectionState, errorMessage, start, retry } = useDashboardSocket()
+const { returnLabel, handleReturn } = useContextualReturn({
+  defaultLabel: '返回账号中心',
+  defaultFallback: '/',
+  matchesPrevious: (path) => path === '/',
+})
 
 const summary = computed(() => snapshot.value?.summary)
 const contestOperations = computed<DashboardContestOperations>(
@@ -48,7 +54,11 @@ onMounted(() => {
     <div class="ambient ambient-two"></div>
 
     <main class="dashboard-frame">
-      <DashboardHeader :connection-state="connectionState" />
+      <DashboardHeader
+        :connection-state="connectionState"
+        :return-label="returnLabel"
+        @return="handleReturn"
+      />
 
       <section v-if="initialLoading" class="initial-state" aria-live="polite">
         <div class="loading-orbit"><span></span><span></span><span></span></div>

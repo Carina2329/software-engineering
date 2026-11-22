@@ -4,6 +4,11 @@ import type { DashboardConnectionState } from '../../types/dashboard'
 
 defineProps<{
   connectionState: DashboardConnectionState
+  returnLabel: string
+}>()
+
+defineEmits<{
+  return: []
 }>()
 </script>
 
@@ -17,6 +22,9 @@ defineProps<{
       <h1>学科竞赛平台运行总览</h1>
     </div>
     <div class="header-side">
+      <el-button class="return-button" plain @click="$emit('return')">
+        ← {{ returnLabel }}
+      </el-button>
       <span class="scope-label">统计范围：全平台</span>
       <ConnectionStatus :state="connectionState" />
     </div>
@@ -67,8 +75,16 @@ h1 {
 
 .header-side {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 16px;
+}
+
+.return-button {
+  color: #e7eee9;
+  border-color: rgba(231, 238, 233, 0.3);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .scope-label {
