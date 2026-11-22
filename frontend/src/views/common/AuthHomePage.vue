@@ -29,6 +29,7 @@ const adminEntryPath = computed(() => {
 const contestManageAvailable = computed(
   () => contestManagePermissions.some((permission) => auth.can(permission)),
 )
+const dashboardAvailable = computed(() => auth.can('dashboard:view'))
 
 const profileInitial = computed(
   () => auth.displayName.trim().slice(0, 1).toUpperCase() || '用',
@@ -67,6 +68,14 @@ async function handleLogout(): Promise<void> {
           @click="router.push('/admin/contests')"
         >
           竞赛管理
+        </el-button>
+        <el-button
+          v-if="dashboardAvailable"
+          type="warning"
+          plain
+          @click="router.push('/dashboard')"
+        >
+          平台运行总览
         </el-button>
         <el-button v-if="adminEntryPath" type="primary" plain @click="router.push(adminEntryPath)">
           管理后台

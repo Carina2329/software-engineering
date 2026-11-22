@@ -148,8 +148,8 @@ WHERE r.role_code = 'ADMIN'
 INSERT INTO sys_menu
     (parent_id, menu_name, menu_type, path, perms, sort_no, visible, status,
      created_at, created_by, deleted, version)
-SELECT NULL, '查看数据大屏', 3, NULL, 'dashboard:view',
-       20, 0, 1, NOW(), 0, 0, 0
+SELECT NULL, '平台运行总览', 2, '/dashboard', 'dashboard:view',
+       20, 1, 1, NOW(), 0, 0, 0
 WHERE NOT EXISTS (
     SELECT 1 FROM sys_menu WHERE perms = 'dashboard:view' AND deleted = 0
 );
@@ -159,6 +159,16 @@ SET @dashboard_view_id = (
     WHERE perms = 'dashboard:view' AND deleted = 0
     ORDER BY id LIMIT 1
 );
+
+UPDATE sys_menu
+SET menu_name = '平台运行总览',
+    menu_type = 2,
+    path = '/dashboard',
+    sort_no = 20,
+    visible = 1,
+    status = 1,
+    deleted = 0
+WHERE id = @dashboard_view_id;
 
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT r.id, @dashboard_view_id
