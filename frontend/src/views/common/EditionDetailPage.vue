@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   getContest,
@@ -15,9 +15,14 @@ import {
   formatContestDateTime,
 } from '../../types/contest'
 import type { ContestDetail, EditionDetail, Milestone } from '../../types/contest'
+import { useContextualReturn } from '../../composables/useContextualReturn'
 
 const route = useRoute()
-const router = useRouter()
+const { returnLabel, handleReturn } = useContextualReturn({
+  defaultLabel: '返回竞赛中心',
+  defaultFallback: '/contests',
+  matchesPrevious: (path) => path.startsWith('/contests'),
+})
 const loading = ref(false)
 const edition = ref<EditionDetail | null>(null)
 const contest = ref<ContestDetail | null>(null)
@@ -66,7 +71,7 @@ onMounted(load)
   <main v-loading="loading" class="edition-detail-page">
     <header class="detail-header">
       <div>
-        <el-button link @click="router.back()">← 返回竞赛列表</el-button>
+        <el-button link @click="handleReturn">← {{ returnLabel }}</el-button>
         <p class="eyebrow">{{ contest?.contest_name || '竞赛届次' }}</p>
         <h1>{{ edition?.edition_name || '届次详情' }}</h1>
         <div v-if="edition" class="header-tags">

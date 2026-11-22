@@ -21,8 +21,14 @@ import type {
   ContestListQuery,
   EditionItem,
 } from '../../types/contest'
+import { useContextualReturn } from '../../composables/useContextualReturn'
 
 const router = useRouter()
+const { returnLabel, handleReturn } = useContextualReturn({
+  defaultLabel: '返回账号中心',
+  defaultFallback: '/',
+  matchesPrevious: (path) => path === '/',
+})
 const loading = ref(false)
 const contests = ref<ContestItem[]>([])
 const total = ref(0)
@@ -99,7 +105,9 @@ onMounted(loadContests)
         <p>查看已发布赛事与届次，确认当前报名和作品提交窗口。</p>
       </div>
       <div class="header-side">
-        <el-button class="back-button" plain @click="router.push('/')">返回账号中心</el-button>
+        <el-button class="back-button" plain @click="handleReturn">
+          ← {{ returnLabel }}
+        </el-button>
         <div class="filter-panel">
           <el-input
             v-model="filters.keyword"
