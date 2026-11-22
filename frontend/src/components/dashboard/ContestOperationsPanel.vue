@@ -27,7 +27,7 @@ const levelRows = computed(() =>
         <span class="eyebrow">CONTEST OPERATIONS</span>
         <h2>赛事运行摘要</h2>
       </div>
-      <span class="panel-meta">按已发布数据统计</span>
+      <span class="panel-meta">全部未删除届次（包含草稿）</span>
     </header>
 
     <div class="operation-summary">
