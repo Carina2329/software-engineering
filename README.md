@@ -31,6 +31,8 @@ mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-15-business-core-permiss
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-19-cn-province-dictionary-seed.sql
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-18-multitenant-permissions-seed.sql
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-18-multitenant-dev-seed.sql
+mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-24-team-registration-foundation.sql
+mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-24-team-registration-permissions-seed.sql
 
 # 3. 启动后端：用 IDEA 打开 backend/，运行 ContestApplication
 #    或命令行：cd backend && mvn spring-boot:run
@@ -56,6 +58,8 @@ mysql -uroot -proot123 contest_db < docs/sql/2026-11-15-business-core-permission
 mysql -uroot -proot123 contest_db < docs/sql/2026-11-19-cn-province-dictionary-seed.sql
 mysql -uroot -proot123 contest_db < docs/sql/2026-11-18-multitenant-permissions-seed.sql
 mysql -uroot -proot123 contest_db < docs/sql/2026-11-18-multitenant-dev-seed.sql
+mysql -uroot -proot123 contest_db < docs/sql/2026-11-24-team-registration-foundation.sql
+mysql -uroot -proot123 contest_db < docs/sql/2026-11-24-team-registration-permissions-seed.sql
 ```
 
 数据库名称由命令中的 `contest_db` 参数选择。不要把整套历史增量重复应用到由当前 `2026-11-08-contest-db-base.sql` 新建的数据库。
