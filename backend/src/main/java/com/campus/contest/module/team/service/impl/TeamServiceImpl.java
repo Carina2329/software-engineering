@@ -12,35 +12,58 @@ import com.campus.contest.module.contest.entity.ContestEditionDO;
 import com.campus.contest.module.contest.enums.EditionStatus;
 import com.campus.contest.module.organization.entity.OrganizationDO;
 import com.campus.contest.module.organization.mapper.OrganizationMapper;
+import com.campus.contest.module.system.dto.AuthorizationSnapshot;
 import com.campus.contest.module.system.entity.SysUserDO;
 import com.campus.contest.module.system.mapper.SysUserMapper;
+import com.campus.contest.module.system.service.AuthorizationSnapshotService;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamMemberInput;
 import com.campus.contest.module.team.dto.TeamPageQuery;
+import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.dto.TeamUpdateRequest;
 import com.campus.contest.module.team.entity.TeamDO;
 import com.campus.contest.module.team.entity.TeamMemberDO;
+import com.campus.contest.module.team.entity.TeamRegistrationAttachmentDO;
+import com.campus.contest.module.team.entity.TeamRegistrationDO;
+import com.campus.contest.module.team.entity.TeamTeacherApplicationDO;
 import com.campus.contest.module.team.enums.TeamStatus;
 import com.campus.contest.module.team.mapper.TeamMapper;
 import com.campus.contest.module.team.mapper.TeamMemberMapper;
+import com.campus.contest.module.team.mapper.TeamRegistrationAttachmentMapper;
+import com.campus.contest.module.team.mapper.TeamRegistrationMapper;
+import com.campus.contest.module.team.mapper.TeamTeacherApplicationMapper;
 import com.campus.contest.module.team.service.TeamAuditService;
 import com.campus.contest.module.team.service.TeamAuthorizationService;
 import com.campus.contest.module.team.service.TeamService;
+import com.campus.contest.module.team.support.model.RegistrationCheckMode;
+import com.campus.contest.module.team.support.model.RegistrationEligibilityContext;
+import com.campus.contest.module.team.support.model.RegistrationEligibilityResult;
+import com.campus.contest.module.team.support.model.RegistrationMemberSnapshot;
+import com.campus.contest.module.team.support.model.SchoolQuotaReservation;
+import com.campus.contest.module.team.support.service.RegistrationEligibilityService;
+import com.campus.contest.module.team.support.service.SchoolQuotaService;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamDetailVO;
 import com.campus.contest.module.team.vo.TeamMemberVO;
 import com.campus.contest.module.team.vo.TeamPageItemVO;
 import com.campus.contest.module.team.vo.TeamPageVO;
+import com.campus.contest.module.team.vo.TeamRegistrationSubmitVO;
+import com.campus.contest.module.team.vo.TeamRegistrationWithdrawVO;
 import com.campus.contest.module.team.vo.TeamVersionVO;
+import com.campus.contest.module.work.model.ValidatedRegistrationAttachment;
+import com.campus.contest.module.work.service.RegistrationAttachmentPolicy;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -63,11 +86,20 @@ public class TeamServiceImpl implements TeamService {
 
     private final TeamMapper teamMapper;
     private final TeamMemberMapper memberMapper;
+    private final TeamRegistrationMapper registrationMapper;
+    private final TeamRegistrationAttachmentMapper attachmentMapper;
+    private final TeamTeacherApplicationMapper teacherApplicationMapper;
     private final SysUserMapper userMapper;
     private final OrganizationMapper organizationMapper;
     private final TeamAuthorizationService authorizationService;
+    private final RegistrationEligibilityService eligibilityService;
+    private final SchoolQuotaService quotaService;
+    private final RegistrationAttachmentPolicy attachmentPolicy;
+    private final AuthorizationSnapshotService authorizationSnapshotService;
     private final TeamAuditService auditService;
     private final IdempotencyService idempotencyService;
+    private final ObjectMapper objectMapper;
+    private final Clock clock;
     private final TransactionTemplate transactionTemplate;
 
     @Override
@@ -155,7 +187,7 @@ public class TeamServiceImpl implements TeamService {
         ContestEditionDO edition = authorizationService.requireVisibleEdition(team.getEditionId());
         authorizationService.requireReadable(team);
         List<TeamMemberDO> activeMembers = listActiveMembers(teamId);
-        RegistrationView registration = registrationView(team, edition, activeMembers);
+        RegistrationView registration = registrationView(team);
         List<String> memberNames = activeMembers.stream()
                 .map(TeamMemberDO::getMemberName)
                 .toList();
@@ -255,6 +287,293 @@ public class TeamServiceImpl implements TeamService {
         );
     }
 
+    @Override
+    public TeamRegistrationSubmitVO submitRegistration(
+            Long teamId,
+            TeamRegistrationSubmitRequest request,
+            String idempotencyKey
+    ) {
+        if (request == null) {
+            throw invalidParam("请求体不能为空");
+        }
+        requireIdempotencyKey(idempotencyKey);
+        requireVersion(request.getVersion());
+        Long teacherId = parseId(request.getTeacherId(), "指导教师 ID");
+        List<Long> fileIds = parseFileIds(request.getAttachmentFileIds());
+        String remark = normalizeRemark(request.getRemark());
+        Long operatorId = authorizationService.currentUserId();
+        Map<String, Object> fingerprint = new LinkedHashMap<>();
+        fingerprint.put("team_id", String.valueOf(teamId));
+        fingerprint.put("version", request.getVersion());
+        fingerprint.put("teacher_id", String.valueOf(teacherId));
+        fingerprint.put("attachment_file_ids", fileIds);
+        fingerprint.put("remark", remark);
+        return executeIdempotently(
+                operatorId,
+                "TEAM_REGISTRATION_SUBMIT",
+                idempotencyKey,
+                fingerprint,
+                TeamRegistrationSubmitVO.class,
+                () -> doSubmitWithDuplicateHandling(
+                        teamId, request.getVersion(), teacherId, fileIds, remark, operatorId
+                )
+        );
+    }
+
+    @Override
+    public TeamRegistrationWithdrawVO withdrawRegistration(
+            Long teamId,
+            Integer version,
+            String idempotencyKey
+    ) {
+        requireIdempotencyKey(idempotencyKey);
+        requireVersion(version);
+        Long operatorId = authorizationService.currentUserId();
+        Map<String, Object> fingerprint = Map.of(
+                "team_id", String.valueOf(teamId),
+                "registration_version", version
+        );
+        return executeIdempotently(
+                operatorId,
+                "TEAM_REGISTRATION_WITHDRAW",
+                idempotencyKey,
+                fingerprint,
+                TeamRegistrationWithdrawVO.class,
+                () -> doWithdraw(teamId, version, operatorId)
+        );
+    }
+
+    private TeamRegistrationSubmitVO doSubmitWithDuplicateHandling(
+            Long teamId,
+            Integer teamVersion,
+            Long teacherId,
+            List<Long> fileIds,
+            String remark,
+            Long operatorId
+    ) {
+        try {
+            TeamRegistrationSubmitVO result = transactionTemplate.execute(status ->
+                    doSubmit(teamId, teamVersion, teacherId, fileIds, remark, operatorId)
+            );
+            if (result == null) {
+                throw new IllegalStateException("提交报名事务未返回结果");
+            }
+            return result;
+        } catch (DuplicateKeyException exception) {
+            throw new BizException(
+                    ErrorCode.DUPLICATE_RELATION.getCode(),
+                    "报名轮次或附件关系重复"
+            );
+        }
+    }
+
+    private TeamRegistrationSubmitVO doSubmit(
+            Long teamId,
+            Integer teamVersion,
+            Long teacherId,
+            List<Long> fileIds,
+            String remark,
+            Long operatorId
+    ) {
+        TeamDO team = requireLockedTeam(teamId);
+        authorizationService.requireLeader(team);
+        requireEditable(team);
+        if (!Objects.equals(team.getVersion(), teamVersion)) {
+            throw versionConflict();
+        }
+        ContestEditionDO edition = authorizationService.requireVisibleEdition(team.getEditionId());
+        RegistrationEligibilityResult eligibility = eligibilityService.checkCanRegister(
+                new RegistrationEligibilityContext(
+                        teamId,
+                        edition.getId(),
+                        null,
+                        RegistrationCheckMode.SUBMIT
+                )
+        );
+        if (!eligibility.canRegister()) {
+            throw registrationConflict(eligibility);
+        }
+        SysUserDO teacher = requireAvailableTeacher(teacherId);
+        List<TeamMemberDO> members = listActiveMembers(teamId);
+        List<ValidatedRegistrationAttachment> attachments =
+                attachmentPolicy.validateForCaptain(operatorId, teamId, fileIds);
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        TeamRegistrationDO registration = new TeamRegistrationDO();
+        registration.setTeamId(teamId);
+        registration.setEditionId(edition.getId());
+        registration.setRoundNo(registrationMapper.selectMaxRoundNo(teamId) + 1);
+        registration.setStatus("PENDING_TEACHER");
+        registration.setRemark(remark);
+        registration.setMembersSnapshot(serialize(memberSnapshots(members), "成员快照序列化失败"));
+        registration.setEligibilitySnapshot(serialize(
+                eligibilitySnapshot(eligibility, now),
+                "资格快照序列化失败"
+        ));
+        registration.setQuotaHeld(0);
+        registration.setSubmittedAt(now);
+        registration.setCreatedAt(now);
+        registration.setCreatedBy(operatorId);
+        registration.setUpdatedAt(now);
+        registration.setUpdatedBy(operatorId);
+        registration.setDeleted(0);
+        registration.setVersion(0);
+        registrationMapper.insert(registration);
+
+        Long quotaSchoolId = eligibility.quotaSchoolId();
+        if (quotaSchoolId == null) {
+            throw new BizException(
+                    ErrorCode.BUSINESS_CONFLICT.getCode(),
+                    "报名资格结果缺少名额学校"
+            );
+        }
+        SchoolQuotaReservation reservation = quotaService.occupy(
+                registration.getId(),
+                edition.getId(),
+                quotaSchoolId
+        );
+        if (reservation.schoolId() != null && !Objects.equals(reservation.schoolId(), quotaSchoolId)) {
+            throw new BizException(
+                    ErrorCode.BUSINESS_CONFLICT.getCode(),
+                    "学校名额占用学校不匹配"
+            );
+        }
+
+        for (int index = 0; index < attachments.size(); index++) {
+            ValidatedRegistrationAttachment attachment = attachments.get(index);
+            TeamRegistrationAttachmentDO mapping = new TeamRegistrationAttachmentDO();
+            mapping.setRegistrationId(registration.getId());
+            mapping.setFileId(attachment.fileId());
+            mapping.setFileType(attachment.materialType());
+            mapping.setSortNo(index);
+            mapping.setCreatedAt(now);
+            mapping.setCreatedBy(operatorId);
+            attachmentMapper.insert(mapping);
+        }
+
+        TeamTeacherApplicationDO application = new TeamTeacherApplicationDO();
+        application.setRegistrationId(registration.getId());
+        application.setTeacherId(teacher.getId());
+        application.setStatus("PENDING");
+        application.setAppliedAt(now);
+        application.setCreatedAt(now);
+        application.setCreatedBy(operatorId);
+        application.setUpdatedAt(now);
+        application.setUpdatedBy(operatorId);
+        application.setDeleted(0);
+        application.setVersion(0);
+        teacherApplicationMapper.insert(application);
+
+        TeamDO update = new TeamDO();
+        update.setId(teamId);
+        update.setStatus(TeamStatus.PENDING_TEACHER.databaseValue());
+        update.setTeacherId(null);
+        update.setCurrentRegistrationId(registration.getId());
+        update.setUpdatedAt(now);
+        update.setUpdatedBy(operatorId);
+        update.setVersion(teamVersion);
+        if (teamMapper.updateById(update) != 1) {
+            throw versionConflict();
+        }
+
+        auditService.record(operatorId, "TEAM_REGISTRATION_SUBMIT", Map.of(
+                "team_id", String.valueOf(teamId),
+                "registration_id", String.valueOf(registration.getId()),
+                "round_no", registration.getRoundNo(),
+                "teacher_id", String.valueOf(teacherId),
+                "attachment_count", attachments.size()
+        ));
+        return new TeamRegistrationSubmitVO(
+                String.valueOf(teamId),
+                TeamStatus.PENDING_TEACHER.name(),
+                teamVersion + 1,
+                String.valueOf(registration.getId()),
+                registration.getRoundNo()
+        );
+    }
+
+    private TeamRegistrationWithdrawVO doWithdraw(
+            Long teamId,
+            Integer registrationVersion,
+            Long operatorId
+    ) {
+        TeamDO team = requireLockedTeam(teamId);
+        authorizationService.requireLeader(team);
+        TeamStatus teamStatus = TeamStatus.fromDatabaseValue(team.getStatus());
+        if (teamStatus != TeamStatus.PENDING_TEACHER
+                && teamStatus != TeamStatus.PENDING_ADMIN) {
+            throw new BizException(
+                    ErrorCode.INVALID_STATE_TRANSITION.getCode(),
+                    "当前队伍状态不允许撤回报名"
+            );
+        }
+        if (team.getCurrentRegistrationId() == null) {
+            throw new BizException(ErrorCode.BUSINESS_CONFLICT.getCode(), "当前队伍没有报名轮次");
+        }
+        TeamRegistrationDO registration = registrationMapper.selectActiveByIdForUpdate(
+                team.getCurrentRegistrationId()
+        );
+        if (registration == null
+                || !Objects.equals(registration.getTeamId(), teamId)
+                || !Objects.equals(registration.getVersion(), registrationVersion)) {
+            throw versionConflict();
+        }
+        if (!"PENDING_TEACHER".equals(registration.getStatus())
+                && !"PENDING_ADMIN".equals(registration.getStatus())) {
+            throw new BizException(
+                    ErrorCode.INVALID_STATE_TRANSITION.getCode(),
+                    "当前报名轮次不允许撤回"
+            );
+        }
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        quotaService.release(registration.getId());
+        if (teacherApplicationMapper.withdrawCurrent(
+                registration.getId(),
+                operatorId,
+                now,
+                "队长撤回报名"
+        ) == 0) {
+            throw new BizException(
+                    ErrorCode.BUSINESS_CONFLICT.getCode(),
+                    "教师申请状态异常，无法撤回"
+            );
+        }
+
+        TeamRegistrationDO registrationUpdate = new TeamRegistrationDO();
+        registrationUpdate.setId(registration.getId());
+        registrationUpdate.setStatus("WITHDRAWN");
+        registrationUpdate.setWithdrawnAt(now);
+        registrationUpdate.setUpdatedAt(now);
+        registrationUpdate.setUpdatedBy(operatorId);
+        registrationUpdate.setVersion(registrationVersion);
+        if (registrationMapper.updateById(registrationUpdate) != 1) {
+            throw versionConflict();
+        }
+
+        TeamDO teamUpdate = new TeamDO();
+        teamUpdate.setId(teamId);
+        teamUpdate.setStatus(TeamStatus.WITHDRAWN.databaseValue());
+        teamUpdate.setTeacherId(null);
+        teamUpdate.setUpdatedAt(now);
+        teamUpdate.setUpdatedBy(operatorId);
+        teamUpdate.setVersion(team.getVersion());
+        if (teamMapper.updateById(teamUpdate) != 1) {
+            throw versionConflict();
+        }
+
+        auditService.record(operatorId, "TEAM_REGISTRATION_WITHDRAW", Map.of(
+                "team_id", String.valueOf(teamId),
+                "registration_id", String.valueOf(registration.getId()),
+                "registration_version", registrationVersion
+        ));
+        return new TeamRegistrationWithdrawVO(
+                String.valueOf(teamId),
+                String.valueOf(registration.getId()),
+                "WITHDRAWN",
+                registrationVersion + 1
+        );
+    }
     private TeamCreateVO doCreateWithDuplicateHandling(
             Long editionId,
             String teamName,
@@ -645,45 +964,144 @@ public class TeamServiceImpl implements TeamService {
         ) > 0;
     }
 
-    private RegistrationView registrationView(
-            TeamDO team,
-            ContestEditionDO edition,
-            List<TeamMemberDO> members
+    private SysUserDO requireAvailableTeacher(Long teacherId) {
+        SysUserDO teacher = userMapper.selectById(teacherId);
+        if (teacher == null || !Integer.valueOf(1).equals(teacher.getStatus())) {
+            throw invalidParam("指导教师不存在或已停用");
+        }
+        requireActiveSchool(teacher.getSchoolId());
+        AuthorizationSnapshot snapshot = authorizationSnapshotService.loadRequired(teacherId);
+        if (!snapshot.roleCodes().contains("TEACHER")) {
+            throw invalidParam("所选用户不是指导教师");
+        }
+        return teacher;
+    }
+
+    private List<Long> parseFileIds(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            throw invalidParam("报名附件不能为空");
+        }
+        List<Long> result = new ArrayList<>(values.size());
+        Set<Long> seen = new HashSet<>();
+        for (String value : values) {
+            Long fileId = parseId(value, "附件 ID");
+            if (!seen.add(fileId)) {
+                throw invalidParam("报名附件 ID 不能重复");
+            }
+            result.add(fileId);
+        }
+        return List.copyOf(result);
+    }
+
+    private String normalizeRemark(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        if (normalized.length() > 500) {
+            throw invalidParam("报名说明不能超过 500 个字符");
+        }
+        return normalized;
+    }
+
+    private List<RegistrationMemberSnapshot> memberSnapshots(List<TeamMemberDO> members) {
+        return members.stream()
+                .sorted(java.util.Comparator
+                        .comparing((TeamMemberDO member) ->
+                                Integer.valueOf(1).equals(member.getIsLeader()))
+                        .reversed()
+                        .thenComparing(TeamMemberDO::getId))
+                .map(member -> new RegistrationMemberSnapshot(
+                        member.getId(),
+                        member.getUserId(),
+                        member.getMemberName(),
+                        member.getSchoolId(),
+                        member.getStudentNo(),
+                        Integer.valueOf(1).equals(member.getIsLeader())
+                ))
+                .toList();
+    }
+
+    private Map<String, Object> eligibilitySnapshot(
+            RegistrationEligibilityResult result,
+            LocalDateTime now
     ) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("can_register", result.canRegister());
+        snapshot.put("register_state", result.registerState());
+        snapshot.put("reason", result.reason());
+        snapshot.put("entry_grant_id", result.entryGrantId() == null
+                ? null : String.valueOf(result.entryGrantId()));
+        snapshot.put("quota_school_id", result.quotaSchoolId() == null
+                ? null : String.valueOf(result.quotaSchoolId()));
+        snapshot.put("quota_id", result.quotaId() == null
+                ? null : String.valueOf(result.quotaId()));
+        snapshot.put("max_teams", result.maxTeams());
+        snapshot.put("used_teams", result.usedTeams());
+        snapshot.put("captured_at", now.atZone(BUSINESS_ZONE)
+                .toOffsetDateTime()
+                .toString());
+        return snapshot;
+    }
+
+    private String serialize(Object value, String errorMessage) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR.getCode(), errorMessage);
+        }
+    }
+
+    private BizException registrationConflict(RegistrationEligibilityResult result) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("can_register", false);
+        data.put("register_state", result.registerState());
+        data.put("reason", result.reason());
+        data.put("quota_school_id", result.quotaSchoolId() == null
+                ? null : String.valueOf(result.quotaSchoolId()));
+        data.put("quota_id", result.quotaId() == null
+                ? null : String.valueOf(result.quotaId()));
+        data.put("max_teams", result.maxTeams());
+        data.put("used_teams", result.usedTeams());
+        return new BizException(
+                ErrorCode.BUSINESS_CONFLICT.getCode(),
+                result.reason() == null ? "当前队伍不满足报名资格" : result.reason(),
+                data
+        );
+    }
+    private RegistrationView registrationView(TeamDO team) {
         TeamStatus status = TeamStatus.fromDatabaseValue(team.getStatus());
         if (status == TeamStatus.PENDING_TEACHER
                 || status == TeamStatus.PENDING_ADMIN
                 || status == TeamStatus.APPROVED) {
             return new RegistrationView(false, "ALREADY_REGISTERED", "当前队伍已进入报名流程");
         }
-        int minimum = edition.getMinTeamSize() == null ? 1 : edition.getMinTeamSize();
-        int maximum = edition.getMaxTeamSize() == null
-                ? MAX_MEMBERS : Math.min(edition.getMaxTeamSize(), MAX_MEMBERS);
-        if (members.size() < minimum || members.size() > maximum) {
-            return new RegistrationView(false, "MEMBERS_INVALID", "队伍人数不符合届次要求");
+        RegistrationEligibilityResult result = eligibilityService.checkCanRegister(
+                new RegistrationEligibilityContext(
+                        team.getId(),
+                        team.getEditionId(),
+                        null,
+                        RegistrationCheckMode.SUBMIT
+                )
+        );
+        return new RegistrationView(
+                result.canRegister(),
+                result.registerState(),
+                result.reason()
+        );
+    }
+
+    private Integer currentRegistrationVersion(TeamDO team) {
+        if (team.getCurrentRegistrationId() == null) {
+            return null;
         }
-        if (!Integer.valueOf(1).equals(edition.getCrossSchoolTeamAllowed())) {
-            long schoolCount = members.stream()
-                    .map(TeamMemberDO::getSchoolId)
-                    .filter(Objects::nonNull)
-                    .distinct()
-                    .count();
-            if (schoolCount > 1) {
-                return new RegistrationView(false, "MEMBERS_INVALID", "该届次不允许跨校组队");
-            }
-        }
-        if (!Integer.valueOf(EditionStatus.REGISTERING.getDatabaseValue()).equals(edition.getStatus())
-                || edition.getRegisterDeadline() == null
-                || LocalDateTime.now(BUSINESS_ZONE).isAfter(edition.getRegisterDeadline())) {
-            return new RegistrationView(false, "DEADLINE_PASSED", "当前不在报名开放时间内");
-        }
-        if ("INVITED".equalsIgnoreCase(edition.getEntryMode())) {
-            return new RegistrationView(false, "NOT_INVITED", "该届次仅允许受邀队伍报名，资格校验尚未接入");
-        }
-        if ("QUALIFIED".equalsIgnoreCase(edition.getEntryMode())) {
-            return new RegistrationView(false, "NOT_QUALIFIED", "该届次仅允许荣获资格的队伍报名，资格校验尚未接入");
-        }
-        return new RegistrationView(true, "OPEN", "当前队伍可以提交报名");
+        TeamRegistrationDO registration = registrationMapper.selectById(
+                team.getCurrentRegistrationId()
+        );
+        return registration == null ? null : registration.getVersion();
     }
 
     private void applySort(LambdaQueryWrapper<TeamDO> wrapper, String sort) {
@@ -873,4 +1291,3 @@ public class TeamServiceImpl implements TeamService {
     private record RegistrationView(boolean canRegister, String state, String reason) {
     }
 }
-

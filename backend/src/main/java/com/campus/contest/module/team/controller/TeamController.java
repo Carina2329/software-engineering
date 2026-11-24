@@ -3,12 +3,15 @@ package com.campus.contest.module.team.controller;
 import com.campus.contest.common.Result;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamPageQuery;
+import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.dto.TeamUpdateRequest;
 import com.campus.contest.module.team.service.TeamService;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamDetailVO;
 import com.campus.contest.module.team.vo.TeamMemberVO;
 import com.campus.contest.module.team.vo.TeamPageVO;
+import com.campus.contest.module.team.vo.TeamRegistrationSubmitVO;
+import com.campus.contest.module.team.vo.TeamRegistrationWithdrawVO;
 import com.campus.contest.module.team.vo.TeamVersionVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -94,5 +97,28 @@ public class TeamController {
     ) {
         teamService.removeMember(teamId, memberId, version, idempotencyKey);
         return Result.ok(null);
+    }
+
+    /** EP-033 */
+    @PostMapping("/teams/{team_id}/registration")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @PreAuthorize("hasAuthority('team:registration:submit')")
+    public Result<TeamRegistrationSubmitVO> submitRegistration(
+            @PathVariable("team_id") Long teamId,
+            @Valid @RequestBody TeamRegistrationSubmitRequest request,
+            @RequestHeader("Idempotency-Key") String idempotencyKey
+    ) {
+        return Result.ok(teamService.submitRegistration(teamId, request, idempotencyKey));
+    }
+
+    /** EP-080 */
+    @DeleteMapping("/teams/{team_id}/registration")
+    @PreAuthorize("hasAuthority('team:registration:submit')")
+    public Result<TeamRegistrationWithdrawVO> withdrawRegistration(
+            @PathVariable("team_id") Long teamId,
+            @RequestParam("version") Integer version,
+            @RequestHeader("Idempotency-Key") String idempotencyKey
+    ) {
+        return Result.ok(teamService.withdrawRegistration(teamId, version, idempotencyKey));
     }
 }

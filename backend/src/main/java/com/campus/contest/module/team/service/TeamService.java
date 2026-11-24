@@ -2,11 +2,14 @@ package com.campus.contest.module.team.service;
 
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamPageQuery;
+import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.dto.TeamUpdateRequest;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamDetailVO;
 import com.campus.contest.module.team.vo.TeamMemberVO;
 import com.campus.contest.module.team.vo.TeamPageVO;
+import com.campus.contest.module.team.vo.TeamRegistrationSubmitVO;
+import com.campus.contest.module.team.vo.TeamRegistrationWithdrawVO;
 import com.campus.contest.module.team.vo.TeamVersionVO;
 
 import java.util.List;
@@ -24,4 +27,16 @@ public interface TeamService {
     List<TeamMemberVO> members(Long teamId);
 
     void removeMember(Long teamId, Long memberId, Integer version, String idempotencyKey);
+
+    TeamRegistrationSubmitVO submitRegistration(
+            Long teamId,
+            TeamRegistrationSubmitRequest request,
+            String idempotencyKey
+    );
+
+    TeamRegistrationWithdrawVO withdrawRegistration(
+            Long teamId,
+            Integer version,
+            String idempotencyKey
+    );
 }

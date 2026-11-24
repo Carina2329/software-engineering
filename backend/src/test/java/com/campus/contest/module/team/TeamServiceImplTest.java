@@ -7,20 +7,38 @@ import com.campus.contest.module.contest.entity.ContestEditionDO;
 import com.campus.contest.module.contest.enums.EditionStatus;
 import com.campus.contest.module.organization.entity.OrganizationDO;
 import com.campus.contest.module.organization.mapper.OrganizationMapper;
+import com.campus.contest.module.system.dto.AuthorizationSnapshot;
 import com.campus.contest.module.system.entity.SysUserDO;
 import com.campus.contest.module.system.mapper.SysUserMapper;
+import com.campus.contest.module.system.service.AuthorizationSnapshotService;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamMemberInput;
+import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.dto.TeamUpdateRequest;
 import com.campus.contest.module.team.entity.TeamDO;
 import com.campus.contest.module.team.entity.TeamMemberDO;
+import com.campus.contest.module.team.entity.TeamRegistrationAttachmentDO;
+import com.campus.contest.module.team.entity.TeamRegistrationDO;
+import com.campus.contest.module.team.entity.TeamTeacherApplicationDO;
 import com.campus.contest.module.team.enums.TeamStatus;
 import com.campus.contest.module.team.mapper.TeamMapper;
 import com.campus.contest.module.team.mapper.TeamMemberMapper;
+import com.campus.contest.module.team.mapper.TeamRegistrationAttachmentMapper;
+import com.campus.contest.module.team.mapper.TeamRegistrationMapper;
+import com.campus.contest.module.team.mapper.TeamTeacherApplicationMapper;
 import com.campus.contest.module.team.service.TeamAuditService;
 import com.campus.contest.module.team.service.TeamAuthorizationService;
 import com.campus.contest.module.team.service.impl.TeamServiceImpl;
+import com.campus.contest.module.team.support.model.RegistrationEligibilityResult;
+import com.campus.contest.module.team.support.model.SchoolQuotaReservation;
+import com.campus.contest.module.team.support.service.RegistrationEligibilityService;
+import com.campus.contest.module.team.support.service.SchoolQuotaService;
 import com.campus.contest.module.team.vo.TeamCreateVO;
+import com.campus.contest.module.team.vo.TeamRegistrationSubmitVO;
+import com.campus.contest.module.team.vo.TeamRegistrationWithdrawVO;
+import com.campus.contest.module.work.model.ValidatedRegistrationAttachment;
+import com.campus.contest.module.work.service.RegistrationAttachmentPolicy;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,8 +46,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,11 +73,25 @@ class TeamServiceImplTest {
     @Mock
     private TeamMemberMapper memberMapper;
     @Mock
+    private TeamRegistrationMapper registrationMapper;
+    @Mock
+    private TeamRegistrationAttachmentMapper attachmentMapper;
+    @Mock
+    private TeamTeacherApplicationMapper teacherApplicationMapper;
+    @Mock
     private SysUserMapper userMapper;
     @Mock
     private OrganizationMapper organizationMapper;
     @Mock
     private TeamAuthorizationService authorizationService;
+    @Mock
+    private RegistrationEligibilityService eligibilityService;
+    @Mock
+    private SchoolQuotaService quotaService;
+    @Mock
+    private RegistrationAttachmentPolicy attachmentPolicy;
+    @Mock
+    private AuthorizationSnapshotService authorizationSnapshotService;
     @Mock
     private TeamAuditService auditService;
 
@@ -63,19 +99,31 @@ class TeamServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        Clock clock = Clock.fixed(
+                Instant.parse("2026-11-24T10:00:00Z"),
+                ZoneId.of("Asia/Shanghai")
+        );
         service = new TeamServiceImpl(
                 teamMapper,
                 memberMapper,
+                registrationMapper,
+                attachmentMapper,
+                teacherApplicationMapper,
                 userMapper,
                 organizationMapper,
                 authorizationService,
+                eligibilityService,
+                quotaService,
+                attachmentPolicy,
+                authorizationSnapshotService,
                 auditService,
                 TestInfrastructure.passthroughIdempotencyService(),
+                new ObjectMapper(),
+                clock,
                 TestInfrastructure.transactionTemplate()
         );
         lenient().when(authorizationService.currentUserId()).thenReturn(USER_ID);
     }
-
     @Test
     @DisplayName("已验证学校的学生创建 DRAFT 队伍并自动写入队长快照")
     void createsDraftTeamWithLeaderMember() {
@@ -185,6 +233,134 @@ class TeamServiceImplTest {
         verify(memberMapper, never()).updateById(any(TeamMemberDO.class));
     }
 
+    @Test
+    @DisplayName("资格通过时创建报名轮次、占用名额并创建附件和教师申请")
+    void submitsRegistrationAndCreatesRound() {
+        TeamDO team = team();
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
+        when(authorizationService.requireVisibleEdition(1L)).thenReturn(edition(1L));
+        when(eligibilityService.checkCanRegister(any())).thenReturn(eligible());
+        when(userMapper.selectById(8L)).thenReturn(teacher());
+        when(organizationMapper.selectById(SCHOOL_ID)).thenReturn(school());
+        when(authorizationSnapshotService.loadRequired(8L)).thenReturn(teacherSnapshot());
+        when(memberMapper.selectList(any())).thenReturn(List.of(leaderMember()));
+        when(attachmentPolicy.validateForCaptain(USER_ID, TEAM_ID, List.of(300L)))
+                .thenReturn(List.of(new ValidatedRegistrationAttachment(
+                        300L, "报名表.pdf", "application/pdf", 1024L,
+                        "REGISTRATION_ATTACHMENT"
+                )));
+        when(registrationMapper.selectMaxRoundNo(TEAM_ID)).thenReturn(0);
+        when(registrationMapper.insert(any(TeamRegistrationDO.class))).thenAnswer(invocation -> {
+            TeamRegistrationDO registration = invocation.getArgument(0);
+            registration.setId(700L);
+            return 1;
+        });
+        when(quotaService.occupy(700L, 1L, SCHOOL_ID))
+                .thenReturn(new SchoolQuotaReservation(1L, SCHOOL_ID, 10, 1, true, true));
+        when(teamMapper.updateById(any(TeamDO.class))).thenReturn(1);
+
+        TeamRegistrationSubmitVO result = service.submitRegistration(
+                TEAM_ID, registrationRequest(), "submit-key"
+        );
+
+        assertThat(result.registrationId()).isEqualTo("700");
+        assertThat(result.roundNo()).isEqualTo(1);
+        assertThat(result.status()).isEqualTo("PENDING_TEACHER");
+        verify(registrationMapper).insert(any(TeamRegistrationDO.class));
+        verify(quotaService).occupy(700L, 1L, SCHOOL_ID);
+        verify(attachmentMapper).insert(any(TeamRegistrationAttachmentDO.class));
+        verify(teacherApplicationMapper).insert(any(TeamTeacherApplicationDO.class));
+        verify(teamMapper).updateById(any(TeamDO.class));
+    }
+
+    @Test
+    @DisplayName("资格不通过时返回 409 数据且不创建报名轮次")
+    void rejectsSubmissionWhenEligibilityFails() {
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team());
+        when(authorizationService.requireVisibleEdition(1L)).thenReturn(edition(1L));
+        when(eligibilityService.checkCanRegister(any())).thenReturn(new RegistrationEligibilityResult(
+                false, "NOT_QUALIFIED", "当前队伍不在晋级名单中",
+                null, SCHOOL_ID, null, null, null
+        ));
+
+        assertThatThrownBy(() -> service.submitRegistration(
+                TEAM_ID, registrationRequest(), "submit-key"
+        )).isInstanceOfSatisfying(BizException.class, error -> {
+            assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_CONFLICT.getCode());
+            assertThat(error.getData()).isInstanceOf(java.util.Map.class);
+        });
+        verify(registrationMapper, never()).insert(any(TeamRegistrationDO.class));
+        verify(quotaService, never()).occupy(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("队长撤回当前报名时释放名额并创建新的报名版本")
+    void withdrawsRegistrationAndReleasesQuota() {
+        TeamDO team = team();
+        team.setStatus(TeamStatus.PENDING_TEACHER.databaseValue());
+        team.setCurrentRegistrationId(700L);
+        TeamRegistrationDO registration = registration();
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
+        when(registrationMapper.selectActiveByIdForUpdate(700L)).thenReturn(registration);
+        when(teacherApplicationMapper.withdrawCurrent(
+                700L, USER_ID, LocalDateTime.of(2026, 11, 24, 18, 0), "队长撤回报名"
+        )).thenReturn(1);
+        when(registrationMapper.updateById(any(TeamRegistrationDO.class))).thenReturn(1);
+        when(teamMapper.updateById(any(TeamDO.class))).thenReturn(1);
+
+        TeamRegistrationWithdrawVO result = service.withdrawRegistration(
+                TEAM_ID, 0, "withdraw-key"
+        );
+
+        assertThat(result.status()).isEqualTo("WITHDRAWN");
+        assertThat(result.version()).isEqualTo(1);
+        verify(quotaService).release(700L);
+        verify(registrationMapper).updateById(any(TeamRegistrationDO.class));
+        verify(teamMapper).updateById(any(TeamDO.class));
+    }
+    private TeamRegistrationSubmitRequest registrationRequest() {
+        TeamRegistrationSubmitRequest request = new TeamRegistrationSubmitRequest();
+        request.setVersion(0);
+        request.setTeacherId("8");
+        request.setAttachmentFileIds(List.of("300"));
+        request.setRemark("第一次报名");
+        return request;
+    }
+
+    private RegistrationEligibilityResult eligible() {
+        return new RegistrationEligibilityResult(
+                true, "OPEN", null, null, SCHOOL_ID, 1L, 10, 1
+        );
+    }
+
+    private SysUserDO teacher() {
+        SysUserDO teacher = new SysUserDO();
+        teacher.setId(8L);
+        teacher.setRealName("教师甲");
+        teacher.setSchoolId(SCHOOL_ID);
+        teacher.setStatus(1);
+        return teacher;
+    }
+
+    private AuthorizationSnapshot teacherSnapshot() {
+        return new AuthorizationSnapshot(
+                8L, "teacher_a", 1, Set.of("TEACHER"), Set.of(), Set.of("GUIDED")
+        );
+    }
+
+    private TeamRegistrationDO registration() {
+        TeamRegistrationDO registration = new TeamRegistrationDO();
+        registration.setId(700L);
+        registration.setTeamId(TEAM_ID);
+        registration.setEditionId(1L);
+        registration.setRoundNo(1);
+        registration.setStatus("PENDING_TEACHER");
+        registration.setMembersSnapshot("[]");
+        registration.setQuotaHeld(1);
+        registration.setQuotaSchoolId(SCHOOL_ID);
+        registration.setVersion(0);
+        return registration;
+    }
     private TeamCreateRequest createRequest(String teamName) {
         TeamCreateRequest request = new TeamCreateRequest();
         request.setTeamName(teamName);
