@@ -44,8 +44,22 @@ public class TeamController {
     @PreAuthorize("hasAuthority('team:list')")
     public Result<TeamPageVO> list(
             @PathVariable("edition_id") Long editionId,
-            @ModelAttribute TeamPageQuery query
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size,
+            @RequestParam(value = "sort", required = false) String sort,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "topic_id", required = false) String topicId,
+            @RequestParam(value = "teacher_id", required = false) String teacherId,
+            @RequestParam(value = "keyword", required = false) String keyword
     ) {
+        TeamPageQuery query = new TeamPageQuery();
+        query.setPage(page);
+        query.setSize(size);
+        query.setSort(sort);
+        query.setStatus(status);
+        query.setTopicId(topicId);
+        query.setTeacherId(teacherId);
+        query.setKeyword(keyword);
         return Result.ok(teamService.list(editionId, query));
     }
 

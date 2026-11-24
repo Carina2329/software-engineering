@@ -4,6 +4,7 @@ import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
 import com.campus.contest.module.contest.entity.ContestEditionDO;
 import com.campus.contest.module.contest.mapper.ContestAccessMapper;
+import com.campus.contest.module.contest.mapper.ContestEditionMapper;
 import com.campus.contest.module.contest.service.ContestAuthorizationService;
 import com.campus.contest.module.organization.entity.OrganizationDO;
 import com.campus.contest.module.organization.mapper.OrganizationMapper;
@@ -39,6 +40,8 @@ class TeamAuthorizationServiceTest {
     @Mock
     private ContestAccessMapper contestAccessMapper;
     @Mock
+    private ContestEditionMapper contestEditionMapper;
+    @Mock
     private SysUserMapper userMapper;
     @Mock
     private OrganizationMapper organizationMapper;
@@ -53,6 +56,7 @@ class TeamAuthorizationServiceTest {
                 currentUserProvider,
                 contestAuthorizationService,
                 contestAccessMapper,
+                contestEditionMapper,
                 userMapper,
                 organizationMapper,
                 teacherApplicationMapper
@@ -106,6 +110,19 @@ class TeamAuthorizationServiceTest {
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    @DisplayName("外校待确认教师可以读取不可见届次的待审核队伍")
+    void pendingTeacherCanReadUnlistedEdition() {
+        TeamDO team = team();
+        team.setCurrentRegistrationId(700L);
+        ContestEditionDO edition = edition();
+        when(teacherApplicationMapper.selectCount(any())).thenReturn(1L);
+        when(contestEditionMapper.selectById(1L)).thenReturn(edition);
+
+        org.assertj.core.api.Assertions.assertThat(
+                service.requireEditionForTeamRead(team)
+        ).isSameAs(edition);
+    }
     @Test
     @DisplayName("教师确认前可以通过待处理申请查看队伍")
     void pendingTeacherCanReadTeamBeforeConfirmation() {

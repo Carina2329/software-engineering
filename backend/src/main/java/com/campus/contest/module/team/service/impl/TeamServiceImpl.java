@@ -183,9 +183,6 @@ public class TeamServiceImpl implements TeamService {
         requireIdempotencyKey(idempotencyKey);
         String teamName = normalizeTeamName(request.getTeamName());
         Long operatorId = authorizationService.currentUserId();
-        ContestEditionDO edition = authorizationService.requireVisibleEdition(editionId);
-        requireRegistrationWindow(edition);
-        SysUserDO leader = requireVerifiedLeader(operatorId);
         Map<String, Object> fingerprint = new LinkedHashMap<>();
         fingerprint.put("edition_id", String.valueOf(editionId));
         fingerprint.put("team_name", teamName);
@@ -197,14 +194,14 @@ public class TeamServiceImpl implements TeamService {
                 idempotencyKey,
                 fingerprint,
                 TeamCreateVO.class,
-                () -> doCreateWithDuplicateHandling(editionId, teamName, operatorId, leader)
+                () -> doCreateWithDuplicateHandling(editionId, teamName, operatorId)
         );
     }
 
     @Override
     public TeamDetailVO detail(Long teamId) {
         TeamDO team = requireTeam(teamId);
-        ContestEditionDO edition = authorizationService.requireVisibleEdition(team.getEditionId());
+        ContestEditionDO edition = authorizationService.requireEditionForTeamRead(team);
         authorizationService.requireReadable(team, edition);
         List<TeamMemberDO> activeMembers = listActiveMembers(teamId);
         RegistrationView registration = registrationView(team);
@@ -264,7 +261,7 @@ public class TeamServiceImpl implements TeamService {
     @Override
     public List<TeamMemberVO> members(Long teamId) {
         TeamDO team = requireTeam(teamId);
-        ContestEditionDO edition = authorizationService.requireVisibleEdition(team.getEditionId());
+        ContestEditionDO edition = authorizationService.requireEditionForTeamRead(team);
         authorizationService.requireReadable(team, edition);
         return listActiveMembers(teamId).stream()
                 .map(member -> TeamMemberVO.from(
@@ -578,14 +575,13 @@ public class TeamServiceImpl implements TeamService {
             throw versionConflict();
         }
 
-        TeamDO teamUpdate = new TeamDO();
-        teamUpdate.setId(teamId);
-        teamUpdate.setStatus(TeamStatus.WITHDRAWN.databaseValue());
-        teamUpdate.setTeacherId(null);
-        teamUpdate.setUpdatedAt(now);
-        teamUpdate.setUpdatedBy(operatorId);
-        teamUpdate.setVersion(team.getVersion());
-        if (teamMapper.updateById(teamUpdate) != 1) {
+        if (teamMapper.withdrawAndClearTeacher(
+                teamId,
+                team.getVersion(),
+                operatorId,
+                now,
+                TeamStatus.WITHDRAWN.databaseValue()
+        ) != 1) {
             throw versionConflict();
         }
 
@@ -604,13 +600,15 @@ public class TeamServiceImpl implements TeamService {
     private TeamCreateVO doCreateWithDuplicateHandling(
             Long editionId,
             String teamName,
-            Long operatorId,
-            SysUserDO leader
+            Long operatorId
     ) {
         try {
-            TeamCreateVO result = transactionTemplate.execute(status ->
-                    doCreate(editionId, teamName, operatorId, leader)
-            );
+            TeamCreateVO result = transactionTemplate.execute(status -> {
+                ContestEditionDO edition = authorizationService.requireVisibleEdition(editionId);
+                requireRegistrationWindow(edition);
+                SysUserDO leader = requireVerifiedLeader(operatorId);
+                return doCreate(editionId, teamName, operatorId, leader);
+            });
             if (result == null) {
                 throw new IllegalStateException("创建队伍事务未返回结果");
             }

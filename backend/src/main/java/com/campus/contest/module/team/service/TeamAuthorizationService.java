@@ -5,6 +5,7 @@ import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
 import com.campus.contest.module.contest.entity.ContestEditionDO;
 import com.campus.contest.module.contest.mapper.ContestAccessMapper;
+import com.campus.contest.module.contest.mapper.ContestEditionMapper;
 import com.campus.contest.module.contest.service.ContestAuthorizationService;
 import com.campus.contest.module.organization.entity.OrganizationDO;
 import com.campus.contest.module.organization.mapper.OrganizationMapper;
@@ -28,6 +29,7 @@ public class TeamAuthorizationService {
     private final CurrentUserProvider currentUserProvider;
     private final ContestAuthorizationService contestAuthorizationService;
     private final ContestAccessMapper contestAccessMapper;
+    private final ContestEditionMapper contestEditionMapper;
     private final SysUserMapper userMapper;
     private final OrganizationMapper organizationMapper;
     private final TeamTeacherApplicationMapper teacherApplicationMapper;
@@ -65,6 +67,20 @@ public class TeamAuthorizationService {
         return edition;
     }
 
+    /**
+     * 队长、管理员走常规届次可见性；待确认教师或已确认教师可通过有效申请关系读取届次。
+     */
+    public ContestEditionDO requireEditionForTeamRead(TeamDO team) {
+        Long userId = currentUserId();
+        if (Objects.equals(userId, team.getTeacherId())
+                || hasPendingTeacherApplication(team, userId)) {
+            ContestEditionDO edition = contestEditionMapper.selectById(team.getEditionId());
+            if (edition != null) {
+                return edition;
+            }
+        }
+        return requireVisibleEdition(team.getEditionId());
+    }
     public void requireReadable(TeamDO team, ContestEditionDO edition) {
         TeamReadScope scope = currentReadScope();
         Long userId = scope.userId();

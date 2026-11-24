@@ -2,6 +2,7 @@ package com.campus.contest.module.team.support;
 
 import com.campus.contest.config.MybatisPlusConfig;
 import com.campus.contest.module.team.support.mapper.RegistrationSupportMapper;
+import com.campus.contest.module.team.mapper.TeamMapper;
 import com.campus.contest.module.team.support.service.impl.SchoolQuotaServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
 
@@ -39,6 +41,8 @@ class RegistrationSupportMysqlTest {
     private RegistrationSupportMapper mapper;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private TeamMapper teamMapper;
 
     @Test
     void mapperAndQuotaServiceWorkAgainstRealMysql() throws Exception {
@@ -136,11 +140,25 @@ class RegistrationSupportMysqlTest {
                 Integer.class
         );
         assertThat(used).isZero();
+
+        assertThat(teamMapper.withdrawAndClearTeacher(
+                teamId,
+                0,
+                2L,
+                LocalDateTime.of(2026, 11, 24, 18, 0),
+                5
+        )).isEqualTo(1);
+        String teacherId = jdbcTemplate.queryForObject(
+                "SELECT teacher_id FROM team WHERE id = ?",
+                String.class,
+                teamId
+        );
+        assertThat(teacherId).isNull();
     }
 
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
-    @MapperScan("com.campus.contest.module.team.support.mapper")
+    @MapperScan({"com.campus.contest.module.team.support.mapper", "com.campus.contest.module.team.mapper"})
     @Import(MybatisPlusConfig.class)
     static class TestApplication {
     }

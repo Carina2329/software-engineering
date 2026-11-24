@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.contest.TestInfrastructure;
 import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
+import com.campus.contest.common.idempotency.IdempotencyScope;
+import com.campus.contest.common.idempotency.IdempotencyService;
 import com.campus.contest.module.contest.entity.ContestEditionDO;
 import com.campus.contest.module.contest.enums.EditionStatus;
 import com.campus.contest.module.organization.entity.OrganizationDO;
@@ -62,10 +64,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Arrays;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -337,7 +343,8 @@ class TeamServiceImplTest {
                 700L, USER_ID, LocalDateTime.of(2026, 11, 24, 18, 0), "队长撤回报名"
         )).thenReturn(1);
         when(registrationMapper.updateById(any(TeamRegistrationDO.class))).thenReturn(1);
-        when(teamMapper.updateById(any(TeamDO.class))).thenReturn(1);
+        when(teamMapper.withdrawAndClearTeacher(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(5)))
+                .thenReturn(1);
 
         TeamRegistrationWithdrawVO result = service.withdrawRegistration(
                 TEAM_ID, 1, "withdraw-key"
@@ -351,7 +358,7 @@ class TeamServiceImplTest {
         verify(registrationMapper).updateById(registrationCaptor.capture());
         assertThat(registrationCaptor.getValue().getVersion()).isEqualTo(2);
         assertThat(registrationCaptor.getValue().getStatus()).isEqualTo("WITHDRAWN");
-        verify(teamMapper).updateById(any(TeamDO.class));
+        verify(teamMapper).withdrawAndClearTeacher(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(5));
     }
     @Test
     @DisplayName("移出成员时在一个事务中完成成员删除、人数更新和审计")
@@ -455,7 +462,7 @@ class TeamServiceImplTest {
         TeamRegistrationDO registration = registration();
         registration.setVersion(2);
         when(teamMapper.selectById(TEAM_ID)).thenReturn(team);
-        when(authorizationService.requireVisibleEdition(1L)).thenReturn(edition(1L));
+        when(authorizationService.requireEditionForTeamRead(team)).thenReturn(edition(1L));
         when(memberMapper.selectList(any())).thenReturn(List.of(leaderMember()));
         when(registrationMapper.selectById(700L)).thenReturn(registration);
 
@@ -504,7 +511,57 @@ class TeamServiceImplTest {
         assertThat(transactionManager.rolledBack).isTrue();
         assertThat(transactionManager.committed).isFalse();
         verify(registrationMapper, never()).updateById(any(TeamRegistrationDO.class));
-        verify(teamMapper, never()).updateById(any(TeamDO.class));
+        verify(teamMapper, never()).withdrawAndClearTeacher(any(), any(), any(), any(), any());
+    }
+    @Test
+    @DisplayName("同一幂等键在截止后重试仍返回截止前的创建结果")
+    void createRetryAfterDeadlineReturnsCachedResult() {
+        TeamServiceImpl idempotentService = new TeamServiceImpl(
+                teamMapper,
+                memberMapper,
+                registrationMapper,
+                attachmentMapper,
+                teacherApplicationMapper,
+                userMapper,
+                organizationMapper,
+                authorizationService,
+                eligibilityService,
+                quotaService,
+                attachmentPolicy,
+                authorizationSnapshotService,
+                auditService,
+                new CachingIdempotencyService(),
+                new ObjectMapper(),
+                Clock.fixed(Instant.parse("2026-11-24T10:00:00Z"), ZoneId.of("Asia/Shanghai")),
+                new TransactionTemplate(transactionManager)
+        );
+        when(authorizationService.requireVisibleEdition(1L)).thenReturn(edition(1L));
+        when(userMapper.selectById(USER_ID)).thenReturn(user("S001"));
+        when(organizationMapper.selectById(SCHOOL_ID)).thenReturn(school());
+        when(teamMapper.selectCount(any())).thenReturn(0L);
+        when(memberMapper.selectCount(any())).thenReturn(0L);
+        when(teamMapper.insert(any(TeamDO.class))).thenAnswer(invocation -> {
+            TeamDO team = invocation.getArgument(0);
+            team.setId(TEAM_ID);
+            return 1;
+        });
+        when(memberMapper.insert(any(TeamMemberDO.class))).thenAnswer(invocation -> {
+            TeamMemberDO member = invocation.getArgument(0);
+            member.setId(200L);
+            return 1;
+        });
+
+        TeamCreateVO first = idempotentService.create(
+                1L, createRequest("截止前幂等队伍"), "same-create-key"
+        );
+
+        TeamCreateVO second = idempotentService.create(
+                1L, createRequest("截止前幂等队伍"), "same-create-key"
+        );
+
+        assertThat(second).isEqualTo(first);
+        verify(teamMapper, org.mockito.Mockito.times(1)).insert(any(TeamDO.class));
+        verify(memberMapper, org.mockito.Mockito.times(1)).insert(any(TeamMemberDO.class));
     }
     private TeamRegistrationSubmitRequest registrationRequest() {
         TeamRegistrationSubmitRequest request = new TeamRegistrationSubmitRequest();
@@ -665,6 +722,28 @@ class TeamServiceImplTest {
         @Override
         protected void doRollback(DefaultTransactionStatus status) {
             rolledBack = true;
+        }
+    }
+    private static final class CachingIdempotencyService implements IdempotencyService {
+        private final Map<String, Object> results = new HashMap<>();
+
+        @Override
+        public <T> T execute(
+                IdempotencyScope scope,
+                String operation,
+                String idempotencyKey,
+                Object request,
+                Duration ttl,
+                Class<T> resultType,
+                Supplier<T> action
+        ) {
+            String key = scope.principalId() + ":" + operation + ":" + idempotencyKey;
+            if (results.containsKey(key)) {
+                return resultType.cast(results.get(key));
+            }
+            T result = action.get();
+            results.put(key, result);
+            return result;
         }
     }
 }
