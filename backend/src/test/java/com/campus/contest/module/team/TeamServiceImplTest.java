@@ -1,5 +1,9 @@
 package com.campus.contest.module.team;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.contest.TestInfrastructure;
 import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
@@ -13,6 +17,7 @@ import com.campus.contest.module.system.mapper.SysUserMapper;
 import com.campus.contest.module.system.service.AuthorizationSnapshotService;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamMemberInput;
+import com.campus.contest.module.team.dto.TeamPageQuery;
 import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.dto.TeamUpdateRequest;
 import com.campus.contest.module.team.entity.TeamDO;
@@ -28,6 +33,7 @@ import com.campus.contest.module.team.mapper.TeamRegistrationMapper;
 import com.campus.contest.module.team.mapper.TeamTeacherApplicationMapper;
 import com.campus.contest.module.team.service.TeamAuditService;
 import com.campus.contest.module.team.service.TeamAuthorizationService;
+import com.campus.contest.module.team.service.TeamReadScope;
 import com.campus.contest.module.team.service.impl.TeamServiceImpl;
 import com.campus.contest.module.team.support.model.RegistrationEligibilityResult;
 import com.campus.contest.module.team.support.model.SchoolQuotaReservation;
@@ -39,27 +45,37 @@ import com.campus.contest.module.team.vo.TeamRegistrationWithdrawVO;
 import com.campus.contest.module.work.model.ValidatedRegistrationAttachment;
 import com.campus.contest.module.work.service.RegistrationAttachmentPolicy;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Arrays;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
 
 @ExtendWith(MockitoExtension.class)
 class TeamServiceImplTest {
@@ -95,10 +111,19 @@ class TeamServiceImplTest {
     @Mock
     private TeamAuditService auditService;
 
+    private RecordingTransactionManager transactionManager;
     private TeamServiceImpl service;
 
+    @BeforeAll
+    static void initializeTableInfo() {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                TeamDO.class
+        );
+    }
     @BeforeEach
     void setUp() {
+        transactionManager = new RecordingTransactionManager();
         Clock clock = Clock.fixed(
                 Instant.parse("2026-11-24T10:00:00Z"),
                 ZoneId.of("Asia/Shanghai")
@@ -120,9 +145,10 @@ class TeamServiceImplTest {
                 TestInfrastructure.passthroughIdempotencyService(),
                 new ObjectMapper(),
                 clock,
-                TestInfrastructure.transactionTemplate()
+                new TransactionTemplate(transactionManager)
         );
         lenient().when(authorizationService.currentUserId()).thenReturn(USER_ID);
+        lenient().when(authorizationService.requireVisibleEdition(any())).thenReturn(edition(1L));
     }
     @Test
     @DisplayName("已验证学校的学生创建 DRAFT 队伍并自动写入队长快照")
@@ -302,6 +328,11 @@ class TeamServiceImplTest {
         TeamRegistrationDO registration = registration();
         when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
         when(registrationMapper.selectActiveByIdForUpdate(700L)).thenReturn(registration);
+        when(registrationMapper.selectById(700L)).thenReturn(registration);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            registration.setVersion(2);
+            return null;
+        }).when(quotaService).release(700L);
         when(teacherApplicationMapper.withdrawCurrent(
                 700L, USER_ID, LocalDateTime.of(2026, 11, 24, 18, 0), "队长撤回报名"
         )).thenReturn(1);
@@ -309,14 +340,171 @@ class TeamServiceImplTest {
         when(teamMapper.updateById(any(TeamDO.class))).thenReturn(1);
 
         TeamRegistrationWithdrawVO result = service.withdrawRegistration(
-                TEAM_ID, 0, "withdraw-key"
+                TEAM_ID, 1, "withdraw-key"
         );
 
         assertThat(result.status()).isEqualTo("WITHDRAWN");
-        assertThat(result.version()).isEqualTo(1);
+        assertThat(result.version()).isEqualTo(3);
+        ArgumentCaptor<TeamRegistrationDO> registrationCaptor =
+                ArgumentCaptor.forClass(TeamRegistrationDO.class);
         verify(quotaService).release(700L);
-        verify(registrationMapper).updateById(any(TeamRegistrationDO.class));
+        verify(registrationMapper).updateById(registrationCaptor.capture());
+        assertThat(registrationCaptor.getValue().getVersion()).isEqualTo(2);
+        assertThat(registrationCaptor.getValue().getStatus()).isEqualTo("WITHDRAWN");
         verify(teamMapper).updateById(any(TeamDO.class));
+    }
+    @Test
+    @DisplayName("移出成员时在一个事务中完成成员删除、人数更新和审计")
+    void removeMemberCommitsWholeTransaction() {
+        TeamDO team = team();
+        TeamMemberDO member = normalMember();
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
+        when(authorizationService.requireVisibleEdition(1L)).thenReturn(edition(1L));
+        when(memberMapper.selectById(600L)).thenReturn(member);
+        when(memberMapper.markInactive(eq(600L), eq(0), eq(USER_ID), any()))
+                .thenReturn(1);
+        when(teamMapper.updateById(any(TeamDO.class))).thenReturn(1);
+
+        service.removeMember(TEAM_ID, 600L, 0, "remove-key");
+
+        assertThat(transactionManager.committed).isTrue();
+        assertThat(transactionManager.rolledBack).isFalse();
+        verify(memberMapper).markInactive(eq(600L), eq(0), eq(USER_ID), any());
+        verify(teamMapper).updateById(any(TeamDO.class));
+        verify(auditService).record(eq(USER_ID), eq("TEAM_MEMBER_REMOVE"), any());
+    }
+
+    @Test
+    @DisplayName("移出成员审计失败时整个事务回滚")
+    void removeMemberRollsBackWhenAuditFails() {
+        TeamDO team = team();
+        TeamMemberDO member = normalMember();
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
+        when(authorizationService.requireVisibleEdition(1L)).thenReturn(edition(1L));
+        when(memberMapper.selectById(600L)).thenReturn(member);
+        when(memberMapper.markInactive(eq(600L), eq(0), eq(USER_ID), any()))
+                .thenReturn(1);
+        when(teamMapper.updateById(any(TeamDO.class))).thenReturn(1);
+        doAnswer(invocation -> {
+            throw new IllegalStateException("audit failed");
+        }).when(auditService).record(any(), any(), any());
+
+        assertThatThrownBy(() -> service.removeMember(TEAM_ID, 600L, 0, "remove-key"))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(transactionManager.rolledBack).isTrue();
+        assertThat(transactionManager.committed).isFalse();
+    }
+
+    @Test
+    @DisplayName("报名截止后不能创建、修改或移出成员")
+    void rejectsEditableOperationsAfterDeadline() {
+        ContestEditionDO closed = edition(1L);
+        closed.setRegisterDeadline(LocalDateTime.of(2026, 11, 24, 17, 59));
+        when(authorizationService.requireVisibleEdition(1L)).thenReturn(closed);
+
+        assertThatThrownBy(() -> service.create(1L, createRequest("截止队伍"), "create-key"))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_DEADLINE_PASSED.getCode()));
+
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team());
+        TeamUpdateRequest update = updateRequest(0);
+        update.setTeamName("截止后修改");
+        assertThatThrownBy(() -> service.update(TEAM_ID, update, null))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_DEADLINE_PASSED.getCode()));
+
+        assertThatThrownBy(() -> service.removeMember(TEAM_ID, 600L, 0, null))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_DEADLINE_PASSED.getCode()));
+        verify(teamMapper, never()).updateById(any(TeamDO.class));
+        verify(memberMapper, never()).markInactive(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("提交报名缺少 teacher_id 返回 400")
+    void rejectsMissingTeacherId() {
+        TeamRegistrationSubmitRequest request = registrationRequest();
+        request.setTeacherId(null);
+
+        assertThatThrownBy(() -> service.submitRegistration(TEAM_ID, request, "submit-key"))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.INVALID_PARAM.getCode()));
+        verify(teamMapper, never()).selectActiveByIdForUpdate(any());
+    }
+
+    @Test
+    @DisplayName("附件 ID 为 null 返回 400")
+    void rejectsNullAttachmentId() {
+        TeamRegistrationSubmitRequest request = registrationRequest();
+        request.setAttachmentFileIds(Arrays.asList("300", null));
+
+        assertThatThrownBy(() -> service.submitRegistration(TEAM_ID, request, "submit-key"))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.INVALID_PARAM.getCode()));
+        verify(teamMapper, never()).selectActiveByIdForUpdate(any());
+    }
+
+    @Test
+    @DisplayName("详情返回当前报名轮次版本用于撤回")
+    void detailReturnsCurrentRegistrationVersion() {
+        TeamDO team = team();
+        team.setStatus(TeamStatus.PENDING_TEACHER.databaseValue());
+        team.setCurrentRegistrationId(700L);
+        team.setVersion(1);
+        TeamRegistrationDO registration = registration();
+        registration.setVersion(2);
+        when(teamMapper.selectById(TEAM_ID)).thenReturn(team);
+        when(authorizationService.requireVisibleEdition(1L)).thenReturn(edition(1L));
+        when(memberMapper.selectList(any())).thenReturn(List.of(leaderMember()));
+        when(registrationMapper.selectById(700L)).thenReturn(registration);
+
+        var result = service.detail(TEAM_ID);
+
+        assertThat(result.currentRegistrationId()).isEqualTo("700");
+        assertThat(result.currentRegistrationVersion()).isEqualTo(2);
+    }
+    @Test
+    @DisplayName("学校管理员列表范围包含其组织下的队伍")
+    void schoolAdminListUsesOrganizationScope() {
+        when(authorizationService.requireVisibleEdition(1L)).thenReturn(edition(1L));
+        when(authorizationService.currentReadScope()).thenReturn(new TeamReadScope(
+                false, 20L, Set.of(SCHOOL_ID), Set.of(), Set.of()
+        ));
+        Page<TeamDO> page = new Page<>(1, 20);
+        page.setRecords(List.of());
+        page.setTotal(0);
+        when(teamMapper.selectPage(any(), any())).thenReturn(page);
+
+        service.list(1L, new TeamPageQuery());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Wrapper<TeamDO>> wrapperCaptor =
+                ArgumentCaptor.forClass((Class) Wrapper.class);
+        verify(teamMapper).selectPage(any(), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment();
+        assertThat(sql).contains("contest_edition");
+        assertThat(sql).contains("owner_org_id");
+    }
+    @Test
+    @DisplayName("撤回时名额释放失败会回滚整个事务")
+    void withdrawRollsBackWhenQuotaReleaseFails() {
+        TeamDO team = team();
+        team.setStatus(TeamStatus.PENDING_TEACHER.databaseValue());
+        team.setCurrentRegistrationId(700L);
+        TeamRegistrationDO registration = registration();
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
+        when(registrationMapper.selectActiveByIdForUpdate(700L)).thenReturn(registration);
+        org.mockito.Mockito.doThrow(new BizException(
+                ErrorCode.BUSINESS_CONFLICT.getCode(), "释放失败"
+        )).when(quotaService).release(700L);
+
+        assertThatThrownBy(() -> service.withdrawRegistration(TEAM_ID, 1, "withdraw-key"))
+                .isInstanceOf(BizException.class);
+        assertThat(transactionManager.rolledBack).isTrue();
+        assertThat(transactionManager.committed).isFalse();
+        verify(registrationMapper, never()).updateById(any(TeamRegistrationDO.class));
+        verify(teamMapper, never()).updateById(any(TeamDO.class));
     }
     private TeamRegistrationSubmitRequest registrationRequest() {
         TeamRegistrationSubmitRequest request = new TeamRegistrationSubmitRequest();
@@ -358,7 +546,7 @@ class TeamServiceImplTest {
         registration.setMembersSnapshot("[]");
         registration.setQuotaHeld(1);
         registration.setQuotaSchoolId(SCHOOL_ID);
-        registration.setVersion(0);
+        registration.setVersion(1);
         return registration;
     }
     private TeamCreateRequest createRequest(String teamName) {
@@ -427,6 +615,20 @@ class TeamServiceImplTest {
         return team;
     }
 
+    private TeamMemberDO normalMember() {
+        TeamMemberDO member = new TeamMemberDO();
+        member.setId(600L);
+        member.setTeamId(TEAM_ID);
+        member.setEditionId(1L);
+        member.setMemberName("队员乙");
+        member.setSchoolId(SCHOOL_ID);
+        member.setStudentNo("S002");
+        member.setIsLeader(0);
+        member.setStatus(1);
+        member.setJoinTime(LocalDateTime.now());
+        member.setVersion(0);
+        return member;
+    }
     private TeamMemberDO leaderMember() {
         TeamMemberDO member = new TeamMemberDO();
         member.setId(500L);
@@ -441,5 +643,28 @@ class TeamServiceImplTest {
         member.setJoinTime(LocalDateTime.now());
         member.setVersion(0);
         return member;
+    }
+    private static final class RecordingTransactionManager extends AbstractPlatformTransactionManager {
+        private boolean committed;
+        private boolean rolledBack;
+
+        @Override
+        protected Object doGetTransaction() {
+            return new Object();
+        }
+
+        @Override
+        protected void doBegin(Object transaction, TransactionDefinition definition) {
+        }
+
+        @Override
+        protected void doCommit(DefaultTransactionStatus status) {
+            committed = true;
+        }
+
+        @Override
+        protected void doRollback(DefaultTransactionStatus status) {
+            rolledBack = true;
+        }
     }
 }

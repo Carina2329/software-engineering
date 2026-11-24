@@ -34,6 +34,7 @@ import com.campus.contest.module.team.mapper.TeamRegistrationMapper;
 import com.campus.contest.module.team.mapper.TeamTeacherApplicationMapper;
 import com.campus.contest.module.team.service.TeamAuditService;
 import com.campus.contest.module.team.service.TeamAuthorizationService;
+import com.campus.contest.module.team.service.TeamReadScope;
 import com.campus.contest.module.team.service.TeamService;
 import com.campus.contest.module.team.support.model.RegistrationCheckMode;
 import com.campus.contest.module.team.support.model.RegistrationEligibilityContext;
@@ -107,17 +108,36 @@ public class TeamServiceImpl implements TeamService {
         ContestEditionDO edition = authorizationService.requireVisibleEdition(editionId);
         int page = normalizePage(query == null ? null : query.getPage());
         int size = normalizeSize(query == null ? null : query.getSize());
-        Long currentUserId = authorizationService.currentUserId();
-        boolean global = authorizationService.isGlobalOperator();
+        TeamReadScope readScope = authorizationService.currentReadScope();
 
         LambdaQueryWrapper<TeamDO> wrapper = Wrappers.lambdaQuery(TeamDO.class)
                 .eq(TeamDO::getEditionId, edition.getId());
 
-        if (!global) {
-            wrapper.and(scope -> scope
-                    .eq(TeamDO::getLeaderId, currentUserId)
-                    .or()
-                    .eq(TeamDO::getTeacherId, currentUserId));
+        if (!readScope.global()) {
+            wrapper.and(scope -> {
+                scope.eq(TeamDO::getLeaderId, readScope.userId())
+                        .or()
+                        .eq(TeamDO::getTeacherId, readScope.userId());
+                scope.or().inSql(
+                        TeamDO::getId,
+                        pendingTeacherTeamSql(readScope.userId())
+                );
+                if (!readScope.eventIds().isEmpty()) {
+                    scope.or().in(TeamDO::getEditionId, readScope.eventIds());
+                }
+                if (!readScope.organizationIds().isEmpty()) {
+                    scope.or().inSql(
+                            TeamDO::getEditionId,
+                            organizationScopeEditionSql(readScope.organizationIds())
+                    );
+                }
+                if (!readScope.provinceCodes().isEmpty()) {
+                    scope.or().inSql(
+                            TeamDO::getEditionId,
+                            provinceScopeEditionSql(readScope.provinceCodes())
+                    );
+                }
+            });
         }
         if (query != null) {
             if (hasText(query.getStatus())) {
@@ -164,7 +184,7 @@ public class TeamServiceImpl implements TeamService {
         String teamName = normalizeTeamName(request.getTeamName());
         Long operatorId = authorizationService.currentUserId();
         ContestEditionDO edition = authorizationService.requireVisibleEdition(editionId);
-        requireCreatingStatus(edition);
+        requireRegistrationWindow(edition);
         SysUserDO leader = requireVerifiedLeader(operatorId);
         Map<String, Object> fingerprint = new LinkedHashMap<>();
         fingerprint.put("edition_id", String.valueOf(editionId));
@@ -185,7 +205,7 @@ public class TeamServiceImpl implements TeamService {
     public TeamDetailVO detail(Long teamId) {
         TeamDO team = requireTeam(teamId);
         ContestEditionDO edition = authorizationService.requireVisibleEdition(team.getEditionId());
-        authorizationService.requireReadable(team);
+        authorizationService.requireReadable(team, edition);
         List<TeamMemberDO> activeMembers = listActiveMembers(teamId);
         RegistrationView registration = registrationView(team);
         List<String> memberNames = activeMembers.stream()
@@ -205,7 +225,7 @@ public class TeamServiceImpl implements TeamService {
                 team.getVersion(),
                 team.getCurrentRegistrationId() == null
                         ? null : String.valueOf(team.getCurrentRegistrationId()),
-                null,
+                currentRegistrationVersion(team),
                 registration.canRegister(),
                 registration.state(),
                 registration.reason()
@@ -244,8 +264,8 @@ public class TeamServiceImpl implements TeamService {
     @Override
     public List<TeamMemberVO> members(Long teamId) {
         TeamDO team = requireTeam(teamId);
-        authorizationService.requireVisibleEdition(team.getEditionId());
-        authorizationService.requireReadable(team);
+        ContestEditionDO edition = authorizationService.requireVisibleEdition(team.getEditionId());
+        authorizationService.requireReadable(team, edition);
         return listActiveMembers(teamId).stream()
                 .map(member -> TeamMemberVO.from(
                         member.getId(),
@@ -280,10 +300,10 @@ public class TeamServiceImpl implements TeamService {
                 idempotencyKey,
                 fingerprint,
                 Object.class,
-                () -> {
+                () -> transactionTemplate.execute(status -> {
                     doRemoveMember(teamId, memberId, version, operatorId);
                     return null;
-                }
+                })
         );
     }
 
@@ -339,7 +359,9 @@ public class TeamServiceImpl implements TeamService {
                 idempotencyKey,
                 fingerprint,
                 TeamRegistrationWithdrawVO.class,
-                () -> doWithdraw(teamId, version, operatorId)
+                () -> transactionTemplate.execute(status ->
+                        doWithdraw(teamId, version, operatorId)
+                )
         );
     }
 
@@ -528,6 +550,10 @@ public class TeamServiceImpl implements TeamService {
 
         LocalDateTime now = LocalDateTime.now(clock);
         quotaService.release(registration.getId());
+        TeamRegistrationDO releasedRegistration = registrationMapper.selectById(registration.getId());
+        if (releasedRegistration == null) {
+            throw new BizException(ErrorCode.BUSINESS_CONFLICT.getCode(), "报名轮次不存在");
+        }
         if (teacherApplicationMapper.withdrawCurrent(
                 registration.getId(),
                 operatorId,
@@ -540,13 +566,14 @@ public class TeamServiceImpl implements TeamService {
             );
         }
 
+        int currentRegistrationVersion = releasedRegistration.getVersion();
         TeamRegistrationDO registrationUpdate = new TeamRegistrationDO();
         registrationUpdate.setId(registration.getId());
         registrationUpdate.setStatus("WITHDRAWN");
         registrationUpdate.setWithdrawnAt(now);
         registrationUpdate.setUpdatedAt(now);
         registrationUpdate.setUpdatedBy(operatorId);
-        registrationUpdate.setVersion(registrationVersion);
+        registrationUpdate.setVersion(currentRegistrationVersion);
         if (registrationMapper.updateById(registrationUpdate) != 1) {
             throw versionConflict();
         }
@@ -571,7 +598,7 @@ public class TeamServiceImpl implements TeamService {
                 String.valueOf(teamId),
                 String.valueOf(registration.getId()),
                 "WITHDRAWN",
-                registrationVersion + 1
+                currentRegistrationVersion + 1
         );
     }
     private TeamCreateVO doCreateWithDuplicateHandling(
@@ -683,6 +710,7 @@ public class TeamServiceImpl implements TeamService {
         TeamDO team = requireLockedTeam(teamId);
         authorizationService.requireLeader(team);
         requireEditable(team);
+        requireRegistrationWindow(authorizationService.requireVisibleEdition(team.getEditionId()));
         if (!Objects.equals(team.getVersion(), request.getVersion())) {
             throw versionConflict();
         }
@@ -828,6 +856,7 @@ public class TeamServiceImpl implements TeamService {
         TeamDO team = requireLockedTeam(teamId);
         authorizationService.requireLeader(team);
         requireEditable(team);
+        requireRegistrationWindow(authorizationService.requireVisibleEdition(team.getEditionId()));
         if (!Objects.equals(team.getVersion(), version)) {
             throw versionConflict();
         }
@@ -915,11 +944,18 @@ public class TeamServiceImpl implements TeamService {
         return team;
     }
 
-    private void requireCreatingStatus(ContestEditionDO edition) {
+    private void requireRegistrationWindow(ContestEditionDO edition) {
         if (!Integer.valueOf(EditionStatus.REGISTERING.getDatabaseValue()).equals(edition.getStatus())) {
             throw new BizException(
                     ErrorCode.INVALID_STATE_TRANSITION.getCode(),
                     "当前届次未开放报名"
+            );
+        }
+        if (edition.getRegisterDeadline() == null
+                || LocalDateTime.now(clock).isAfter(edition.getRegisterDeadline())) {
+            throw new BizException(
+                    ErrorCode.BUSINESS_DEADLINE_PASSED.getCode(),
+                    "报名已截止"
             );
         }
     }
@@ -1104,6 +1140,60 @@ public class TeamServiceImpl implements TeamService {
         return registration == null ? null : registration.getVersion();
     }
 
+    private String pendingTeacherTeamSql(Long userId) {
+        return """
+                SELECT tr.team_id
+                  FROM team_registration tr
+                  JOIN team_teacher_application app
+                    ON app.registration_id = tr.id
+                 WHERE app.teacher_id = %d
+                   AND app.status IN ('PENDING', 'ACCEPTED')
+                   AND app.deleted = 0
+                   AND tr.deleted = 0
+                """.formatted(userId);
+    }
+
+    private String organizationScopeEditionSql(java.util.Set<Long> organizationIds) {
+        String ids = organizationIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .distinct()
+                .collect(java.util.stream.Collectors.joining(","));
+        return """
+                SELECT ce.id
+                  FROM contest_edition ce
+                  JOIN sys_user u ON u.id = team.leader_id
+                  LEFT JOIN organization school ON school.id = u.school_id
+                 WHERE ce.deleted = 0
+                   AND u.deleted = 0
+                   AND (
+                     ce.owner_org_id IN (%s)
+                     OR ce.school_id IN (%s)
+                     OR u.school_id IN (%s)
+                   )
+                """.formatted(ids, ids, ids);
+    }
+
+    private String provinceScopeEditionSql(java.util.Set<Long> provinceCodes) {
+        String codes = provinceCodes.stream()
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .distinct()
+                .map(code -> "'" + code + "'")
+                .collect(java.util.stream.Collectors.joining(","));
+        return """
+                SELECT ce.id
+                  FROM contest_edition ce
+                  JOIN sys_user u ON u.id = team.leader_id
+                  LEFT JOIN organization school ON school.id = u.school_id
+                 WHERE ce.deleted = 0
+                   AND u.deleted = 0
+                   AND (
+                     ce.province_code IN (%s)
+                     OR school.province_code IN (%s)
+                   )
+                """.formatted(codes, codes);
+    }
     private void applySort(LambdaQueryWrapper<TeamDO> wrapper, String sort) {
         String value = hasText(sort) ? sort.trim() : "-created_at";
         boolean ascending = !value.startsWith("-");
@@ -1138,6 +1228,9 @@ public class TeamServiceImpl implements TeamService {
     }
 
     private Long parseId(String value, String fieldName) {
+        if (!hasText(value)) {
+            throw invalidParam(fieldName + " 不能为空");
+        }
         try {
             long id = Long.parseLong(value.trim());
             if (id <= 0) {
