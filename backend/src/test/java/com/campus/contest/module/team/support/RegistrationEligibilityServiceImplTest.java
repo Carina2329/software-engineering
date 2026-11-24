@@ -201,7 +201,7 @@ class RegistrationEligibilityServiceImplTest {
         ));
 
         assertThat(result.canRegister()).isFalse();
-        assertThat(result.registerState()).isEqualTo("SCHOOL_QUOTA_FULL");
+        assertThat(result.registerState()).isEqualTo("REGISTRATION_STATE_INVALID");
         assertThat(result.reason()).contains("名额");
     }
 

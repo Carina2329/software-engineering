@@ -140,8 +140,10 @@ public class RegistrationEligibilityServiceImpl implements RegistrationEligibili
                 && (registration == null
                 || !Integer.valueOf(1).equals(registration.quotaHeld())
                 || !Objects.equals(registration.quotaSchoolId(), leaderSchool.getId()));
-        if (adminQuotaNotHeld
-                || context.mode() == RegistrationCheckMode.SUBMIT && limitedQuotaFull(quota)) {
+        if (adminQuotaNotHeld) {
+            return rejected("REGISTRATION_STATE_INVALID", "报名轮次未持有有效的学校名额");
+        }
+        if (context.mode() == RegistrationCheckMode.SUBMIT && limitedQuotaFull(quota)) {
             return new RegistrationEligibilityResult(
                     false,
                     "SCHOOL_QUOTA_FULL",
