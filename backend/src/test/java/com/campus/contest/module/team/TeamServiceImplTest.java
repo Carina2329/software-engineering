@@ -154,7 +154,7 @@ class TeamServiceImplTest {
                 new TransactionTemplate(transactionManager)
         );
         lenient().when(authorizationService.currentUserId()).thenReturn(USER_ID);
-        lenient().when(authorizationService.requireVisibleEdition(any())).thenReturn(edition(1L));
+        lenient().doAnswer(invocation -> edition(1L)).when(authorizationService).requireVisibleEdition(org.mockito.ArgumentMatchers.anyLong());
     }
     @Test
     @DisplayName("已验证学校的学生创建 DRAFT 队伍并自动写入队长快照")
@@ -474,7 +474,7 @@ class TeamServiceImplTest {
     @Test
     @DisplayName("学校管理员列表范围包含其组织下的队伍")
     void schoolAdminListUsesOrganizationScope() {
-        when(authorizationService.requireVisibleEdition(1L)).thenReturn(edition(1L));
+        when(authorizationService.requireEditionForList(1L)).thenReturn(edition(1L));
         when(authorizationService.currentReadScope()).thenReturn(new TeamReadScope(
                 false, 20L, Set.of(SCHOOL_ID), Set.of(), Set.of()
         ));
@@ -492,6 +492,28 @@ class TeamServiceImplTest {
         String sql = wrapperCaptor.getValue().getSqlSegment();
         assertThat(sql).contains("contest_edition");
         assertThat(sql).contains("owner_org_id");
+    }
+    @Test
+    @DisplayName("待确认教师列表范围只匹配当前报名轮次")
+    void pendingTeacherListUsesCurrentRegistrationOnly() {
+        when(authorizationService.requireEditionForList(1L)).thenReturn(edition(1L));
+        when(authorizationService.currentReadScope()).thenReturn(new TeamReadScope(
+                false, 20L, Set.of(), Set.of(), Set.of()
+        ));
+        Page<TeamDO> page = new Page<>(1, 20);
+        page.setRecords(List.of());
+        page.setTotal(0);
+        when(teamMapper.selectPage(any(), any())).thenReturn(page);
+
+        service.list(1L, new TeamPageQuery());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Wrapper<TeamDO>> wrapperCaptor =
+                ArgumentCaptor.forClass((Class) Wrapper.class);
+        verify(teamMapper).selectPage(any(), wrapperCaptor.capture());
+        String sql = wrapperCaptor.getValue().getSqlSegment();
+        assertThat(sql).contains("team_teacher_application");
+        assertThat(sql).contains("current_registration_id = tr.id");
     }
     @Test
     @DisplayName("撤回时名额释放失败会回滚整个事务")
@@ -516,6 +538,12 @@ class TeamServiceImplTest {
     @Test
     @DisplayName("同一幂等键在截止后重试仍返回截止前的创建结果")
     void createRetryAfterDeadlineReturnsCachedResult() {
+        MutableClock clock = new MutableClock(
+                Instant.parse("2026-11-24T09:00:00Z"),
+                ZoneId.of("Asia/Shanghai")
+        );
+        ContestEditionDO openEdition = edition(1L);
+        openEdition.setRegisterDeadline(LocalDateTime.of(2026, 11, 24, 18, 0));
         TeamServiceImpl idempotentService = new TeamServiceImpl(
                 teamMapper,
                 memberMapper,
@@ -532,10 +560,10 @@ class TeamServiceImplTest {
                 auditService,
                 new CachingIdempotencyService(),
                 new ObjectMapper(),
-                Clock.fixed(Instant.parse("2026-11-24T10:00:00Z"), ZoneId.of("Asia/Shanghai")),
+                clock,
                 new TransactionTemplate(transactionManager)
         );
-        when(authorizationService.requireVisibleEdition(1L)).thenReturn(edition(1L));
+        when(authorizationService.requireVisibleEdition(1L)).thenReturn(openEdition);
         when(userMapper.selectById(USER_ID)).thenReturn(user("S001"));
         when(organizationMapper.selectById(SCHOOL_ID)).thenReturn(school());
         when(teamMapper.selectCount(any())).thenReturn(0L);
@@ -554,6 +582,8 @@ class TeamServiceImplTest {
         TeamCreateVO first = idempotentService.create(
                 1L, createRequest("截止前幂等队伍"), "same-create-key"
         );
+
+        clock.setInstant(Instant.parse("2026-11-24T10:01:00Z"));
 
         TeamCreateVO second = idempotentService.create(
                 1L, createRequest("截止前幂等队伍"), "same-create-key"
@@ -722,6 +752,34 @@ class TeamServiceImplTest {
         @Override
         protected void doRollback(DefaultTransactionStatus status) {
             rolledBack = true;
+        }
+    }
+    private static final class MutableClock extends Clock {
+        private volatile Instant instant;
+        private final ZoneId zone;
+
+        private MutableClock(Instant instant, ZoneId zone) {
+            this.instant = instant;
+            this.zone = zone;
+        }
+
+        void setInstant(Instant instant) {
+            this.instant = instant;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return new MutableClock(instant, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
         }
     }
     private static final class CachingIdempotencyService implements IdempotencyService {

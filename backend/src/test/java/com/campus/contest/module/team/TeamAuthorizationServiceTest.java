@@ -3,6 +3,7 @@ package com.campus.contest.module.team;
 import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
 import com.campus.contest.module.contest.entity.ContestEditionDO;
+import com.campus.contest.module.contest.mapper.ContestAccessCriteria;
 import com.campus.contest.module.contest.mapper.ContestAccessMapper;
 import com.campus.contest.module.contest.mapper.ContestEditionMapper;
 import com.campus.contest.module.contest.service.ContestAuthorizationService;
@@ -121,6 +122,20 @@ class TeamAuthorizationServiceTest {
 
         org.assertj.core.api.Assertions.assertThat(
                 service.requireEditionForTeamRead(team)
+        ).isSameAs(edition);
+    }
+    @Test
+    @DisplayName("外校待确认教师可以通过有效申请列出不可见届次队伍")
+    void pendingTeacherCanListUnlistedEditionTeams() {
+        ContestEditionDO edition = edition();
+        when(contestAuthorizationService.currentAccessCriteria())
+                .thenReturn(new ContestAccessCriteria());
+        when(contestAccessMapper.selectEditionById(any())).thenReturn(null);
+        when(teacherApplicationMapper.countEffectiveForEdition(20L, 1L)).thenReturn(1L);
+        when(contestEditionMapper.selectById(1L)).thenReturn(edition);
+
+        org.assertj.core.api.Assertions.assertThat(
+                service.requireEditionForList(1L)
         ).isSameAs(edition);
     }
     @Test

@@ -50,9 +50,9 @@ class RegistrationSupportMysqlTest {
         jdbcTemplate.update(
                 """
                 INSERT INTO team
-                    (edition_id, team_name, team_code, leader_id, status, member_count,
-                     created_by, deleted, version)
-                VALUES (1, ?, ?, 2, 1, 1, 2, 0, 0)
+                    (edition_id, team_name, team_code, leader_id, teacher_id,
+                     status, member_count, created_by, deleted, version)
+                VALUES (1, ?, ?, 2, 8, 1, 1, 2, 0, 0)
                 """,
                 "Support Test " + suffix,
                 "ST" + suffix
@@ -140,6 +140,13 @@ class RegistrationSupportMysqlTest {
                 Integer.class
         );
         assertThat(used).isZero();
+
+        Long teacherIdBeforeWithdraw = jdbcTemplate.queryForObject(
+                "SELECT teacher_id FROM team WHERE id = ?",
+                Long.class,
+                teamId
+        );
+        assertThat(teacherIdBeforeWithdraw).isEqualTo(8L);
 
         assertThat(teamMapper.withdrawAndClearTeacher(
                 teamId,

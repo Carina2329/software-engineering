@@ -70,6 +70,28 @@ public class TeamAuthorizationService {
     /**
      * 队长、管理员走常规届次可见性；待确认教师或已确认教师可通过有效申请关系读取届次。
      */
+    /**
+     * 列表入口：教师有效申请关系可以参与届次可见性判断。
+     */
+    public ContestEditionDO requireEditionForList(Long editionId) {
+        Long userId = currentUserId();
+        var criteria = contestAuthorizationService.currentAccessCriteria();
+        criteria.setEditionId(editionId);
+        ContestEditionDO visible = contestAccessMapper.selectEditionById(criteria);
+        if (visible != null) {
+            return visible;
+        }
+        if (teacherApplicationMapper.countEffectiveForEdition(userId, editionId) > 0) {
+            ContestEditionDO edition = contestEditionMapper.selectById(editionId);
+            if (edition != null) {
+                return edition;
+            }
+        }
+        throw new BizException(
+                ErrorCode.RESOURCE_NOT_FOUND.getCode(),
+                "届次不存在或对当前用户不可见"
+        );
+    }
     public ContestEditionDO requireEditionForTeamRead(TeamDO team) {
         Long userId = currentUserId();
         if (Objects.equals(userId, team.getTeacherId())

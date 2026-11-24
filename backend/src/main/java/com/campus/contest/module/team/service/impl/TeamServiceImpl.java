@@ -105,7 +105,7 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     public TeamPageVO list(Long editionId, TeamPageQuery query) {
-        ContestEditionDO edition = authorizationService.requireVisibleEdition(editionId);
+        ContestEditionDO edition = authorizationService.requireEditionForList(editionId);
         int page = normalizePage(query == null ? null : query.getPage());
         int size = normalizeSize(query == null ? null : query.getSize());
         TeamReadScope readScope = authorizationService.currentReadScope();
@@ -1144,10 +1144,14 @@ public class TeamServiceImpl implements TeamService {
                   FROM team_registration tr
                   JOIN team_teacher_application app
                     ON app.registration_id = tr.id
+                  JOIN team t
+                    ON t.id = tr.team_id
+                   AND t.current_registration_id = tr.id
                  WHERE app.teacher_id = %d
                    AND app.status IN ('PENDING', 'ACCEPTED')
                    AND app.deleted = 0
                    AND tr.deleted = 0
+                   AND t.deleted = 0
                 """.formatted(userId);
     }
 
