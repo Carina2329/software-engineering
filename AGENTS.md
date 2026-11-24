@@ -13,8 +13,10 @@
 
 如任务涉及数据库，只能阅读：
 
-- `docs/db/contest-selection-delta-v0.2.md`
+- `docs/db/contest-selection-delta-v0.3.md`
+- `docs/business/business-core/team-registration-contract.md`
 - `docs/sql/2026-11-15-business-core-foundation.sql`
+- `docs/sql/2026-11-24-team-registration-foundation.sql`
 - 认证相关任务继续阅读 `docs/db/rbac-auth-delta.md` 和 `docs/sql/2026-11-03-rbac-auth-foundation.sql`
 
 这些文件是事实源。不要在任务卡、代码注释或另一份文档中复制一套接口字段或数据库定义。
@@ -48,8 +50,9 @@
 - 组织与范围权限：学校、省级/国家级主办方、用户学校归属、范围角色。
 - 个人档案：学生姓名、学校、学号、学院、专业、年级；教师姓名、学校、学院、职称。
 - 竞赛与届次：竞赛系列、具体比赛实例、主办组织、级别、可见范围、赛程、固定/范围人数、教师指导上限、赛题模式、发布和查看。
+- 报名组织：队长代办制契约已冻结，正式任务 `BIZ-TEAM-REGISTRATION-001` 等待真实组员认领。
 
-本阶段不实现赛题增删、队伍报名、教师申请、作品提交、评审、公示、通知、AI 或静态空壳页面。
+本阶段仍不实现赛题增删、作品提交、评审、公示、通知、AI 或静态空壳页面。报名组织只按已冻结的队长代办制契约开发，不恢复邀请制。
 
 ## 公共文件边界
 
@@ -73,8 +76,12 @@
 - `docs/sql/2026-11-18-multitenant-dev-seed.sql`
 - `docs/sql/2026-11-19-cn-province-dictionary-seed.sql`
 - `docs/db/contest-selection-delta-v0.2.md`
+- `docs/db/contest-selection-delta-v0.3.md`
 - `docs/AI学科竞赛系统-功能需求说明书-V0.5.md`
+- `docs/AI学科竞赛系统-功能需求说明书-V0.6.md`
 - `docs/AI学科竞赛系统-前后端工程规划与命名规范-V0.4.md`
+- `docs/AI学科竞赛系统-前后端工程规划与命名规范-V0.5.md`
+- `docs/business/business-core/team-registration-contract.md`
 - `docs/auth-rbac/contract.md`
 - `docs/auth-rbac/team-plan.md`
 - `docs/db/rbac-auth-delta.md`
@@ -120,6 +127,9 @@
 - 继续使用 `sys_user`、`sys_role`、`sys_user_role`、`sys_menu`、`sys_role_menu`、`sys_oper_log`。
 - `sys_menu` 是目录、菜单、按钮和 API 权限的统一资源树。
 - 不得新增 `sys_permission_resource` 或 `sys_role_permission`。
+- 报名组织只使用 `team`、`team_member`、`team_registration`、`team_registration_attachment`、`team_teacher_application`、`edition_entry_grant` 和 `edition_school_quota`。
+- 学校名额和教师容量使用 MySQL 事务与约束，不使用 Redis 抢占。
+- 不创建 `team_invitation`，不实现队员账号、邀请或申请入队。
 - 图片验证码、邮件 OTP、会话、Refresh Token、幂等记录和限流保存在 Redis。
 - MySQL 事务不包含 Redis。数据库事务提交后再撤销 Redis 会话；撤销失败不得报告完全成功。
 
@@ -155,6 +165,7 @@
 ## 审计一致性
 
 - 个人档案、组织和范围授权、比赛配置与发布、赛程节点等关键成功写操作，必须把业务修改与 `sys_oper_log` 写入放在同一数据库事务中。
+- 队伍成员、报名提交/撤回、教师确认、管理员终审、资格名单和学校名额的关键成功写操作，同样必须与审计同事务。
 - 审计写入失败必须回滚业务事务并返回错误，不得报告完全成功。
 - 被拒绝请求的审计可以 best-effort。
 - 认证高频失败事件继续使用现有审计策略，不在本轮强制事务范围。
