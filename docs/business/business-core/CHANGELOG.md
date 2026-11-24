@@ -1,5 +1,15 @@
 # 业务核心公共契约变更记录
 
+## 2026-11-24 - v1.6.0 支持实现
+
+### 报名组织跨模块支持能力
+
+- 新增 `RegistrationAttachmentPolicy` 报名附件策略。
+- 新增 `RegistrationEligibilityService` 报名资格只读判断。
+- 新增 `SchoolQuotaService` 学校名额事务占用与幂等释放。
+- 冻结成员快照 JSON 字段和 `REGISTRATION_STATE_INVALID` 资格状态。
+- 支持服务不拥有 EP-033 报名提交事务；事务仍由队伍报名服务统一编排。
+
 ## 2026-11-24 - v1.6.0
 
 ### 队长代办制报名组织

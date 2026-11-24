@@ -124,7 +124,9 @@ CREATE TABLE team_registration (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-`members_snapshot` 最多 5 个对象，应用层校验。
+`members_snapshot` 最多 5 个对象，应用层校验。每个对象固定使用
+`member_id`、`user_id`、`member_name`、`school_id`、`student_no`、
+`is_leader` 六个键；普通队员的 `user_id` 可为 null。
 
 ## 五、新增 `team_registration_attachment`
 

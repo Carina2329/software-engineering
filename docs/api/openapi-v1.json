@@ -4913,7 +4913,8 @@
                             "DEADLINE_PASSED",
                             "NOT_VISIBLE",
                             "MEMBERS_INVALID",
-                            "ALREADY_REGISTERED"
+                            "ALREADY_REGISTERED",
+                            "REGISTRATION_STATE_INVALID"
                           ]
                         },
                         "register_reason": {
