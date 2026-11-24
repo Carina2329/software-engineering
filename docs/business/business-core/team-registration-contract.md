@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 契约版本 | 1.0.0 |
+| 契约版本 | 1.0.1 |
 | 冻结日期 | 2026-11-24 |
 | 需求基线 | 《AI学科竞赛系统-功能需求说明书》V0.6 |
 | 接口基线 | `docs/api/openapi-v1.json` |
@@ -150,6 +150,71 @@ registration_id + file_id + file_type + sort_no
 
 不得使用 `team_version` 区分附件轮次。
 
+`members_snapshot` 使用以下固定键：
+
+```json
+{
+  "member_id": "11",
+  "user_id": "30",
+  "member_name": "张三",
+  "school_id": "2",
+  "student_no": "20260001",
+  "is_leader": true
+}
+```
+
+普通队员的 `user_id` 可为 `null`。顺序固定为队长优先，其后按 `member_id` 升序。
+
+## 六、跨模块冻结接口
+
+### 文件附件
+
+```text
+com.campus.contest.module.work.service.RegistrationAttachmentPolicy
+com.campus.contest.module.work.model.ValidatedRegistrationAttachment
+```
+
+```java
+List<ValidatedRegistrationAttachment> validateForCaptain(
+        Long captainUserId,
+        List<Long> fileIds
+);
+```
+
+### 报名资格
+
+```text
+com.campus.contest.module.team.support.service.RegistrationEligibilityService
+com.campus.contest.module.team.support.model.RegistrationEligibilityContext
+com.campus.contest.module.team.support.model.RegistrationEligibilityResult
+com.campus.contest.module.team.support.model.RegistrationCheckMode
+```
+
+```java
+RegistrationEligibilityResult checkCanRegister(
+        RegistrationEligibilityContext context
+);
+```
+
+### 学校名额
+
+```text
+com.campus.contest.module.team.support.service.SchoolQuotaService
+com.campus.contest.module.team.support.model.SchoolQuotaReservation
+```
+
+```java
+SchoolQuotaReservation occupy(
+        Long registrationId,
+        Long editionId,
+        Long schoolId
+);
+
+void release(Long registrationId);
+```
+
+资格和名额实现位于 `module/team/support`，由公共基础负责人提供。提交报名事务仍由队伍报名服务统一编排。
+
 ## 五、审核与截止时间
 
 - 报名截止只在 EP-033 提交时检查。
@@ -159,7 +224,7 @@ registration_id + file_id + file_type + sort_no
 - 终审发现资格失效时按 `ADMIN` 驳回。
 - 已通过报名后的资格撤销不自动删除报名，转管理员人工处理。
 
-## 六、教师申请事务
+## 七、教师申请事务
 
 | 操作 | 教师申请 | `team.teacher_id` | 名额 |
 | --- | --- | --- | --- |
@@ -170,7 +235,7 @@ registration_id + file_id + file_type + sort_no
 
 管理员驳回后的教师接受记录不计入当前指导容量，因为对应轮次已 `REJECTED`。
 
-## 七、资格与名额
+## 八、资格与名额
 
 ### 资格判断
 
@@ -178,7 +243,7 @@ registration_id + file_id + file_type + sort_no
 - `registration_open` 只决定时间窗口。
 - `can_register` 由后端结合 `OPEN / INVITED / QUALIFIED`、资格名单、成员、学校和名额计算。
 
-资格不满足时 EP-033 返回明确的 `register_state` 和 HTTP 409，不创建报名轮次，不进入 `REJECTED`。
+资格不满足时 EP-033 返回明确的 `register_state` 和 HTTP 409，不创建报名轮次，不进入 `REJECTED`。队伍聚合状态不允许当前操作时返回 `REGISTRATION_STATE_INVALID`。
 
 ### 资格名单
 
@@ -204,7 +269,7 @@ UNIQUE(
 - `quota_held` 保证每个轮次最多占用和释放一次。
 - 跨校队伍占用队长已审核学校名额。
 
-## 八、附件权限
+## 九、附件权限
 
 EP-033 创建附件映射前必须校验：
 
@@ -216,7 +281,7 @@ EP-033 创建附件映射前必须校验：
 6. 禁止通过猜测或伪造 `file_id` 关联私有文件。
 7. 下载继续使用现有文件权限和 `TEAM / GUIDED / ALL` 数据范围。
 
-## 九、事务边界
+## 十、事务边界
 
 提交报名事务唯一负责人：队伍后端报名服务。
 
@@ -234,7 +299,7 @@ EP-033 创建附件映射前必须校验：
 
 资格名额和文件模块只提供同一事务内可调用的校验、占用和释放方法，不拥有 EP-033 状态更新。
 
-## 十、接口
+## 十一、接口
 
 保留并调整：
 

@@ -99,6 +99,14 @@ frontend/src/main.ts
 
 报名事务唯一负责人是队伍后端报名服务。
 
+以下支持接口已由公共基础负责人提供，李同学只消费：
+
+```text
+com.campus.contest.module.work.service.RegistrationAttachmentPolicy
+com.campus.contest.module.team.support.service.RegistrationEligibilityService
+com.campus.contest.module.team.support.service.SchoolQuotaService
+```
+
 资格名额模块只提供：
 
 ```text
