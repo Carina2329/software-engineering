@@ -4,6 +4,7 @@ import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
 import com.campus.contest.module.work.entity.FileDO;
 import com.campus.contest.module.work.mapper.FileMapper;
+import com.campus.contest.module.work.mapper.RegistrationAttachmentUsageMapper;
 import com.campus.contest.module.work.model.ValidatedRegistrationAttachment;
 import com.campus.contest.module.work.service.RegistrationAttachmentPolicy;
 import lombok.RequiredArgsConstructor;
@@ -25,13 +26,15 @@ public class RegistrationAttachmentPolicyImpl implements RegistrationAttachmentP
     static final String MATERIAL_TYPE = "REGISTRATION_ATTACHMENT";
 
     private final FileMapper fileMapper;
+    private final RegistrationAttachmentUsageMapper usageMapper;
 
     @Override
     public List<ValidatedRegistrationAttachment> validateForCaptain(
             Long captainUserId,
+            Long teamId,
             List<Long> fileIds
     ) {
-        if (captainUserId == null || fileIds == null || fileIds.isEmpty()) {
+        if (captainUserId == null || teamId == null || fileIds == null || fileIds.isEmpty()) {
             throw invalid("报名附件不能为空");
         }
         if (fileIds.size() > MAX_ATTACHMENTS) {
@@ -58,6 +61,9 @@ public class RegistrationAttachmentPolicyImpl implements RegistrationAttachmentP
                     || file.getFileSize() <= 0
                     || file.getFileSize() > MAX_FILE_SIZE) {
                 throw invalid("报名附件名称或大小不合法");
+            }
+            if (usageMapper.countOtherTeamAssociations(fileId, teamId) > 0) {
+                throw notFound();
             }
             String mimeType = StringUtils.hasText(file.getMimeType())
                     ? file.getMimeType().trim()

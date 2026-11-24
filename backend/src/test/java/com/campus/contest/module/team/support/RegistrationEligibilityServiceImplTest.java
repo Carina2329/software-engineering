@@ -184,6 +184,27 @@ class RegistrationEligibilityServiceImplTest {
         assertThat(result.reason()).contains("已归档");
     }
 
+    @Test
+    void adminReviewRequiresLimitedQuotaToStillBeHeldByCurrentRound() throws Exception {
+        prepareBase(true, 2, edition("PUBLIC", "OPEN", true, 0));
+        String snapshot = objectMapper.writeValueAsString(List.of(new RegistrationMemberSnapshot(
+                11L, 30L, "Leader User", 2L, "20260001", true
+        )));
+        when(supportMapper.selectRegistration(50L)).thenReturn(new RegistrationRow(
+                50L, 10L, 20L, "PENDING_ADMIN", snapshot, 0, 2L
+        ));
+        when(supportMapper.selectQuota(20L, 2L)).thenReturn(new QuotaRow(3L, 5, 0));
+
+        RegistrationEligibilityResult result = service.checkCanRegister(context(
+                RegistrationCheckMode.ADMIN_REVIEW,
+                50L
+        ));
+
+        assertThat(result.canRegister()).isFalse();
+        assertThat(result.registerState()).isEqualTo("SCHOOL_QUOTA_FULL");
+        assertThat(result.reason()).contains("名额");
+    }
+
     private void prepareBase(boolean futureDeadline, int teamStatus, EditionRow edition) {
         when(supportMapper.selectTeam(10L)).thenReturn(new TeamRow(
                 10L, 20L, 30L, teamStatus, null

@@ -12,6 +12,7 @@ public interface RegistrationAttachmentPolicy {
      */
     List<ValidatedRegistrationAttachment> validateForCaptain(
             Long captainUserId,
+            Long teamId,
             List<Long> fileIds
     );
 }

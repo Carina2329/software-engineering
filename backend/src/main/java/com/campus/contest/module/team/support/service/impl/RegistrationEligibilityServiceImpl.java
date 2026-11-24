@@ -134,11 +134,14 @@ public class RegistrationEligibilityServiceImpl implements RegistrationEligibili
                 && quota == null) {
             return rejected("SCHOOL_QUOTA_FULL", "报名轮次占用的学校名额记录已失效");
         }
-        if (limitedQuotaFull(quota)
-                && (context.mode() == RegistrationCheckMode.SUBMIT
-                || registration == null
+        boolean limited = quota != null && quota.maxTeams() != null;
+        boolean adminQuotaNotHeld = context.mode() == RegistrationCheckMode.ADMIN_REVIEW
+                && limited
+                && (registration == null
                 || !Integer.valueOf(1).equals(registration.quotaHeld())
-                || !Objects.equals(registration.quotaSchoolId(), leaderSchool.getId()))) {
+                || !Objects.equals(registration.quotaSchoolId(), leaderSchool.getId()));
+        if (adminQuotaNotHeld
+                || context.mode() == RegistrationCheckMode.SUBMIT && limitedQuotaFull(quota)) {
             return new RegistrationEligibilityResult(
                     false,
                     "SCHOOL_QUOTA_FULL",

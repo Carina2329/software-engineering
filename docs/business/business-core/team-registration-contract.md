@@ -177,6 +177,7 @@ com.campus.contest.module.work.model.ValidatedRegistrationAttachment
 ```java
 List<ValidatedRegistrationAttachment> validateForCaptain(
         Long captainUserId,
+        Long teamId,
         List<Long> fileIds
 );
 ```
