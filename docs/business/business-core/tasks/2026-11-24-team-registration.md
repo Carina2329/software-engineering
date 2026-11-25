@@ -3,9 +3,9 @@
 | 项目 | 内容 |
 | --- | --- |
 | 任务编号 | `BIZ-TEAM-REGISTRATION-001` |
-| 当前状态 | 待认领 |
-| 当前负责人 | 待认领 |
-| 目标分支 | `feature/business-team-registration` |
+| 当前状态 | 阶段 1～3 已完成；阶段 4 待认领 |
+| 当前负责人 | 阶段 4 待认领 |
+| 目标分支 | 阶段 1～3：`feature/business-team-registration-stage3`（已合并）；阶段 4：`feature/business-team-registration-frontend` |
 | PR 目标分支 | `feature/business-core` |
 | 事实源 | V0.6 需求、`team-registration-contract.md`、`contest-selection-delta-v0.3.md`、最新 OpenAPI |
 
@@ -59,11 +59,16 @@
 
 ### 阶段 4：前端和完整测试
 
-- 队长填写和修改全队成员。
-- 队长提交、撤回、查看驳回原因和重提。
-- 教师确认。
-- 管理员终审。
-- 资格、名额、附件和并发异常展示。
+正式任务拆分为：
+
+1. 前置公共能力：`BIZ-TEAM-FRONTEND-CONTRACT-001`
+   - `2026-11-25-team-registration-frontend-prerequisites.md`
+   - 负责教师选择接口、EP-028 当前报名读取模型和公共契约。
+2. 单负责人前端闭环：`BIZ-TEAM-REGISTRATION-FRONTEND-001`
+   - `2026-11-25-team-registration-frontend.md`
+   - 内部包含学生队伍、教师确认、管理员终审、资格名单和学校名额组件。
+
+公共路由、菜单、权限种子和现有管理员页面由段欣懿统一接入。
 
 ## 三、文件和所有权
 
@@ -162,6 +167,8 @@ RegistrationAttachmentPolicy.validateForCaptain(...)
 
 ## 七、停止点
 
-- 完成阶段 1/2 后先交公共负责人审查，再继续阶段 3。
+- 阶段 1～3 已通过公共负责人审查并合并。
+- 阶段 4 先完成 `BIZ-TEAM-FRONTEND-CONTRACT-001`，再开始前端页面闭环。
+- 前端任务不得自行修改公共路由、菜单、权限种子、OpenAPI 或现有管理员页面。
 - 需要修改公共契约时停止并提交差异，不自行修改公共文件。
 - PR 完成后保持 Ready，不自行合并。
