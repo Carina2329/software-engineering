@@ -1,11 +1,13 @@
 package com.campus.contest.module.team.service;
 
 import com.campus.contest.module.team.dto.TeamApprovalRequest;
+import com.campus.contest.module.team.dto.AvailableTeacherQuery;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamPageQuery;
 import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.dto.TeamUpdateRequest;
 import com.campus.contest.module.team.vo.TeamApprovalVO;
+import com.campus.contest.module.team.vo.AvailableTeacherPageVO;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamDetailVO;
 import com.campus.contest.module.team.vo.TeamMemberVO;
@@ -19,6 +21,8 @@ import java.util.List;
 public interface TeamService {
 
     TeamPageVO list(Long editionId, TeamPageQuery query);
+
+    AvailableTeacherPageVO availableTeachers(Long editionId, AvailableTeacherQuery query);
 
     TeamCreateVO create(Long editionId, TeamCreateRequest request, String idempotencyKey);
 

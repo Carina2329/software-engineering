@@ -18,6 +18,13 @@ public record TeamDetailVO(
         int version,
         @JsonProperty("current_registration_id") String currentRegistrationId,
         @JsonProperty("current_registration_version") Integer currentRegistrationVersion,
+        @JsonProperty("current_registration_status") String currentRegistrationStatus,
+        @JsonProperty("current_reject_stage") String currentRejectStage,
+        @JsonProperty("current_reject_reason") String currentRejectReason,
+        @JsonProperty("current_teacher_id") String currentTeacherId,
+        @JsonProperty("current_teacher_name") String currentTeacherName,
+        @JsonProperty("current_teacher_application_status") String currentTeacherApplicationStatus,
+        List<RegistrationAttachmentVO> attachments,
         @JsonProperty("can_register") boolean canRegister,
         @JsonProperty("register_state") String registerState,
         @JsonProperty("register_reason") String registerReason

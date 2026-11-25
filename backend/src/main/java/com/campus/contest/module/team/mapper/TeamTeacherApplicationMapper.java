@@ -13,6 +13,18 @@ import java.time.LocalDateTime;
 public interface TeamTeacherApplicationMapper extends BaseMapper<TeamTeacherApplicationDO> {
 
     @Select("""
+            SELECT *
+              FROM team_teacher_application
+             WHERE registration_id = #{registrationId}
+               AND deleted = 0
+             ORDER BY id DESC
+             LIMIT 1
+            """)
+    TeamTeacherApplicationDO selectCurrentByRegistrationId(
+            @Param("registrationId") Long registrationId
+    );
+
+    @Select("""
             SELECT COUNT(*)
               FROM team_teacher_application app
               JOIN team_registration reg ON reg.id = app.registration_id
