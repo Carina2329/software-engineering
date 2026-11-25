@@ -54,6 +54,12 @@ public class TeamAuthorizationService {
         return currentReadScope().global();
     }
 
+    public void requireGlobalOperator() {
+        if (!isGlobalOperator()) {
+            throw dataForbidden("当前操作仅允许平台全局管理员");
+        }
+    }
+
     public ContestEditionDO requireVisibleEdition(Long editionId) {
         var criteria = contestAuthorizationService.currentAccessCriteria();
         criteria.setEditionId(editionId);
