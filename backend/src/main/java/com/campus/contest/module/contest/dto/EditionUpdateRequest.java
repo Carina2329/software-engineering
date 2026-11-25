@@ -1,11 +1,13 @@
 package com.campus.contest.module.contest.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Data
 public class EditionUpdateRequest {
@@ -77,4 +79,8 @@ public class EditionUpdateRequest {
 
     @JsonProperty("cross_school_team_allowed")
     private Boolean crossSchoolTeamAllowed;
+
+    @Valid
+    @JsonProperty("school_quotas")
+    private List<EditionSchoolQuotaRequest> schoolQuotas;
 }

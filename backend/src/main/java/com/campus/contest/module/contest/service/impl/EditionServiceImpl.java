@@ -10,9 +10,11 @@ import com.campus.contest.common.idempotency.IdempotencyService;
 import com.campus.contest.module.contest.dto.EditionCreateRequest;
 import com.campus.contest.module.contest.dto.EditionPageQuery;
 import com.campus.contest.module.contest.dto.EditionPublishRequest;
+import com.campus.contest.module.contest.dto.EditionSchoolQuotaRequest;
 import com.campus.contest.module.contest.dto.EditionUpdateRequest;
 import com.campus.contest.module.contest.entity.ContestDO;
 import com.campus.contest.module.contest.entity.ContestEditionDO;
+import com.campus.contest.module.contest.entity.EditionSchoolQuotaDO;
 import com.campus.contest.module.contest.enums.ContestLevel;
 import com.campus.contest.module.contest.enums.EditionStatus;
 import com.campus.contest.module.contest.enums.EditionVisibility;
@@ -25,6 +27,7 @@ import com.campus.contest.module.contest.mapper.ContestAccessMapper;
 import com.campus.contest.module.contest.mapper.ContestEditionMapper;
 import com.campus.contest.module.contest.mapper.ContestMapper;
 import com.campus.contest.module.contest.mapper.ContestTeamMapper;
+import com.campus.contest.module.contest.mapper.EditionSchoolQuotaMapper;
 import com.campus.contest.module.contest.service.ContestAuditService;
 import com.campus.contest.module.contest.service.ContestAuthorizationService;
 import com.campus.contest.module.contest.service.EditionService;
@@ -48,10 +51,15 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 
 @Service
@@ -69,6 +77,7 @@ public class EditionServiceImpl implements EditionService {
     private final ContestEditionMapper editionMapper;
     private final ContestAccessMapper accessMapper;
     private final ContestTeamMapper teamMapper;
+    private final EditionSchoolQuotaMapper schoolQuotaMapper;
     private final OrganizationMapper organizationMapper;
     private final ContestAuthorizationService authorizationService;
     private final IdempotencyService idempotencyService;
@@ -481,8 +490,17 @@ public class EditionServiceImpl implements EditionService {
             );
             ensureDeadlinesOnlyExtended(existing, request, now);
             ensureEditionNameAvailable(ownerOrgId, existing.getYear(), editionName, editionId);
+            SchoolQuotaChange quotaChange = replaceSchoolQuotas(
+                    editionId,
+                    request.getSchoolQuotas(),
+                    operatorId,
+                    now
+            );
 
             Map<String, Object> before = editionSnapshot(existing);
+            if (quotaChange.before() != null) {
+                before.put("school_quotas", quotaChange.before());
+            }
             ContestEditionDO update = new ContestEditionDO();
             update.setId(editionId);
             update.setOwnerOrgId(requestedOwner);
@@ -539,6 +557,9 @@ public class EditionServiceImpl implements EditionService {
             after.put("province_code", provinceCode);
             after.put("visibility", visibility.name());
             after.put("version", request.getVersion() + 1);
+            if (quotaChange.after() != null) {
+                after.put("school_quotas", quotaChange.after());
+            }
             auditService.record(operatorId, "EDITION_UPDATE",
                     Map.of("before", before, "after", after));
             return new EditionVersionVO(String.valueOf(editionId), request.getVersion() + 1);
@@ -917,6 +938,181 @@ public class EditionServiceImpl implements EditionService {
         result.put("topic_review_required", request.getTopicReviewRequired());
         result.put("topic_allocation_mode", request.getTopicAllocationMode());
         result.put("topic_change_limit", request.getTopicChangeLimit());
+        result.put("school_quotas", quotaFingerprint(request.getSchoolQuotas()));
+        return result;
+    }
+
+    private SchoolQuotaChange replaceSchoolQuotas(
+            Long editionId,
+            List<EditionSchoolQuotaRequest> requests,
+            Long operatorId,
+            LocalDateTime now
+    ) {
+        if (requests == null) {
+            return SchoolQuotaChange.unchanged();
+        }
+
+        Map<Long, Integer> requested = new LinkedHashMap<>();
+        for (int index = 0; index < requests.size(); index++) {
+            EditionSchoolQuotaRequest item = requests.get(index);
+            if (item == null) {
+                throw invalidParam("school_quotas[" + index + "] 不能为空");
+            }
+            Long schoolId = parseOptionalId(
+                    item.getSchoolId(),
+                    "school_quotas[" + index + "].school_id"
+            );
+            if (schoolId == null) {
+                throw invalidParam("school_quotas[" + index + "].school_id 必须为正整数");
+            }
+            if (requested.containsKey(schoolId)) {
+                throw invalidParam("school_quotas 中 school_id 不能重复");
+            }
+            Integer maxTeams = item.getMaxTeams();
+            if (maxTeams != null && maxTeams < 1) {
+                throw invalidParam("school_quotas[" + index + "].max_teams 必须大于 0");
+            }
+            OrganizationDO school = organizationMapper.selectById(schoolId);
+            if (school == null
+                    || !Integer.valueOf(1).equals(school.getStatus())
+                    || !ORG_SCHOOL.equalsIgnoreCase(school.getOrgType())) {
+                throw invalidParam("school_quotas 中的 school_id 必须对应启用状态的学校组织");
+            }
+            requested.put(schoolId, maxTeams);
+        }
+
+        List<EditionSchoolQuotaDO> existingRows =
+                schoolQuotaMapper.selectByEditionForUpdate(editionId);
+        Map<Long, EditionSchoolQuotaDO> existingBySchool = new HashMap<>();
+        for (EditionSchoolQuotaDO row : existingRows) {
+            existingBySchool.put(row.getSchoolId(), row);
+        }
+
+        List<Map<String, Object>> before = existingRows.stream()
+                .filter(row -> !Integer.valueOf(1).equals(row.getDeleted()))
+                .sorted(Comparator.comparing(EditionSchoolQuotaDO::getSchoolId))
+                .map(this::quotaSnapshot)
+                .toList();
+
+        for (Map.Entry<Long, Integer> requestedQuota : requested.entrySet()) {
+            EditionSchoolQuotaDO existing = existingBySchool.get(requestedQuota.getKey());
+            int usedTeams = existing == null || existing.getUsedTeams() == null
+                    ? 0 : existing.getUsedTeams();
+            if (Integer.valueOf(1).equals(
+                    existing == null ? null : existing.getDeleted()
+            ) && usedTeams > 0) {
+                throw new BizException(
+                        ErrorCode.BUSINESS_CONFLICT.getCode(),
+                        "历史学校名额记录仍有队伍占用，无法重新配置"
+                );
+            }
+            if (requestedQuota.getValue() != null
+                    && usedTeams > requestedQuota.getValue()) {
+                throw new BizException(
+                        ErrorCode.BUSINESS_CONFLICT.getCode(),
+                        "学校名额不能低于当前已占用队伍数"
+                );
+            }
+        }
+
+        Set<Long> retainedSchools = new HashSet<>(requested.keySet());
+        for (EditionSchoolQuotaDO existing : existingRows) {
+            if (Integer.valueOf(1).equals(existing.getDeleted())
+                    || retainedSchools.contains(existing.getSchoolId())) {
+                continue;
+            }
+            int usedTeams = existing.getUsedTeams() == null ? 0 : existing.getUsedTeams();
+            if (usedTeams > 0) {
+                throw new BizException(
+                        ErrorCode.BUSINESS_CONFLICT.getCode(),
+                        "已有队伍占用的学校名额不能删除，可将 max_teams 设为 null"
+                );
+            }
+        }
+
+        for (Map.Entry<Long, Integer> requestedQuota : requested.entrySet()) {
+            EditionSchoolQuotaDO existing = existingBySchool.get(requestedQuota.getKey());
+            if (existing == null) {
+                EditionSchoolQuotaDO insert = new EditionSchoolQuotaDO();
+                insert.setEditionId(editionId);
+                insert.setSchoolId(requestedQuota.getKey());
+                insert.setMaxTeams(requestedQuota.getValue());
+                insert.setUsedTeams(0);
+                insert.setCreatedAt(now);
+                insert.setCreatedBy(operatorId);
+                insert.setUpdatedAt(now);
+                insert.setUpdatedBy(operatorId);
+                insert.setDeleted(0);
+                insert.setVersion(0);
+                if (schoolQuotaMapper.insert(insert) != 1) {
+                    throw new IllegalStateException("学校名额配置写入失败");
+                }
+            } else if (schoolQuotaMapper.updateMaxTeams(
+                    existing.getId(),
+                    requestedQuota.getValue(),
+                    operatorId,
+                    now
+            ) != 1) {
+                throw versionConflict();
+            }
+        }
+
+        for (EditionSchoolQuotaDO existing : existingRows) {
+            if (Integer.valueOf(1).equals(existing.getDeleted())
+                    || retainedSchools.contains(existing.getSchoolId())) {
+                continue;
+            }
+            if (schoolQuotaMapper.softDeleteIfUnused(existing.getId(), operatorId, now) != 1) {
+                throw versionConflict();
+            }
+        }
+
+        List<Map<String, Object>> after = requested.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> {
+                    EditionSchoolQuotaDO existing = existingBySchool.get(entry.getKey());
+                    Map<String, Object> snapshot = new LinkedHashMap<>();
+                    snapshot.put("school_id", String.valueOf(entry.getKey()));
+                    snapshot.put("max_teams", entry.getValue());
+                    snapshot.put(
+                            "used_teams",
+                            existing == null || existing.getUsedTeams() == null
+                                    ? 0 : existing.getUsedTeams()
+                    );
+                    return snapshot;
+                })
+                .toList();
+        return new SchoolQuotaChange(before, after);
+    }
+
+    private Map<String, Object> quotaSnapshot(EditionSchoolQuotaDO row) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("school_id", String.valueOf(row.getSchoolId()));
+        snapshot.put("max_teams", row.getMaxTeams());
+        snapshot.put("used_teams", row.getUsedTeams() == null ? 0 : row.getUsedTeams());
+        return snapshot;
+    }
+
+    private List<Map<String, Object>> quotaFingerprint(
+            List<EditionSchoolQuotaRequest> quotas
+    ) {
+        if (quotas == null) {
+            return null;
+        }
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (EditionSchoolQuotaRequest quota : quotas) {
+            if (quota == null) {
+                result.add(null);
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("school_id", quota.getSchoolId());
+            item.put("max_teams", quota.getMaxTeams());
+            result.add(item);
+        }
+        result.sort(Comparator.comparing(
+                item -> item == null ? "" : String.valueOf(item.get("school_id"))
+        ));
         return result;
     }
 
@@ -960,8 +1156,18 @@ public class EditionServiceImpl implements EditionService {
                 && request.getTopicMode() == null
                 && request.getTopicReviewRequired() == null
                 && request.getTopicAllocationMode() == null
-                && request.getTopicChangeLimit() == null) {
+                && request.getTopicChangeLimit() == null
+                && request.getSchoolQuotas() == null) {
             throw invalidParam("至少提交一个需要修改的届次字段");
+        }
+    }
+
+    private record SchoolQuotaChange(
+            List<Map<String, Object>> before,
+            List<Map<String, Object>> after
+    ) {
+        private static SchoolQuotaChange unchanged() {
+            return new SchoolQuotaChange(null, null);
         }
     }
 
