@@ -642,7 +642,7 @@ class TeamServiceImplTest {
         when(registrationMapper.updateById(any(TeamRegistrationDO.class))).thenReturn(1);
         TeamRegistrationDO released = registration();
         released.setStatus("REJECTED");
-        released.setVersion(2);
+        released.setVersion(3);
         when(registrationMapper.selectById(700L)).thenReturn(released);
         when(teamMapper.withdrawAndClearTeacher(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(4)))
                 .thenReturn(1);
@@ -652,7 +652,7 @@ class TeamServiceImplTest {
         );
 
         assertThat(result.status()).isEqualTo("REJECTED");
-        assertThat(result.version()).isEqualTo(2);
+        assertThat(result.version()).isEqualTo(3);
         verify(quotaService).release(700L);
         verify(registrationMapper).selectById(700L);
         verify(teamMapper).withdrawAndClearTeacher(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(4));
