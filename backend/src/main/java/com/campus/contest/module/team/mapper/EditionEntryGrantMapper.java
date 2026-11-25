@@ -1,6 +1,7 @@
 package com.campus.contest.module.team.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.campus.contest.module.contest.entity.ContestEditionDO;
 import com.campus.contest.module.team.entity.EditionEntryGrantDO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -9,6 +10,9 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface EditionEntryGrantMapper extends BaseMapper<EditionEntryGrantDO> {
+
+    @Select("SELECT * FROM contest_edition WHERE id = #{id} AND deleted = 0 FOR UPDATE")
+    ContestEditionDO selectEditionForUpdate(@Param("id") Long id);
 
     @Select("SELECT * FROM edition_entry_grant WHERE id = #{id} AND deleted = 0 FOR UPDATE")
     EditionEntryGrantDO selectActiveByIdForUpdate(@Param("id") Long id);

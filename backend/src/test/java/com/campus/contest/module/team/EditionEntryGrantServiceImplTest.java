@@ -4,16 +4,24 @@ import com.campus.contest.common.BizException;
 import com.campus.contest.common.ErrorCode;
 import com.campus.contest.common.idempotency.IdempotencyService;
 import com.campus.contest.module.contest.entity.ContestEditionDO;
+import com.campus.contest.module.contest.enums.EditionStatus;
 import com.campus.contest.module.contest.mapper.ContestEditionMapper;
+import com.campus.contest.module.contest.service.ContestAuthorizationService;
+import com.campus.contest.module.organization.entity.OrganizationDO;
+import com.campus.contest.module.organization.mapper.OrganizationMapper;
+import com.campus.contest.module.system.dto.AuthorizationSnapshot;
+import com.campus.contest.module.system.entity.SysUserDO;
+import com.campus.contest.module.system.mapper.SysUserMapper;
+import com.campus.contest.module.system.service.AuthorizationSnapshotService;
 import com.campus.contest.module.team.dto.EntryGrantBatchItem;
 import com.campus.contest.module.team.dto.EntryGrantBatchRequest;
 import com.campus.contest.module.team.entity.EditionEntryGrantDO;
 import com.campus.contest.module.team.mapper.EditionEntryGrantMapper;
 import com.campus.contest.module.team.service.TeamAuditService;
-import com.campus.contest.module.team.service.TeamAuthorizationService;
 import com.campus.contest.module.team.service.impl.EditionEntryGrantServiceImpl;
 import com.campus.contest.module.team.vo.EntryGrantBatchVO;
 import com.campus.contest.module.team.vo.EntryGrantListVO;
+import com.campus.contest.security.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +36,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,7 +44,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -50,7 +58,15 @@ class EditionEntryGrantServiceImplTest {
     @Mock
     private ContestEditionMapper editionMapper;
     @Mock
-    private TeamAuthorizationService authorizationService;
+    private ContestAuthorizationService contestAuthorizationService;
+    @Mock
+    private CurrentUserProvider currentUserProvider;
+    @Mock
+    private SysUserMapper userMapper;
+    @Mock
+    private OrganizationMapper organizationMapper;
+    @Mock
+    private AuthorizationSnapshotService authorizationSnapshotService;
     @Mock
     private TeamAuditService auditService;
     @Mock
@@ -59,6 +75,7 @@ class EditionEntryGrantServiceImplTest {
     private TransactionTemplate transactionTemplate;
 
     private EditionEntryGrantServiceImpl service;
+    private ContestEditionDO edition;
 
     @BeforeEach
     void setUp() {
@@ -69,14 +86,25 @@ class EditionEntryGrantServiceImplTest {
         service = new EditionEntryGrantServiceImpl(
                 entryGrantMapper,
                 editionMapper,
-                authorizationService,
+                contestAuthorizationService,
+                currentUserProvider,
+                userMapper,
+                organizationMapper,
+                authorizationSnapshotService,
                 auditService,
                 idempotencyService,
                 transactionTemplate,
                 clock
         );
-        lenient().when(editionMapper.selectById(10L)).thenReturn(new ContestEditionDO());
-        lenient().when(authorizationService.currentUserId()).thenReturn(9L);
+        edition = new ContestEditionDO();
+        edition.setId(10L);
+        edition.setStatus(EditionStatus.REGISTERING.getDatabaseValue());
+        edition.setLevel("SCHOOL");
+        edition.setOwnerOrgId(100L);
+        lenient().when(editionMapper.selectById(10L)).thenReturn(edition);
+        lenient().when(entryGrantMapper.selectEditionForUpdate(10L)).thenReturn(edition);
+        lenient().when(currentUserProvider.requireUserId()).thenReturn(9L);
+        lenient().when(organizationMapper.selectById(20L)).thenReturn(activeSchool());
         lenient().when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
             TransactionCallback<?> callback = invocation.getArgument(0);
             return callback.doInTransaction(null);
@@ -93,12 +121,19 @@ class EditionEntryGrantServiceImplTest {
     }
 
     @Test
-    void insertsNormalizedActiveGrantAndWritesAudit() {
+    void insertsNormalizedActiveGrantWithValidatedStudentIdentity() {
+        SysUserDO leader = activeStudent();
+        when(userMapper.selectById(21L)).thenReturn(leader);
+        when(authorizationSnapshotService.loadRequired(21L)).thenReturn(snapshot("STUDENT"));
         when(entryGrantMapper.selectActiveByKeyForUpdate(10L, 20L, "STUDENT-001"))
                 .thenReturn(null);
         when(entryGrantMapper.insert(any(EditionEntryGrantDO.class))).thenReturn(1);
 
-        EntryGrantBatchVO result = service.batch(10L, request(upsertItem()), "grant-key");
+        EntryGrantBatchVO result = service.batch(
+                10L,
+                request(upsertItem("21")),
+                "grant-key"
+        );
 
         assertThat(result).isEqualTo(new EntryGrantBatchVO(1, 0));
         ArgumentCaptor<EditionEntryGrantDO> captor =
@@ -107,11 +142,13 @@ class EditionEntryGrantServiceImplTest {
         EditionEntryGrantDO inserted = captor.getValue();
         assertThat(inserted.getTargetEditionId()).isEqualTo(10L);
         assertThat(inserted.getGrantType()).isEqualTo("QUALIFIED");
+        assertThat(inserted.getLeaderUserId()).isEqualTo(21L);
         assertThat(inserted.getLeaderName()).isEqualTo("张三");
         assertThat(inserted.getSchoolId()).isEqualTo(20L);
         assertThat(inserted.getStudentNo()).isEqualTo("STUDENT-001");
         assertThat(inserted.getStatus()).isEqualTo("ACTIVE");
         assertThat(inserted.getCreatedBy()).isEqualTo(9L);
+        verify(contestAuthorizationService).requireContestEventManageable(edition);
         verify(auditService).record(eq(9L), eq("EDITION_ENTRY_GRANT_BATCH"), any());
     }
 
@@ -122,7 +159,7 @@ class EditionEntryGrantServiceImplTest {
                 .thenReturn(existing);
         when(entryGrantMapper.updateActiveRecord(existing)).thenReturn(1);
 
-        EntryGrantBatchVO result = service.batch(10L, request(upsertItem()), "grant-key");
+        EntryGrantBatchVO result = service.batch(10L, request(upsertItem(null)), "grant-key");
 
         assertThat(result).isEqualTo(new EntryGrantBatchVO(1, 0));
         assertThat(existing.getGrantType()).isEqualTo("QUALIFIED");
@@ -174,7 +211,7 @@ class EditionEntryGrantServiceImplTest {
     void rejectsDuplicateActiveKeysInsideOneBatch() {
         assertThatThrownBy(() -> service.batch(
                 10L,
-                request(upsertItem(), upsertItem()),
+                request(upsertItem(null), upsertItem(null)),
                 "grant-key"
         )).isInstanceOfSatisfying(BizException.class, exception ->
                 assertThat(exception.getCode())
@@ -183,17 +220,87 @@ class EditionEntryGrantServiceImplTest {
     }
 
     @Test
-    void rejectsNonGlobalOperatorBeforeWriting() {
-        doThrow(new BizException(
-                ErrorCode.DATA_FORBIDDEN.getCode(),
-                "当前操作仅允许平台全局管理员"
-        )).when(authorizationService).requireGlobalOperator();
+    void scopedEventManagerDoesNotNeedPlatformGlobalScope() {
+        when(entryGrantMapper.selectActiveByKeyForUpdate(10L, 20L, "STUDENT-001"))
+                .thenReturn(null);
+        when(entryGrantMapper.insert(any(EditionEntryGrantDO.class))).thenReturn(1);
 
-        assertThatThrownBy(() -> service.batch(10L, request(upsertItem()), "grant-key"))
+        assertThat(service.batch(10L, request(upsertItem(null)), "grant-key").upsertedCount())
+                .isEqualTo(1);
+        verify(contestAuthorizationService).requireContestEventManageable(edition);
+    }
+
+    @Test
+    void rejectsMutationOnArchivedEdition() {
+        edition.setStatus(EditionStatus.ARCHIVED.getDatabaseValue());
+
+        assertThatThrownBy(() -> service.batch(10L, request(upsertItem(null)), "grant-key"))
                 .isInstanceOfSatisfying(BizException.class, exception ->
                         assertThat(exception.getCode())
-                                .isEqualTo(ErrorCode.DATA_FORBIDDEN.getCode()));
-        verifyNoInteractions(entryGrantMapper, idempotencyService, auditService);
+                                .isEqualTo(ErrorCode.BUSINESS_CONFLICT.getCode()));
+        verify(entryGrantMapper, never()).insert(any(EditionEntryGrantDO.class));
+    }
+
+    @Test
+    void allowsArchivedEditionQuery() {
+        edition.setStatus(EditionStatus.ARCHIVED.getDatabaseValue());
+        when(entryGrantMapper.selectList(any())).thenReturn(List.of());
+
+        assertThat(service.list(10L, null).items()).isEmpty();
+        verify(contestAuthorizationService).requireContestEventManageable(edition);
+    }
+
+    @Test
+    void rejectsDisabledLeaderUser() {
+        SysUserDO leader = activeStudent();
+        leader.setStatus(0);
+        when(userMapper.selectById(21L)).thenReturn(leader);
+
+        assertInvalidLeaderIdentity("21");
+    }
+
+    @Test
+    void rejectsLeaderWithoutStudentRole() {
+        when(userMapper.selectById(21L)).thenReturn(activeStudent());
+        when(authorizationSnapshotService.loadRequired(21L)).thenReturn(snapshot("TEACHER"));
+
+        assertInvalidLeaderIdentity("21");
+    }
+
+    @Test
+    void rejectsUnverifiedLeaderSchool() {
+        SysUserDO leader = activeStudent();
+        leader.setSchoolVerificationStatus("PENDING");
+        when(userMapper.selectById(21L)).thenReturn(leader);
+
+        assertInvalidLeaderIdentity("21");
+    }
+
+    @Test
+    void rejectsLeaderSchoolMismatch() {
+        SysUserDO leader = activeStudent();
+        leader.setSchoolId(21L);
+        when(userMapper.selectById(21L)).thenReturn(leader);
+
+        assertInvalidLeaderIdentity("21");
+    }
+
+    @Test
+    void rejectsLeaderStudentNoMismatch() {
+        SysUserDO leader = activeStudent();
+        leader.setStudentNo("OTHER-STUDENT");
+        when(userMapper.selectById(21L)).thenReturn(leader);
+
+        assertInvalidLeaderIdentity("21");
+    }
+
+    @Test
+    void rejectsNonSchoolOrDisabledOrganization() {
+        OrganizationDO organization = activeSchool();
+        organization.setOrgType("PROVINCE");
+        when(organizationMapper.selectById(20L)).thenReturn(organization);
+
+        assertInvalidLeaderIdentity(null);
     }
 
     @Test
@@ -214,20 +321,61 @@ class EditionEntryGrantServiceImplTest {
         verify(entryGrantMapper).selectList(any());
     }
 
+    private void assertInvalidLeaderIdentity(String leaderUserId) {
+        assertThatThrownBy(() -> service.batch(
+                10L,
+                request(upsertItem(leaderUserId)),
+                "grant-key"
+        )).isInstanceOfSatisfying(BizException.class, exception ->
+                assertThat(exception.getCode())
+                        .isEqualTo(ErrorCode.INVALID_PARAM.getCode()));
+        verify(entryGrantMapper, never()).insert(any(EditionEntryGrantDO.class));
+    }
+
     private EntryGrantBatchRequest request(EntryGrantBatchItem... items) {
         EntryGrantBatchRequest request = new EntryGrantBatchRequest();
         request.setItems(List.of(items));
         return request;
     }
 
-    private EntryGrantBatchItem upsertItem() {
+    private EntryGrantBatchItem upsertItem(String leaderUserId) {
         EntryGrantBatchItem item = new EntryGrantBatchItem();
         item.setAction("upsert");
         item.setGrantType("qualified");
+        item.setLeaderUserId(leaderUserId);
         item.setLeaderName(" 张三 ");
         item.setSchoolId("20");
         item.setStudentNo(" student-001 ");
         return item;
+    }
+
+    private SysUserDO activeStudent() {
+        SysUserDO user = new SysUserDO();
+        user.setId(21L);
+        user.setStatus(1);
+        user.setSchoolId(20L);
+        user.setSchoolVerificationStatus("VERIFIED");
+        user.setStudentNo("student-001");
+        return user;
+    }
+
+    private OrganizationDO activeSchool() {
+        OrganizationDO school = new OrganizationDO();
+        school.setId(20L);
+        school.setOrgType("SCHOOL");
+        school.setStatus(1);
+        return school;
+    }
+
+    private AuthorizationSnapshot snapshot(String... roles) {
+        return new AuthorizationSnapshot(
+                21L,
+                "student",
+                1,
+                Set.of(roles),
+                Set.of(),
+                Set.of("ALL")
+        );
     }
 
     private EditionEntryGrantDO activeGrant(Long id, int version) {

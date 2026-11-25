@@ -54,12 +54,6 @@ public class TeamAuthorizationService {
         return currentReadScope().global();
     }
 
-    public void requireGlobalOperator() {
-        if (!isGlobalOperator()) {
-            throw dataForbidden("当前操作仅允许平台全局管理员");
-        }
-    }
-
     public ContestEditionDO requireVisibleEdition(Long editionId) {
         var criteria = contestAuthorizationService.currentAccessCriteria();
         criteria.setEditionId(editionId);
@@ -134,10 +128,7 @@ public class TeamAuthorizationService {
         return edition;
     }
     public void requireAdminReviewScope(TeamDO team, ContestEditionDO edition) {
-        TeamReadScope scope = currentReadScope();
-        if (!scopeAllowsEdition(scope, team, edition)) {
-            throw dataForbidden("当前管理员不在该队伍的数据范围内");
-        }
+        contestAuthorizationService.requireContestEventManageable(edition);
     }
     public void requireLeader(TeamDO team) {
         if (!currentUserId().equals(team.getLeaderId())) {

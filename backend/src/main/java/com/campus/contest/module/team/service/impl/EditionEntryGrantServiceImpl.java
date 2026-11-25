@@ -6,17 +6,25 @@ import com.campus.contest.common.ErrorCode;
 import com.campus.contest.common.idempotency.IdempotencyScope;
 import com.campus.contest.common.idempotency.IdempotencyService;
 import com.campus.contest.module.contest.entity.ContestEditionDO;
+import com.campus.contest.module.contest.enums.EditionStatus;
 import com.campus.contest.module.contest.mapper.ContestEditionMapper;
+import com.campus.contest.module.contest.service.ContestAuthorizationService;
+import com.campus.contest.module.organization.entity.OrganizationDO;
+import com.campus.contest.module.organization.mapper.OrganizationMapper;
+import com.campus.contest.module.system.dto.AuthorizationSnapshot;
+import com.campus.contest.module.system.entity.SysUserDO;
+import com.campus.contest.module.system.mapper.SysUserMapper;
+import com.campus.contest.module.system.service.AuthorizationSnapshotService;
 import com.campus.contest.module.team.dto.EntryGrantBatchItem;
 import com.campus.contest.module.team.dto.EntryGrantBatchRequest;
 import com.campus.contest.module.team.entity.EditionEntryGrantDO;
 import com.campus.contest.module.team.mapper.EditionEntryGrantMapper;
 import com.campus.contest.module.team.service.EditionEntryGrantService;
 import com.campus.contest.module.team.service.TeamAuditService;
-import com.campus.contest.module.team.service.TeamAuthorizationService;
 import com.campus.contest.module.team.vo.EntryGrantBatchVO;
 import com.campus.contest.module.team.vo.EntryGrantListVO;
 import com.campus.contest.module.team.vo.EntryGrantVO;
+import com.campus.contest.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -31,6 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -45,7 +54,11 @@ public class EditionEntryGrantServiceImpl implements EditionEntryGrantService {
 
     private final EditionEntryGrantMapper entryGrantMapper;
     private final ContestEditionMapper editionMapper;
-    private final TeamAuthorizationService authorizationService;
+    private final ContestAuthorizationService contestAuthorizationService;
+    private final CurrentUserProvider currentUserProvider;
+    private final SysUserMapper userMapper;
+    private final OrganizationMapper organizationMapper;
+    private final AuthorizationSnapshotService authorizationSnapshotService;
     private final TeamAuditService auditService;
     private final IdempotencyService idempotencyService;
     private final TransactionTemplate transactionTemplate;
@@ -59,9 +72,8 @@ public class EditionEntryGrantServiceImpl implements EditionEntryGrantService {
     ) {
         requireIdempotencyKey(idempotencyKey);
         List<NormalizedGrantItem> items = validateAndNormalize(editionId, request);
-        authorizationService.requireGlobalOperator();
-        requireEdition(editionId);
-        Long operatorId = authorizationService.currentUserId();
+        requireManageableEdition(editionId);
+        Long operatorId = currentUserProvider.requireUserId();
 
         Map<String, Object> fingerprint = new LinkedHashMap<>();
         fingerprint.put("edition_id", editionId);
@@ -94,8 +106,7 @@ public class EditionEntryGrantServiceImpl implements EditionEntryGrantService {
 
     @Override
     public EntryGrantListVO list(Long editionId, String status) {
-        authorizationService.requireGlobalOperator();
-        requireEdition(editionId);
+        requireManageableEdition(editionId);
         String normalizedStatus = normalizeStatus(status);
         var query = Wrappers.<EditionEntryGrantDO>lambdaQuery()
                 .eq(EditionEntryGrantDO::getTargetEditionId, editionId)
@@ -113,6 +124,11 @@ public class EditionEntryGrantServiceImpl implements EditionEntryGrantService {
             List<NormalizedGrantItem> items,
             Long operatorId
     ) {
+        ContestEditionDO edition = entryGrantMapper.selectEditionForUpdate(editionId);
+        if (edition == null) {
+            throw new BizException(ErrorCode.RESOURCE_NOT_FOUND.getCode(), "届次不存在");
+        }
+        requireEditableEdition(edition);
         LocalDateTime now = LocalDateTime.now(clock);
         int upsertedCount = 0;
         int revokedCount = 0;
@@ -140,6 +156,7 @@ public class EditionEntryGrantServiceImpl implements EditionEntryGrantService {
             Long operatorId,
             LocalDateTime now
     ) {
+        validateLeaderIdentity(item.schoolId(), item.leaderUserId(), item.studentNo());
         EditionEntryGrantDO existing = entryGrantMapper.selectActiveByKeyForUpdate(
                 editionId,
                 item.schoolId(),
@@ -310,10 +327,55 @@ public class EditionEntryGrantServiceImpl implements EditionEntryGrantService {
         return normalized;
     }
 
-    private void requireEdition(Long editionId) {
+    private ContestEditionDO requireManageableEdition(Long editionId) {
         ContestEditionDO edition = editionMapper.selectById(editionId);
         if (edition == null) {
             throw new BizException(ErrorCode.RESOURCE_NOT_FOUND.getCode(), "届次不存在");
+        }
+        contestAuthorizationService.requireContestEventManageable(edition);
+        return edition;
+    }
+
+    private void requireEditableEdition(ContestEditionDO edition) {
+        if (Integer.valueOf(EditionStatus.ARCHIVED.getDatabaseValue()).equals(edition.getStatus())) {
+            throw new BizException(
+                    ErrorCode.BUSINESS_CONFLICT.getCode(),
+                    "归档届次的资格名单只读"
+            );
+        }
+    }
+
+    private void validateLeaderIdentity(Long schoolId, Long leaderUserId, String studentNo) {
+        OrganizationDO school = schoolId == null ? null : organizationMapper.selectById(schoolId);
+        if (school == null
+                || !Integer.valueOf(1).equals(school.getStatus())
+                || !"SCHOOL".equalsIgnoreCase(school.getOrgType())) {
+            throw invalidParam("school_id 必须对应启用状态的学校组织");
+        }
+        if (leaderUserId == null) {
+            return;
+        }
+
+        SysUserDO leader = userMapper.selectById(leaderUserId);
+        if (leader == null || !Integer.valueOf(1).equals(leader.getStatus())) {
+            throw invalidParam("leader_user_id 对应用户不存在或已停用");
+        }
+        if (!"VERIFIED".equalsIgnoreCase(leader.getSchoolVerificationStatus())) {
+            throw invalidParam("leader_user_id 对应用户的学校归属尚未审核通过");
+        }
+        if (!schoolId.equals(leader.getSchoolId())) {
+            throw invalidParam("leader_user_id 对应用户的学校与 school_id 不一致");
+        }
+        String userStudentNo = normalizeStudentNo(
+                leader.getStudentNo(),
+                "leader_user_id 对应用户的学号"
+        );
+        if (!studentNo.equals(userStudentNo)) {
+            throw invalidParam("leader_user_id 对应用户的学号与 student_no 不一致");
+        }
+        AuthorizationSnapshot snapshot = authorizationSnapshotService.loadRequired(leaderUserId);
+        if (snapshot.roleCodes() == null || !snapshot.roleCodes().contains("STUDENT")) {
+            throw invalidParam("leader_user_id 对应用户必须具备学生角色");
         }
     }
 

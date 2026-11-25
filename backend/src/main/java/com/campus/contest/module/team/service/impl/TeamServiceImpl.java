@@ -461,6 +461,9 @@ public class TeamServiceImpl implements TeamService {
 
         if ("APPROVE".equals(decision)) {
             ContestEditionDO edition = authorizationService.requireEditionForTeamRead(team);
+            if (teamMapper.lockActiveUserForUpdate(operatorId) == null) {
+                throw dataForbidden("指导教师账号不存在或已停用");
+            }
             int maxTeams = edition.getMaxTeamsPerTeacher() == null
                     ? 3 : edition.getMaxTeamsPerTeacher();
             long activeLoad = registrationMapper.countActiveTeacherLoad(
@@ -649,10 +652,14 @@ public class TeamServiceImpl implements TeamService {
             TeamRegistrationDO registration,
             String status
     ) {
+        TeamRegistrationDO current = registrationMapper.selectById(registration.getId());
+        int actualVersion = current == null
+                ? registration.getVersion() + 1
+                : current.getVersion();
         return new TeamApprovalVO(
                 String.valueOf(teamId),
                 status,
-                registration.getVersion() + 1,
+                actualVersion,
                 String.valueOf(registration.getId())
         );
     }

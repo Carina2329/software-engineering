@@ -29,6 +29,8 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -62,7 +64,7 @@ class TeamAuthorizationServiceTest {
                 organizationMapper,
                 teacherApplicationMapper
         );
-        when(currentUserProvider.requireUserId()).thenReturn(20L);
+        lenient().when(currentUserProvider.requireUserId()).thenReturn(20L);
     }
 
     @Test
@@ -152,6 +154,21 @@ class TeamAuthorizationServiceTest {
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    @DisplayName("管理员终审使用赛事管理范围而不是队伍读取范围")
+    void adminReviewUsesContestEventManagementScope() {
+        TeamDO team = team();
+        ContestEditionDO edition = edition();
+        when(contestEditionMapper.selectById(1L)).thenReturn(edition);
+        doThrow(new BizException(
+                ErrorCode.DATA_FORBIDDEN.getCode(),
+                "无权管理该赛事"
+        )).when(contestAuthorizationService).requireContestEventManageable(edition);
+
+        assertThatThrownBy(() -> service.requireEditionForAdminReview(team))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        error.getCode().equals(ErrorCode.DATA_FORBIDDEN.getCode()));
+    }
     @Test
     @DisplayName("无队伍或范围关系时拒绝查看")
     void unrelatedUserCannotReadTeam() {

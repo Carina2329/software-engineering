@@ -608,6 +608,7 @@ class TeamServiceImplTest {
         when(registrationMapper.selectActiveByIdForUpdate(700L)).thenReturn(registration);
         when(teacherApplicationMapper.selectOne(any())).thenReturn(application);
         when(authorizationService.requireEditionForTeamRead(team)).thenReturn(edition(1L));
+        when(teamMapper.lockActiveUserForUpdate(USER_ID)).thenReturn(USER_ID);
         when(registrationMapper.countActiveTeacherLoad(1L, USER_ID, 700L)).thenReturn(0L);
         when(teacherApplicationMapper.updateById(any(TeamTeacherApplicationDO.class))).thenReturn(1);
         when(registrationMapper.updateById(any(TeamRegistrationDO.class))).thenReturn(1);
@@ -639,6 +640,10 @@ class TeamServiceImplTest {
         when(teacherApplicationMapper.selectOne(any())).thenReturn(application);
         when(teacherApplicationMapper.updateById(any(TeamTeacherApplicationDO.class))).thenReturn(1);
         when(registrationMapper.updateById(any(TeamRegistrationDO.class))).thenReturn(1);
+        TeamRegistrationDO released = registration();
+        released.setStatus("REJECTED");
+        released.setVersion(2);
+        when(registrationMapper.selectById(700L)).thenReturn(released);
         when(teamMapper.withdrawAndClearTeacher(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(4)))
                 .thenReturn(1);
 
@@ -647,7 +652,9 @@ class TeamServiceImplTest {
         );
 
         assertThat(result.status()).isEqualTo("REJECTED");
+        assertThat(result.version()).isEqualTo(2);
         verify(quotaService).release(700L);
+        verify(registrationMapper).selectById(700L);
         verify(teamMapper).withdrawAndClearTeacher(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(4));
     }
 
@@ -718,6 +725,7 @@ class TeamServiceImplTest {
         when(registrationMapper.selectActiveByIdForUpdate(700L)).thenReturn(registration);
         when(teacherApplicationMapper.selectOne(any())).thenReturn(application);
         when(authorizationService.requireEditionForTeamRead(team)).thenReturn(edition);
+        when(teamMapper.lockActiveUserForUpdate(USER_ID)).thenReturn(USER_ID);
         when(registrationMapper.countActiveTeacherLoad(1L, USER_ID, 700L)).thenReturn(3L);
 
         assertThatThrownBy(() -> service.approveRegistration(
@@ -726,6 +734,9 @@ class TeamServiceImplTest {
                 assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_CONFLICT.getCode()));
         verify(teacherApplicationMapper, never()).updateById(any(TeamTeacherApplicationDO.class));
         verify(teamMapper, never()).updateTeacherAndStatus(any(), any(), any(), any(), any(), any());
+        var ordered = org.mockito.Mockito.inOrder(teamMapper, registrationMapper);
+        ordered.verify(teamMapper).lockActiveUserForUpdate(USER_ID);
+        ordered.verify(registrationMapper).countActiveTeacherLoad(1L, USER_ID, 700L);
     }
     private TeamApprovalRequest approvalRequest(
             String stage,

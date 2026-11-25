@@ -73,4 +73,16 @@ public interface TeamMapper extends BaseMapper<TeamDO> {
             @Param("now") LocalDateTime now,
             @Param("status") Integer status
     );
+    /**
+     * 串行化同一教师的确认请求，避免两个队伍同时读取到旧的指导容量。
+     */
+    @Select("""
+            SELECT id
+              FROM sys_user
+             WHERE id = #{teacherId}
+               AND status = 1
+               AND deleted = 0
+             FOR UPDATE
+            """)
+    Long lockActiveUserForUpdate(@Param("teacherId") Long teacherId);
 }
