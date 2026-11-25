@@ -7,15 +7,18 @@ import com.campus.contest.common.idempotency.IdempotencyScope;
 import com.campus.contest.common.idempotency.IdempotencyService;
 import com.campus.contest.module.contest.dto.EditionCreateRequest;
 import com.campus.contest.module.contest.dto.EditionPublishRequest;
+import com.campus.contest.module.contest.dto.EditionSchoolQuotaRequest;
 import com.campus.contest.module.contest.dto.EditionUpdateRequest;
 import com.campus.contest.module.contest.entity.ContestDO;
 import com.campus.contest.module.contest.entity.ContestEditionDO;
+import com.campus.contest.module.contest.entity.EditionSchoolQuotaDO;
 import com.campus.contest.module.contest.enums.EditionStatus;
 import com.campus.contest.module.contest.mapper.ContestAccessCriteria;
 import com.campus.contest.module.contest.mapper.ContestAccessMapper;
 import com.campus.contest.module.contest.mapper.ContestEditionMapper;
 import com.campus.contest.module.contest.mapper.ContestMapper;
 import com.campus.contest.module.contest.mapper.ContestTeamMapper;
+import com.campus.contest.module.contest.mapper.EditionSchoolQuotaMapper;
 import com.campus.contest.module.contest.service.ContestAuditService;
 import com.campus.contest.module.contest.service.ContestAuthorizationService;
 import com.campus.contest.module.contest.service.impl.EditionServiceImpl;
@@ -40,6 +43,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Set;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -71,6 +75,8 @@ class EditionServiceImplTest {
     @Mock
     private ContestTeamMapper teamMapper;
     @Mock
+    private EditionSchoolQuotaMapper schoolQuotaMapper;
+    @Mock
     private OrganizationMapper organizationMapper;
     @Mock
     private ContestAuthorizationService authorizationService;
@@ -88,6 +94,7 @@ class EditionServiceImplTest {
                 editionMapper,
                 accessMapper,
                 teamMapper,
+                schoolQuotaMapper,
                 organizationMapper,
                 authorizationService,
                 TestInfrastructure.passthroughIdempotencyService(),
@@ -102,6 +109,8 @@ class EditionServiceImplTest {
         lenient().when(authorizationService.currentAccessCriteria())
                 .thenReturn(accessCriteria());
         lenient().when(authorizationService.requireActiveOrganization(SCHOOL_ID))
+                .thenReturn(schoolOrganization());
+        lenient().when(organizationMapper.selectById(SCHOOL_ID))
                 .thenReturn(schoolOrganization());
     }
 
@@ -217,6 +226,7 @@ class EditionServiceImplTest {
                 editionMapper,
                 accessMapper,
                 teamMapper,
+                schoolQuotaMapper,
                 organizationMapper,
                 authorizationService,
                 new StrictIdempotencyService(),
@@ -417,6 +427,152 @@ class EditionServiceImplTest {
                         assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_CONFLICT.getCode()));
     }
 
+    @Test
+    @DisplayName("EP-018 在届次事务内完整替换学校名额并保留已占用数量")
+    void replacesSchoolQuotasAndPreservesUsedTeams() {
+        ContestEditionDO edition = validEdition(31L, EditionStatus.REGISTERING);
+        when(editionMapper.selectById(31L)).thenReturn(edition);
+        when(teamMapper.countByEditionId(31L)).thenReturn(0L);
+
+        EditionSchoolQuotaDO existingSchool = schoolQuota(1L, SCHOOL_ID, 2, 1);
+        EditionSchoolQuotaDO removedSchool = schoolQuota(2L, 30L, 3, 0);
+        when(schoolQuotaMapper.selectByEditionForUpdate(31L))
+                .thenReturn(List.of(existingSchool, removedSchool));
+        when(schoolQuotaMapper.updateMaxTeams(eq(1L), eq(5), eq(OPERATOR_ID), any()))
+                .thenReturn(1);
+        when(schoolQuotaMapper.insert(any(EditionSchoolQuotaDO.class))).thenReturn(1);
+        when(schoolQuotaMapper.softDeleteIfUnused(eq(2L), eq(OPERATOR_ID), any()))
+                .thenReturn(1);
+        when(editionMapper.updateById(any(ContestEditionDO.class))).thenReturn(1);
+
+        OrganizationDO secondSchool = schoolOrganization();
+        secondSchool.setId(20L);
+        when(organizationMapper.selectById(20L)).thenReturn(secondSchool);
+
+        EditionUpdateRequest request = new EditionUpdateRequest();
+        request.setVersion(0);
+        request.setSchoolQuotas(List.of(
+                quota(String.valueOf(SCHOOL_ID), 5),
+                quota("20", null)
+        ));
+
+        assertThat(service.update(31L, request, null).version()).isEqualTo(1);
+
+        ArgumentCaptor<EditionSchoolQuotaDO> insertCaptor =
+                ArgumentCaptor.forClass(EditionSchoolQuotaDO.class);
+        verify(schoolQuotaMapper).insert(insertCaptor.capture());
+        assertThat(insertCaptor.getValue().getSchoolId()).isEqualTo(20L);
+        assertThat(insertCaptor.getValue().getMaxTeams()).isNull();
+        assertThat(insertCaptor.getValue().getUsedTeams()).isZero();
+        verify(schoolQuotaMapper).updateMaxTeams(eq(1L), eq(5), eq(OPERATOR_ID), any());
+        verify(schoolQuotaMapper).softDeleteIfUnused(eq(2L), eq(OPERATOR_ID), any());
+        verify(editionMapper).updateById(any(ContestEditionDO.class));
+        verify(auditService).record(eq(OPERATOR_ID), eq("EDITION_UPDATE"), any());
+    }
+
+    @Test
+    @DisplayName("学校名额不能降低到已占用队伍数以下")
+    void schoolQuotaCannotBeReducedBelowUsedTeams() {
+        ContestEditionDO edition = validEdition(31L, EditionStatus.REGISTERING);
+        when(editionMapper.selectById(31L)).thenReturn(edition);
+        when(teamMapper.countByEditionId(31L)).thenReturn(0L);
+        when(schoolQuotaMapper.selectByEditionForUpdate(31L))
+                .thenReturn(List.of(schoolQuota(1L, SCHOOL_ID, 5, 2)));
+
+        EditionUpdateRequest request = new EditionUpdateRequest();
+        request.setVersion(0);
+        request.setSchoolQuotas(List.of(quota(String.valueOf(SCHOOL_ID), 1)));
+
+        assertThatThrownBy(() -> service.update(31L, request, null))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_CONFLICT.getCode()));
+        verify(schoolQuotaMapper, never()).updateMaxTeams(any(), any(), any(), any());
+        verify(editionMapper, never()).updateById(any(ContestEditionDO.class));
+    }
+
+    @Test
+    @DisplayName("已占用队伍的学校名额不能通过空数组删除")
+    void cannotRemoveHeldSchoolQuota() {
+        ContestEditionDO edition = validEdition(31L, EditionStatus.REGISTERING);
+        when(editionMapper.selectById(31L)).thenReturn(edition);
+        when(teamMapper.countByEditionId(31L)).thenReturn(0L);
+        when(schoolQuotaMapper.selectByEditionForUpdate(31L))
+                .thenReturn(List.of(schoolQuota(1L, SCHOOL_ID, 5, 1)));
+
+        EditionUpdateRequest request = new EditionUpdateRequest();
+        request.setVersion(0);
+        request.setSchoolQuotas(List.of());
+
+        assertThatThrownBy(() -> service.update(31L, request, null))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_CONFLICT.getCode()));
+        verify(schoolQuotaMapper, never()).softDeleteIfUnused(any(), any(), any());
+        verify(editionMapper, never()).updateById(any(ContestEditionDO.class));
+    }
+
+    @Test
+    @DisplayName("空 school_quotas 清除所有未占用配置并恢复默认不限量")
+    void emptySchoolQuotasClearUnusedConfigurations() {
+        ContestEditionDO edition = validEdition(31L, EditionStatus.REGISTERING);
+        when(editionMapper.selectById(31L)).thenReturn(edition);
+        when(teamMapper.countByEditionId(31L)).thenReturn(0L);
+        when(schoolQuotaMapper.selectByEditionForUpdate(31L))
+                .thenReturn(List.of(schoolQuota(1L, SCHOOL_ID, 5, 0)));
+        when(schoolQuotaMapper.softDeleteIfUnused(eq(1L), eq(OPERATOR_ID), any()))
+                .thenReturn(1);
+        when(editionMapper.updateById(any(ContestEditionDO.class))).thenReturn(1);
+
+        EditionUpdateRequest request = new EditionUpdateRequest();
+        request.setVersion(0);
+        request.setSchoolQuotas(List.of());
+
+        assertThat(service.update(31L, request, null).version()).isEqualTo(1);
+        verify(schoolQuotaMapper).softDeleteIfUnused(eq(1L), eq(OPERATOR_ID), any());
+        verify(editionMapper).updateById(any(ContestEditionDO.class));
+    }
+
+    @Test
+    @DisplayName("school_quotas 中同一学校不能重复")
+    void schoolQuotaSchoolMustBeUnique() {
+        ContestEditionDO edition = validEdition(31L, EditionStatus.REGISTERING);
+        when(editionMapper.selectById(31L)).thenReturn(edition);
+        when(teamMapper.countByEditionId(31L)).thenReturn(0L);
+
+        EditionUpdateRequest request = new EditionUpdateRequest();
+        request.setVersion(0);
+        request.setSchoolQuotas(List.of(
+                quota(String.valueOf(SCHOOL_ID), 2),
+                quota(String.valueOf(SCHOOL_ID), 3)
+        ));
+
+        assertThatThrownBy(() -> service.update(31L, request, null))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.INVALID_PARAM.getCode()));
+        verify(schoolQuotaMapper, never()).selectByEditionForUpdate(any());
+        verify(editionMapper, never()).updateById(any(ContestEditionDO.class));
+    }
+
+    @Test
+    @DisplayName("school_quotas 必须对应启用状态的学校组织")
+    void schoolQuotaRequiresActiveSchool() {
+        ContestEditionDO edition = validEdition(31L, EditionStatus.REGISTERING);
+        when(editionMapper.selectById(31L)).thenReturn(edition);
+        when(teamMapper.countByEditionId(31L)).thenReturn(0L);
+        OrganizationDO disabled = schoolOrganization();
+        disabled.setStatus(0);
+        when(organizationMapper.selectById(SCHOOL_ID)).thenReturn(disabled);
+
+        EditionUpdateRequest request = new EditionUpdateRequest();
+        request.setVersion(0);
+        request.setSchoolQuotas(List.of(quota(String.valueOf(SCHOOL_ID), 2)));
+
+        assertThatThrownBy(() -> service.update(31L, request, null))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.INVALID_PARAM.getCode()));
+        verify(schoolQuotaMapper, never()).selectByEditionForUpdate(any());
+        verify(editionMapper, never()).updateById(any(ContestEditionDO.class));
+    }
+
     private ContestAccessCriteria accessCriteria() {
         ContestAccessCriteria criteria = new ContestAccessCriteria();
         criteria.setManager(false);
@@ -491,6 +647,30 @@ class EditionServiceImplTest {
         organization.setProvinceCode("510000");
         organization.setStatus(1);
         return organization;
+    }
+
+    private EditionSchoolQuotaRequest quota(String schoolId, Integer maxTeams) {
+        EditionSchoolQuotaRequest request = new EditionSchoolQuotaRequest();
+        request.setSchoolId(schoolId);
+        request.setMaxTeams(maxTeams);
+        return request;
+    }
+
+    private EditionSchoolQuotaDO schoolQuota(
+            Long id,
+            Long schoolId,
+            Integer maxTeams,
+            Integer usedTeams
+    ) {
+        EditionSchoolQuotaDO quota = new EditionSchoolQuotaDO();
+        quota.setId(id);
+        quota.setEditionId(31L);
+        quota.setSchoolId(schoolId);
+        quota.setMaxTeams(maxTeams);
+        quota.setUsedTeams(usedTeams);
+        quota.setDeleted(0);
+        quota.setVersion(0);
+        return quota;
     }
 
     private static final class StrictIdempotencyService implements IdempotencyService {

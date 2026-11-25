@@ -15,6 +15,43 @@ public interface TeamMapper extends BaseMapper<TeamDO> {
     @Select("SELECT * FROM team WHERE id = #{id} AND deleted = 0 FOR UPDATE")
     TeamDO selectActiveByIdForUpdate(@Param("id") Long id);
 
+    @Update("""
+            UPDATE team
+               SET teacher_id = #{teacherId},
+                   status = #{status},
+                   updated_at = #{now},
+                   updated_by = #{operatorId},
+                   version = version + 1
+             WHERE id = #{teamId}
+               AND version = #{version}
+               AND deleted = 0
+            """)
+    int updateTeacherAndStatus(
+            @Param("teamId") Long teamId,
+            @Param("version") Integer version,
+            @Param("teacherId") Long teacherId,
+            @Param("operatorId") Long operatorId,
+            @Param("now") LocalDateTime now,
+            @Param("status") Integer status
+    );
+
+    @Update("""
+            UPDATE team
+               SET status = #{status},
+                   updated_at = #{now},
+                   updated_by = #{operatorId},
+                   version = version + 1
+             WHERE id = #{teamId}
+               AND version = #{version}
+               AND deleted = 0
+            """)
+    int updateStatus(
+            @Param("teamId") Long teamId,
+            @Param("version") Integer version,
+            @Param("operatorId") Long operatorId,
+            @Param("now") LocalDateTime now,
+            @Param("status") Integer status
+    );
     /**
      * 撤回报名时显式清空 teacher_id，避免 updateById 忽略 null。
      */
@@ -36,4 +73,16 @@ public interface TeamMapper extends BaseMapper<TeamDO> {
             @Param("now") LocalDateTime now,
             @Param("status") Integer status
     );
+    /**
+     * 串行化同一教师的确认请求，避免两个队伍同时读取到旧的指导容量。
+     */
+    @Select("""
+            SELECT id
+              FROM sys_user
+             WHERE id = #{teacherId}
+               AND status = 1
+               AND deleted = 0
+             FOR UPDATE
+            """)
+    Long lockActiveUserForUpdate(@Param("teacherId") Long teacherId);
 }

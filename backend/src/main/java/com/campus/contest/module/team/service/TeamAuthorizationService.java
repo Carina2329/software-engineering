@@ -116,6 +116,20 @@ public class TeamAuthorizationService {
         throw dataForbidden("无权查看该队伍");
     }
 
+    public ContestEditionDO requireEditionForAdminReview(TeamDO team) {
+        ContestEditionDO edition = contestEditionMapper.selectById(team.getEditionId());
+        if (edition == null) {
+            throw new BizException(
+                    ErrorCode.RESOURCE_NOT_FOUND.getCode(),
+                    "届次不存在"
+            );
+        }
+        requireAdminReviewScope(team, edition);
+        return edition;
+    }
+    public void requireAdminReviewScope(TeamDO team, ContestEditionDO edition) {
+        contestAuthorizationService.requireContestEventManageable(edition);
+    }
     public void requireLeader(TeamDO team) {
         if (!currentUserId().equals(team.getLeaderId())) {
             throw dataForbidden("只有队长可以操作该队伍");
@@ -157,12 +171,9 @@ public class TeamAuthorizationService {
         if (team.getCurrentRegistrationId() == null || userId == null) {
             return false;
         }
-        return teacherApplicationMapper.selectCount(
-                Wrappers.<TeamTeacherApplicationDO>lambdaQuery()
-                        .eq(TeamTeacherApplicationDO::getRegistrationId,
-                                team.getCurrentRegistrationId())
-                        .eq(TeamTeacherApplicationDO::getTeacherId, userId)
-                        .in(TeamTeacherApplicationDO::getStatus, List.of("PENDING", "ACCEPTED"))
+        return teacherApplicationMapper.countEffectiveForRegistration(
+                team.getCurrentRegistrationId(),
+                userId
         ) > 0;
     }
 

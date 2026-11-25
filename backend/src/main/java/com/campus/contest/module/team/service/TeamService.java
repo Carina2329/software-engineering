@@ -1,9 +1,11 @@
 package com.campus.contest.module.team.service;
 
+import com.campus.contest.module.team.dto.TeamApprovalRequest;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamPageQuery;
 import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.dto.TeamUpdateRequest;
+import com.campus.contest.module.team.vo.TeamApprovalVO;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamDetailVO;
 import com.campus.contest.module.team.vo.TeamMemberVO;
@@ -31,6 +33,12 @@ public interface TeamService {
     TeamRegistrationSubmitVO submitRegistration(
             Long teamId,
             TeamRegistrationSubmitRequest request,
+            String idempotencyKey
+    );
+
+    TeamApprovalVO approveRegistration(
+            Long teamId,
+            TeamApprovalRequest request,
             String idempotencyKey
     );
 
