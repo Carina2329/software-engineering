@@ -1,11 +1,13 @@
 package com.campus.contest.module.team.controller;
 
 import com.campus.contest.common.Result;
+import com.campus.contest.module.team.dto.TeamApprovalRequest;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamPageQuery;
 import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.dto.TeamUpdateRequest;
 import com.campus.contest.module.team.service.TeamService;
+import com.campus.contest.module.team.vo.TeamApprovalVO;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamDetailVO;
 import com.campus.contest.module.team.vo.TeamMemberVO;
@@ -123,6 +125,17 @@ public class TeamController {
             @RequestHeader("Idempotency-Key") String idempotencyKey
     ) {
         return Result.ok(teamService.submitRegistration(teamId, request, idempotencyKey));
+    }
+
+    /** EP-034 */
+    @PostMapping("/teams/{team_id}/approval")
+    @PreAuthorize("hasAuthority('team:approve')")
+    public Result<TeamApprovalVO> approveRegistration(
+            @PathVariable("team_id") Long teamId,
+            @Valid @RequestBody TeamApprovalRequest request,
+            @RequestHeader("Idempotency-Key") String idempotencyKey
+    ) {
+        return Result.ok(teamService.approveRegistration(teamId, request, idempotencyKey));
     }
 
     /** EP-080 */

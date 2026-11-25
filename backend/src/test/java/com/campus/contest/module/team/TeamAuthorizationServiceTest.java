@@ -117,7 +117,7 @@ class TeamAuthorizationServiceTest {
         TeamDO team = team();
         team.setCurrentRegistrationId(700L);
         ContestEditionDO edition = edition();
-        when(teacherApplicationMapper.selectCount(any())).thenReturn(1L);
+        when(teacherApplicationMapper.countEffectiveForRegistration(700L, 20L)).thenReturn(1L);
         when(contestEditionMapper.selectById(1L)).thenReturn(edition);
 
         org.assertj.core.api.Assertions.assertThat(
@@ -146,7 +146,7 @@ class TeamAuthorizationServiceTest {
         );
         TeamDO team = team();
         team.setCurrentRegistrationId(700L);
-        when(teacherApplicationMapper.selectCount(any())).thenReturn(1L);
+        when(teacherApplicationMapper.countEffectiveForRegistration(700L, 20L)).thenReturn(1L);
 
         assertThatCode(() -> service.requireReadable(team, edition()))
                 .doesNotThrowAnyException();

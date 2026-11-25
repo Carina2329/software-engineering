@@ -31,7 +31,8 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "spring.main.web-application-type=none",
                 "spring.datasource.url=${TEAM_REGISTRATION_TEST_DB_URL:jdbc:mysql://localhost:3306/contest_db_dashboard_e2e?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}",
                 "spring.datasource.username=${TEAM_REGISTRATION_TEST_DB_USERNAME:root}",
-                "spring.datasource.password=${TEAM_REGISTRATION_TEST_DB_PASSWORD:root123}"
+                "spring.datasource.password=${TEAM_REGISTRATION_TEST_DB_PASSWORD:root123}",
+                "mybatis-plus.configuration.local-cache-scope=STATEMENT"
         }
 )
 @Transactional
@@ -43,6 +44,8 @@ class RegistrationSupportMysqlTest {
     private JdbcTemplate jdbcTemplate;
     @Autowired
     private TeamMapper teamMapper;
+    @Autowired
+    private com.campus.contest.module.team.mapper.TeamTeacherApplicationMapper teacherApplicationMapper;
 
     @Test
     void mapperAndQuotaServiceWorkAgainstRealMysql() throws Exception {
@@ -97,6 +100,26 @@ class RegistrationSupportMysqlTest {
                 Long.class,
                 teamId
         );
+        jdbcTemplate.update(
+                "UPDATE team SET current_registration_id = ? WHERE id = ?",
+                registrationId,
+                teamId
+        );
+        jdbcTemplate.update(
+                """
+                INSERT INTO team_teacher_application
+                    (registration_id, teacher_id, status, applied_at,
+                     created_by, deleted, version)
+                VALUES (?, 8, 'ACCEPTED', NOW(), 2, 0, 0)
+                """,
+                registrationId
+        );
+        assertThat(teacherApplicationMapper.countEffectiveForRegistration(registrationId, 8L))
+                .isEqualTo(1L);
+        jdbcTemplate.update("UPDATE team_registration SET status = 'REJECTED' WHERE id = ?", registrationId);
+        assertThat(teacherApplicationMapper.countEffectiveForRegistration(registrationId, 8L))
+                .isZero();
+        jdbcTemplate.update("UPDATE team_registration SET status = 'PENDING_TEACHER' WHERE id = ?", registrationId);
         jdbcTemplate.update(
                 "UPDATE team SET current_registration_id = ? WHERE id = ?",
                 registrationId,

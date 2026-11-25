@@ -17,6 +17,7 @@ import com.campus.contest.module.system.dto.AuthorizationSnapshot;
 import com.campus.contest.module.system.entity.SysUserDO;
 import com.campus.contest.module.system.mapper.SysUserMapper;
 import com.campus.contest.module.system.service.AuthorizationSnapshotService;
+import com.campus.contest.module.team.dto.TeamApprovalRequest;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamMemberInput;
 import com.campus.contest.module.team.dto.TeamPageQuery;
@@ -41,6 +42,7 @@ import com.campus.contest.module.team.support.model.RegistrationEligibilityResul
 import com.campus.contest.module.team.support.model.SchoolQuotaReservation;
 import com.campus.contest.module.team.support.service.RegistrationEligibilityService;
 import com.campus.contest.module.team.support.service.SchoolQuotaService;
+import com.campus.contest.module.team.vo.TeamApprovalVO;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamRegistrationSubmitVO;
 import com.campus.contest.module.team.vo.TeamRegistrationWithdrawVO;
@@ -592,6 +594,161 @@ class TeamServiceImplTest {
         assertThat(second).isEqualTo(first);
         verify(teamMapper, org.mockito.Mockito.times(1)).insert(any(TeamDO.class));
         verify(memberMapper, org.mockito.Mockito.times(1)).insert(any(TeamMemberDO.class));
+    }
+    @Test
+    @DisplayName("教师确认通过后进入管理员终审并写入 teacher_id")
+    void teacherApprovalMovesTeamToPendingAdmin() {
+        TeamDO team = team();
+        team.setStatus(TeamStatus.PENDING_TEACHER.databaseValue());
+        team.setCurrentRegistrationId(700L);
+        TeamRegistrationDO registration = registration();
+        registration.setStatus("PENDING_TEACHER");
+        TeamTeacherApplicationDO application = pendingTeacherApplication();
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
+        when(registrationMapper.selectActiveByIdForUpdate(700L)).thenReturn(registration);
+        when(teacherApplicationMapper.selectOne(any())).thenReturn(application);
+        when(authorizationService.requireEditionForTeamRead(team)).thenReturn(edition(1L));
+        when(registrationMapper.countActiveTeacherLoad(1L, USER_ID, 700L)).thenReturn(0L);
+        when(teacherApplicationMapper.updateById(any(TeamTeacherApplicationDO.class))).thenReturn(1);
+        when(registrationMapper.updateById(any(TeamRegistrationDO.class))).thenReturn(1);
+        when(teamMapper.updateTeacherAndStatus(eq(TEAM_ID), eq(0), eq(USER_ID), eq(USER_ID), any(), eq(2)))
+                .thenReturn(1);
+
+        TeamApprovalVO result = service.approveRegistration(
+                TEAM_ID, approvalRequest("TEACHER", "APPROVE", null, 1), "approve-key"
+        );
+
+        assertThat(result.status()).isEqualTo("PENDING_ADMIN");
+        assertThat(result.version()).isEqualTo(2);
+        verify(teacherApplicationMapper).updateById(any(TeamTeacherApplicationDO.class));
+        verify(registrationMapper).updateById(any(TeamRegistrationDO.class));
+        verify(teamMapper).updateTeacherAndStatus(eq(TEAM_ID), eq(0), eq(USER_ID), eq(USER_ID), any(), eq(2));
+    }
+
+    @Test
+    @DisplayName("教师驳回时释放名额、清空 teacher_id 并回滚状态")
+    void teacherRejectionReleasesQuotaAndClearsTeacher() {
+        TeamDO team = team();
+        team.setStatus(TeamStatus.PENDING_TEACHER.databaseValue());
+        team.setCurrentRegistrationId(700L);
+        TeamRegistrationDO registration = registration();
+        registration.setStatus("PENDING_TEACHER");
+        TeamTeacherApplicationDO application = pendingTeacherApplication();
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
+        when(registrationMapper.selectActiveByIdForUpdate(700L)).thenReturn(registration);
+        when(teacherApplicationMapper.selectOne(any())).thenReturn(application);
+        when(teacherApplicationMapper.updateById(any(TeamTeacherApplicationDO.class))).thenReturn(1);
+        when(registrationMapper.updateById(any(TeamRegistrationDO.class))).thenReturn(1);
+        when(teamMapper.withdrawAndClearTeacher(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(4)))
+                .thenReturn(1);
+
+        TeamApprovalVO result = service.approveRegistration(
+                TEAM_ID, approvalRequest("TEACHER", "REJECT", "教师驳回", 1), "reject-key"
+        );
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        verify(quotaService).release(700L);
+        verify(teamMapper).withdrawAndClearTeacher(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(4));
+    }
+
+    @Test
+    @DisplayName("管理员终审通过后队伍和报名轮次均变为 APPROVED")
+    void adminApprovalMovesTeamToApproved() {
+        TeamDO team = team();
+        team.setStatus(TeamStatus.PENDING_ADMIN.databaseValue());
+        team.setCurrentRegistrationId(700L);
+        team.setTeacherId(USER_ID);
+        TeamRegistrationDO registration = registration();
+        registration.setStatus("PENDING_ADMIN");
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
+        when(registrationMapper.selectActiveByIdForUpdate(700L)).thenReturn(registration);
+        when(authorizationService.requireEditionForAdminReview(team)).thenReturn(edition(1L));
+        when(eligibilityService.checkCanRegister(any())).thenReturn(eligible());
+        when(registrationMapper.updateById(any(TeamRegistrationDO.class))).thenReturn(1);
+        when(teamMapper.updateStatus(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(3))).thenReturn(1);
+
+        TeamApprovalVO result = service.approveRegistration(
+                TEAM_ID, approvalRequest("ADMIN", "APPROVE", null, 1), "admin-approve-key"
+        );
+
+        assertThat(result.status()).isEqualTo("APPROVED");
+        verify(registrationMapper).updateById(any(TeamRegistrationDO.class));
+        verify(teamMapper).updateStatus(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(3));
+    }
+
+    @Test
+    @DisplayName("管理员终审资格失效时按 ADMIN 驳回并释放名额")
+    void adminApprovalRejectsWhenEligibilityFails() {
+        TeamDO team = team();
+        team.setStatus(TeamStatus.PENDING_ADMIN.databaseValue());
+        team.setCurrentRegistrationId(700L);
+        team.setTeacherId(USER_ID);
+        TeamRegistrationDO registration = registration();
+        registration.setStatus("PENDING_ADMIN");
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
+        when(registrationMapper.selectActiveByIdForUpdate(700L)).thenReturn(registration);
+        when(authorizationService.requireEditionForAdminReview(team)).thenReturn(edition(1L));
+        when(eligibilityService.checkCanRegister(any())).thenReturn(new RegistrationEligibilityResult(
+                false, "MEMBERS_INVALID", "成员资格失效", null, SCHOOL_ID, null, null, null
+        ));
+        when(registrationMapper.updateById(any(TeamRegistrationDO.class))).thenReturn(1);
+        when(teamMapper.withdrawAndClearTeacher(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(4)))
+                .thenReturn(1);
+
+        TeamApprovalVO result = service.approveRegistration(
+                TEAM_ID, approvalRequest("ADMIN", "APPROVE", null, 1), "admin-approve-key"
+        );
+
+        assertThat(result.status()).isEqualTo("REJECTED");
+        verify(quotaService).release(700L);
+        verify(teamMapper).withdrawAndClearTeacher(eq(TEAM_ID), eq(0), eq(USER_ID), any(), eq(4));
+    }
+    @Test
+    @DisplayName("教师确认队伍数达到上限时拒绝通过")
+    void teacherApprovalRejectsWhenCapacityFull() {
+        TeamDO team = team();
+        team.setStatus(TeamStatus.PENDING_TEACHER.databaseValue());
+        team.setCurrentRegistrationId(700L);
+        TeamRegistrationDO registration = registration();
+        registration.setStatus("PENDING_TEACHER");
+        TeamTeacherApplicationDO application = pendingTeacherApplication();
+        ContestEditionDO edition = edition(1L);
+        edition.setMaxTeamsPerTeacher(3);
+        when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
+        when(registrationMapper.selectActiveByIdForUpdate(700L)).thenReturn(registration);
+        when(teacherApplicationMapper.selectOne(any())).thenReturn(application);
+        when(authorizationService.requireEditionForTeamRead(team)).thenReturn(edition);
+        when(registrationMapper.countActiveTeacherLoad(1L, USER_ID, 700L)).thenReturn(3L);
+
+        assertThatThrownBy(() -> service.approveRegistration(
+                TEAM_ID, approvalRequest("TEACHER", "APPROVE", null, 1), "capacity-key"
+        )).isInstanceOfSatisfying(BizException.class, error ->
+                assertThat(error.getCode()).isEqualTo(ErrorCode.BUSINESS_CONFLICT.getCode()));
+        verify(teacherApplicationMapper, never()).updateById(any(TeamTeacherApplicationDO.class));
+        verify(teamMapper, never()).updateTeacherAndStatus(any(), any(), any(), any(), any(), any());
+    }
+    private TeamApprovalRequest approvalRequest(
+            String stage,
+            String decision,
+            String reason,
+            int version
+    ) {
+        TeamApprovalRequest request = new TeamApprovalRequest();
+        request.setStage(stage);
+        request.setDecision(decision);
+        request.setReason(reason);
+        request.setVersion(version);
+        return request;
+    }
+
+    private TeamTeacherApplicationDO pendingTeacherApplication() {
+        TeamTeacherApplicationDO application = new TeamTeacherApplicationDO();
+        application.setId(800L);
+        application.setRegistrationId(700L);
+        application.setTeacherId(USER_ID);
+        application.setStatus("PENDING");
+        application.setVersion(0);
+        return application;
     }
     private TeamRegistrationSubmitRequest registrationRequest() {
         TeamRegistrationSubmitRequest request = new TeamRegistrationSubmitRequest();

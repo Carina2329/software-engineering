@@ -21,6 +21,7 @@ public interface TeamTeacherApplicationMapper extends BaseMapper<TeamTeacherAppl
                AND app.status IN ('PENDING', 'ACCEPTED')
                AND app.deleted = 0
                AND reg.deleted = 0
+               AND reg.status IN ('PENDING_TEACHER', 'PENDING_ADMIN', 'APPROVED')
                AND reg.edition_id = #{editionId}
                AND t.deleted = 0
                AND t.current_registration_id = reg.id
@@ -28,6 +29,24 @@ public interface TeamTeacherApplicationMapper extends BaseMapper<TeamTeacherAppl
     long countEffectiveForEdition(
             @Param("teacherId") Long teacherId,
             @Param("editionId") Long editionId
+    );
+    @Select("""
+            SELECT COUNT(*)
+              FROM team_teacher_application app
+              JOIN team_registration reg ON reg.id = app.registration_id
+              JOIN team t ON t.id = reg.team_id
+             WHERE app.registration_id = #{registrationId}
+               AND app.teacher_id = #{teacherId}
+               AND app.status IN ('PENDING', 'ACCEPTED')
+               AND app.deleted = 0
+               AND reg.deleted = 0
+               AND reg.status IN ('PENDING_TEACHER', 'PENDING_ADMIN', 'APPROVED')
+               AND t.deleted = 0
+               AND t.current_registration_id = reg.id
+            """)
+    long countEffectiveForRegistration(
+            @Param("registrationId") Long registrationId,
+            @Param("teacherId") Long teacherId
     );
     @Update("""
             UPDATE team_teacher_application

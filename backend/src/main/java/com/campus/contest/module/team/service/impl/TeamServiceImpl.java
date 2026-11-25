@@ -16,6 +16,7 @@ import com.campus.contest.module.system.dto.AuthorizationSnapshot;
 import com.campus.contest.module.system.entity.SysUserDO;
 import com.campus.contest.module.system.mapper.SysUserMapper;
 import com.campus.contest.module.system.service.AuthorizationSnapshotService;
+import com.campus.contest.module.team.dto.TeamApprovalRequest;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamMemberInput;
 import com.campus.contest.module.team.dto.TeamPageQuery;
@@ -43,6 +44,7 @@ import com.campus.contest.module.team.support.model.RegistrationMemberSnapshot;
 import com.campus.contest.module.team.support.model.SchoolQuotaReservation;
 import com.campus.contest.module.team.support.service.RegistrationEligibilityService;
 import com.campus.contest.module.team.support.service.SchoolQuotaService;
+import com.campus.contest.module.team.vo.TeamApprovalVO;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamDetailVO;
 import com.campus.contest.module.team.vo.TeamMemberVO;
@@ -362,6 +364,333 @@ public class TeamServiceImpl implements TeamService {
         );
     }
 
+    @Override
+    public TeamApprovalVO approveRegistration(
+            Long teamId,
+            TeamApprovalRequest request,
+            String idempotencyKey
+    ) {
+        if (request == null) {
+            throw invalidParam("请求体不能为空");
+        }
+        requireIdempotencyKey(idempotencyKey);
+        requireVersion(request.getVersion());
+        String stage = normalizeApprovalStage(request.getStage());
+        String decision = normalizeApprovalDecision(request.getDecision());
+        String reason = normalizeRejectReason(request.getReason(), decision);
+        Long operatorId = authorizationService.currentUserId();
+        Map<String, Object> fingerprint = new LinkedHashMap<>();
+        fingerprint.put("team_id", String.valueOf(teamId));
+        fingerprint.put("stage", stage);
+        fingerprint.put("decision", decision);
+        fingerprint.put("reason", reason);
+        fingerprint.put("version", request.getVersion());
+        return executeIdempotently(
+                operatorId,
+                "TEAM_REGISTRATION_APPROVE",
+                idempotencyKey,
+                fingerprint,
+                TeamApprovalVO.class,
+                () -> transactionTemplate.execute(status ->
+                        doApproveRegistration(
+                                teamId,
+                                stage,
+                                decision,
+                                reason,
+                                request.getVersion(),
+                                operatorId
+                        )
+                )
+        );
+    }
+    private TeamApprovalVO doApproveRegistration(
+            Long teamId,
+            String stage,
+            String decision,
+            String reason,
+            Integer registrationVersion,
+            Long operatorId
+    ) {
+        TeamDO team = requireLockedTeam(teamId);
+        if (team.getCurrentRegistrationId() == null) {
+            throw new BizException(
+                    ErrorCode.BUSINESS_CONFLICT.getCode(),
+                    "当前队伍没有报名轮次"
+            );
+        }
+        TeamRegistrationDO registration = registrationMapper.selectActiveByIdForUpdate(
+                team.getCurrentRegistrationId()
+        );
+        if (registration == null
+                || !Objects.equals(registration.getTeamId(), teamId)
+                || !Objects.equals(registration.getVersion(), registrationVersion)) {
+            throw versionConflict();
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        if ("TEACHER".equals(stage)) {
+            return doTeacherApproval(
+                    team, registration, decision, reason, now, operatorId
+            );
+        }
+        return doAdminApproval(
+                team, registration, decision, reason, now, operatorId
+        );
+    }
+
+    private TeamApprovalVO doTeacherApproval(
+            TeamDO team,
+            TeamRegistrationDO registration,
+            String decision,
+            String reason,
+            LocalDateTime now,
+            Long operatorId
+    ) {
+        if (!Integer.valueOf(TeamStatus.PENDING_TEACHER.databaseValue()).equals(team.getStatus())
+                || !"PENDING_TEACHER".equals(registration.getStatus())) {
+            throw invalidState("当前队伍不在教师确认阶段");
+        }
+        TeamTeacherApplicationDO application = teacherApplicationMapper.selectOne(
+                Wrappers.<TeamTeacherApplicationDO>lambdaQuery()
+                        .eq(TeamTeacherApplicationDO::getRegistrationId, registration.getId())
+                        .eq(TeamTeacherApplicationDO::getTeacherId, operatorId)
+                        .eq(TeamTeacherApplicationDO::getStatus, "PENDING")
+        );
+        if (application == null) {
+            throw dataForbidden("当前教师不是该报名轮次的待确认教师");
+        }
+
+        if ("APPROVE".equals(decision)) {
+            ContestEditionDO edition = authorizationService.requireEditionForTeamRead(team);
+            int maxTeams = edition.getMaxTeamsPerTeacher() == null
+                    ? 3 : edition.getMaxTeamsPerTeacher();
+            long activeLoad = registrationMapper.countActiveTeacherLoad(
+                    edition.getId(), operatorId, registration.getId()
+            );
+            if (activeLoad >= maxTeams) {
+                throw new BizException(
+                        ErrorCode.BUSINESS_CONFLICT.getCode(),
+                        "指导教师确认队伍数已达到上限"
+                );
+            }
+            updateTeacherApplication(application, "ACCEPTED", null, now, operatorId);
+            updateRegistrationStatus(
+                    registration, "PENDING_ADMIN", null, null, now, operatorId
+            );
+            if (teamMapper.updateTeacherAndStatus(
+                    team.getId(),
+                    team.getVersion(),
+                    operatorId,
+                    operatorId,
+                    now,
+                    TeamStatus.PENDING_ADMIN.databaseValue()
+            ) != 1) {
+                throw versionConflict();
+            }
+            auditService.record(operatorId, "TEAM_TEACHER_APPROVE", Map.of(
+                    "team_id", String.valueOf(team.getId()),
+                    "registration_id", String.valueOf(registration.getId()),
+                    "teacher_id", String.valueOf(operatorId)
+            ));
+            return approvalResult(team.getId(), registration, "PENDING_ADMIN");
+        }
+
+        rejectRegistration(
+                team,
+                registration,
+                "TEACHER",
+                reason,
+                now,
+                operatorId,
+                application
+        );
+        return approvalResult(team.getId(), registration, "REJECTED");
+    }
+    private TeamApprovalVO doAdminApproval(
+            TeamDO team,
+            TeamRegistrationDO registration,
+            String decision,
+            String reason,
+            LocalDateTime now,
+            Long operatorId
+    ) {
+        if (!Integer.valueOf(TeamStatus.PENDING_ADMIN.databaseValue()).equals(team.getStatus())
+                || !"PENDING_ADMIN".equals(registration.getStatus())) {
+            throw invalidState("当前队伍不在管理员终审阶段");
+        }
+        ContestEditionDO edition = authorizationService.requireEditionForAdminReview(team);
+        if ("APPROVE".equals(decision)) {
+            RegistrationEligibilityResult eligibility = eligibilityService.checkCanRegister(
+                    new RegistrationEligibilityContext(
+                            team.getId(),
+                            edition.getId(),
+                            registration.getId(),
+                            RegistrationCheckMode.ADMIN_REVIEW
+                    )
+            );
+            if (!eligibility.canRegister()) {
+                rejectRegistration(
+                        team,
+                        registration,
+                        "ADMIN",
+                        eligibility.reason() == null ? "终审资格校验失败" : eligibility.reason(),
+                        now,
+                        operatorId,
+                        null
+                );
+                return approvalResult(team.getId(), registration, "REJECTED");
+            }
+            updateRegistrationStatus(
+                    registration, "APPROVED", null, null, now, operatorId
+            );
+            if (teamMapper.updateStatus(
+                    team.getId(),
+                    team.getVersion(),
+                    operatorId,
+                    now,
+                    TeamStatus.APPROVED.databaseValue()
+            ) != 1) {
+                throw versionConflict();
+            }
+            auditService.record(operatorId, "TEAM_ADMIN_APPROVE", Map.of(
+                    "team_id", String.valueOf(team.getId()),
+                    "registration_id", String.valueOf(registration.getId())
+            ));
+            return approvalResult(team.getId(), registration, "APPROVED");
+        }
+
+        rejectRegistration(
+                team, registration, "ADMIN", reason, now, operatorId, null
+        );
+        return approvalResult(team.getId(), registration, "REJECTED");
+    }
+
+    private void rejectRegistration(
+            TeamDO team,
+            TeamRegistrationDO registration,
+            String stage,
+            String reason,
+            LocalDateTime now,
+            Long operatorId,
+            TeamTeacherApplicationDO application
+    ) {
+        if (reason == null || reason.isBlank()) {
+            throw invalidParam("驳回原因不能为空");
+        }
+        if (application != null) {
+            updateTeacherApplication(application, "REJECTED", reason, now, operatorId);
+        }
+        updateRegistrationStatus(
+                registration, "REJECTED", stage, reason, now, operatorId
+        );
+        quotaService.release(registration.getId());
+        if (teamMapper.withdrawAndClearTeacher(
+                team.getId(),
+                team.getVersion(),
+                operatorId,
+                now,
+                TeamStatus.REJECTED.databaseValue()
+        ) != 1) {
+            throw versionConflict();
+        }
+        auditService.record(operatorId, "TEAM_REGISTRATION_REJECT", Map.of(
+                "team_id", String.valueOf(team.getId()),
+                "registration_id", String.valueOf(registration.getId()),
+                "stage", stage,
+                "reason", reason
+        ));
+    }
+
+    private void updateTeacherApplication(
+            TeamTeacherApplicationDO application,
+            String status,
+            String reason,
+            LocalDateTime now,
+            Long operatorId
+    ) {
+        TeamTeacherApplicationDO update = new TeamTeacherApplicationDO();
+        update.setId(application.getId());
+        update.setStatus(status);
+        update.setReason(reason);
+        update.setHandledAt(now);
+        update.setUpdatedAt(now);
+        update.setUpdatedBy(operatorId);
+        update.setVersion(application.getVersion());
+        if (teacherApplicationMapper.updateById(update) != 1) {
+            throw versionConflict();
+        }
+    }
+
+    private void updateRegistrationStatus(
+            TeamRegistrationDO registration,
+            String status,
+            String rejectStage,
+            String rejectReason,
+            LocalDateTime now,
+            Long operatorId
+    ) {
+        TeamRegistrationDO update = new TeamRegistrationDO();
+        update.setId(registration.getId());
+        update.setStatus(status);
+        update.setRejectStage(rejectStage);
+        update.setRejectReason(rejectReason);
+        update.setDecidedAt("APPROVED".equals(status) || "REJECTED".equals(status) ? now : null);
+        update.setAdminReviewedBy("ADMIN".equals(rejectStage) || "APPROVED".equals(status)
+                ? operatorId : null);
+        update.setUpdatedAt(now);
+        update.setUpdatedBy(operatorId);
+        update.setVersion(registration.getVersion());
+        if (registrationMapper.updateById(update) != 1) {
+            throw versionConflict();
+        }
+    }
+
+    private TeamApprovalVO approvalResult(
+            Long teamId,
+            TeamRegistrationDO registration,
+            String status
+    ) {
+        return new TeamApprovalVO(
+                String.valueOf(teamId),
+                status,
+                registration.getVersion() + 1,
+                String.valueOf(registration.getId())
+        );
+    }
+
+    private String normalizeApprovalStage(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("TEACHER", "ADMIN").contains(normalized)) {
+            throw invalidParam("stage 只能是 TEACHER 或 ADMIN");
+        }
+        return normalized;
+    }
+
+    private String normalizeApprovalDecision(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("APPROVE", "REJECT").contains(normalized)) {
+            throw invalidParam("decision 只能是 APPROVE 或 REJECT");
+        }
+        return normalized;
+    }
+
+    private String normalizeRejectReason(String reason, String decision) {
+        String normalized = reason == null ? null : reason.trim();
+        if ("REJECT".equals(decision) && (normalized == null || normalized.isEmpty())) {
+            throw invalidParam("驳回原因不能为空");
+        }
+        if (normalized != null && normalized.length() > 500) {
+            throw invalidParam("驳回原因不能超过 500 个字符");
+        }
+        return normalized == null || normalized.isEmpty() ? null : normalized;
+    }
+
+    private BizException invalidState(String message) {
+        return new BizException(ErrorCode.INVALID_STATE_TRANSITION.getCode(), message);
+    }
+
+    private BizException dataForbidden(String message) {
+        return new BizException(ErrorCode.DATA_FORBIDDEN.getCode(), message);
+    }
     private TeamRegistrationSubmitVO doSubmitWithDuplicateHandling(
             Long teamId,
             Integer teamVersion,
@@ -1151,6 +1480,7 @@ public class TeamServiceImpl implements TeamService {
                    AND app.status IN ('PENDING', 'ACCEPTED')
                    AND app.deleted = 0
                    AND tr.deleted = 0
+                   AND tr.status IN ('PENDING_TEACHER', 'PENDING_ADMIN', 'APPROVED')
                    AND t.deleted = 0
                 """.formatted(userId);
     }
