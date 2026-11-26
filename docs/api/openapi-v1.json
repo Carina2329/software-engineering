@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AI学科竞赛全流程智能服务平台接口",
-    "version": "1.6.0",
-    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.4.0 将平台冻结为多学校、多主办方赛事托管模式；1.4.1 修正 EP-004 同校学号语义，补充学校归属审核、CN_PROVINCE 公共字典和范围权限边界；1.4.2 明确 EP-007 只替换全局基础角色，并补充 EP-089 的 409 冲突响应；1.4.3 补齐 EP-090/EP-091 的 404、409 和 503 响应；1.4.4 补齐学校归属查询和审核的 404、503 响应。 1.5.0 增加数字大屏一期共享契约与公共 WebSocket 基础；1.5.1 新增 EP-094、EP-095，明确平台管理员 GLOBAL 数据范围、一次性 ticket 和原生 WebSocket 推送协议。 1.6.0 将报名组织冻结为队长代办制：删除 EP-030 和 EP-081～EP-084，新增成员快照、报名轮次、附件权限、资格名单和学校名额规则。",
+    "version": "1.6.1",
+    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.4.0 将平台冻结为多学校、多主办方赛事托管模式；1.4.1 修正 EP-004 同校学号语义，补充学校归属审核、CN_PROVINCE 公共字典和范围权限边界；1.4.2 明确 EP-007 只替换全局基础角色，并补充 EP-089 的 409 冲突响应；1.4.3 补齐 EP-090/EP-091 的 404、409 和 503 响应；1.4.4 补齐学校归属查询和审核的 404、503 响应。 1.5.0 增加数字大屏一期共享契约与公共 WebSocket 基础；1.5.1 新增 EP-094、EP-095，明确平台管理员 GLOBAL 数据范围、一次性 ticket 和原生 WebSocket 推送协议。 1.6.0 将报名组织冻结为队长代办制：删除 EP-030 和 EP-081～EP-084，新增成员快照、报名轮次、附件权限、资格名单和学校名额规则。 1.6.1 增加 EP-098 指导教师选择，并扩展 EP-028 当前报名、教师申请、驳回原因和附件读取模型。",
     "contact": {
       "name": "第6组",
       "email": "group6@example.edu"
@@ -20,6 +20,15 @@
     }
   ],
   "x-changelog": [
+    {
+      "version": "1.6.1",
+      "date": "2026-11-25",
+      "changes": [
+        "新增 EP-098 指导教师选择接口，返回最小化教师资料。",
+        "扩展 EP-028，返回当前报名状态、教师申请状态、驳回阶段/原因和当前轮次附件。",
+        "不修改既有接口路径、请求字段或权限编码。"
+      ]
+    },
     {
       "version": "1.4.4",
       "date": "2026-11-19",
@@ -4921,6 +4930,81 @@
                           "type": "string",
                           "nullable": true,
                           "description": "不可报名或当前资格的可读原因"
+                        },
+                        "current_registration_status": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            "PENDING_TEACHER",
+                            "PENDING_ADMIN",
+                            "APPROVED",
+                            "REJECTED",
+                            "WITHDRAWN"
+                          ],
+                          "description": "当前或最近报名轮次状态"
+                        },
+                        "current_reject_stage": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            "TEACHER",
+                            "ADMIN"
+                          ],
+                          "description": "当前报名轮次驳回阶段"
+                        },
+                        "current_reject_reason": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "当前报名轮次驳回原因"
+                        },
+                        "current_teacher_id": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "当前报名轮次选择的教师"
+                        },
+                        "current_teacher_name": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "当前报名轮次选择的教师姓名"
+                        },
+                        "current_teacher_application_status": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            "PENDING",
+                            "ACCEPTED",
+                            "REJECTED",
+                            "WITHDRAWN"
+                          ],
+                          "description": "当前报名轮次教师申请状态"
+                        },
+                        "attachments": {
+                          "type": "array",
+                          "description": "当前报名轮次附件",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "file_id",
+                              "file_name",
+                              "file_type",
+                              "sort_no"
+                            ],
+                            "properties": {
+                              "file_id": {
+                                "type": "string"
+                              },
+                              "file_name": {
+                                "type": "string"
+                              },
+                              "file_type": {
+                                "type": "string"
+                              },
+                              "sort_no": {
+                                "type": "integer"
+                              }
+                            }
+                          }
                         }
                       }
                     },
@@ -4957,7 +5041,10 @@
           "team",
           "team_member",
           "contest_topic",
-          "sys_user"
+          "sys_user",
+          "team_teacher_application",
+          "team_registration_attachment",
+          "file"
         ]
       },
       "patch": {
@@ -13536,11 +13623,11 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         },
         "x-endpoint-id": "EP-096",
@@ -13552,6 +13639,182 @@
         "x-tables": [
           "edition_entry_grant",
           "sys_oper_log"
+        ]
+      }
+    },
+    "/editions/{edition_id}/available-teachers": {
+      "get": {
+        "tags": [
+          "报名组织"
+        ],
+        "summary": "查询可选指导教师",
+        "description": "学生队长在当前可报名届次选择指导教师。仅返回启用、学校归属已审核且具有 TEACHER 角色的最小化账号资料。",
+        "operationId": "ep_098",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "edition_id",
+            "in": "path",
+            "required": true,
+            "description": "届次 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": false,
+            "description": "教师姓名或用户名关键字，最多 64 个字符",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "页码，默认 1",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "description": "每页条数，默认 20，最大 50",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "size",
+                        "has_more"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "id",
+                              "real_name",
+                              "school_id",
+                              "school_name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "real_name": {
+                                "type": "string"
+                              },
+                              "school_id": {
+                                "type": "string"
+                              },
+                              "school_name": {
+                                "type": "string"
+                              },
+                              "college": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "title": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "integer"
+                        },
+                        "page": {
+                          "type": "integer"
+                        },
+                        "size": {
+                          "type": "integer"
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "trace_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-098",
+        "x-permission": "team:registration:submit",
+        "x-data-scope": "SELF",
+        "x-idempotency": "否（只读）",
+        "x-rate-limit": "常规接口限流",
+        "x-audit": false,
+        "x-tables": [
+          "sys_user",
+          "sys_user_role",
+          "sys_role",
+          "organization",
+          "contest_edition"
         ]
       }
     }

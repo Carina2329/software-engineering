@@ -19,6 +19,7 @@ import com.campus.contest.module.system.mapper.SysUserMapper;
 import com.campus.contest.module.system.service.AuthorizationSnapshotService;
 import com.campus.contest.module.team.dto.TeamApprovalRequest;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
+import com.campus.contest.module.team.dto.AvailableTeacherQuery;
 import com.campus.contest.module.team.dto.TeamMemberInput;
 import com.campus.contest.module.team.dto.TeamPageQuery;
 import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
@@ -34,6 +35,8 @@ import com.campus.contest.module.team.mapper.TeamMemberMapper;
 import com.campus.contest.module.team.mapper.TeamRegistrationAttachmentMapper;
 import com.campus.contest.module.team.mapper.TeamRegistrationMapper;
 import com.campus.contest.module.team.mapper.TeamTeacherApplicationMapper;
+import com.campus.contest.module.team.mapper.AvailableTeacherMapper;
+import com.campus.contest.module.team.mapper.AvailableTeacherMapper.AvailableTeacherRow;
 import com.campus.contest.module.team.service.TeamAuditService;
 import com.campus.contest.module.team.service.TeamAuthorizationService;
 import com.campus.contest.module.team.service.TeamReadScope;
@@ -78,6 +81,8 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -102,6 +107,8 @@ class TeamServiceImplTest {
     private TeamRegistrationAttachmentMapper attachmentMapper;
     @Mock
     private TeamTeacherApplicationMapper teacherApplicationMapper;
+    @Mock
+    private AvailableTeacherMapper availableTeacherMapper;
     @Mock
     private SysUserMapper userMapper;
     @Mock
@@ -142,6 +149,7 @@ class TeamServiceImplTest {
                 registrationMapper,
                 attachmentMapper,
                 teacherApplicationMapper,
+                availableTeacherMapper,
                 userMapper,
                 organizationMapper,
                 authorizationService,
@@ -186,6 +194,55 @@ class TeamServiceImplTest {
         verify(teamMapper).insert(any(TeamDO.class));
         verify(memberMapper).insert(any(TeamMemberDO.class));
         verify(auditService).record(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("学生队长可按关键字分页查询可用指导教师")
+    void studentCanListAvailableTeachers() {
+        when(userMapper.selectById(USER_ID)).thenReturn(user("S001"));
+        when(organizationMapper.selectById(SCHOOL_ID)).thenReturn(school());
+        when(authorizationSnapshotService.loadRequired(USER_ID)).thenReturn(
+                new AuthorizationSnapshot(USER_ID, "leader", 1, Set.of("STUDENT"), Set.of(), Set.of())
+        );
+        when(availableTeacherMapper.count("张")).thenReturn(21L);
+        when(availableTeacherMapper.selectPage("张", 10, 10)).thenReturn(List.of(
+                new AvailableTeacherRow(
+                        8L,
+                        "张老师",
+                        SCHOOL_ID,
+                        "测试学校",
+                        "计算机学院",
+                        "副教授"
+                )
+        ));
+        AvailableTeacherQuery query = new AvailableTeacherQuery();
+        query.setKeyword(" 张 ");
+        query.setPage(2);
+        query.setSize(10);
+
+        var result = service.availableTeachers(1L, query);
+
+        assertThat(result.total()).isEqualTo(21);
+        assertThat(result.items()).containsExactly(new com.campus.contest.module.team.vo.AvailableTeacherVO(
+                "8", "张老师", String.valueOf(SCHOOL_ID), "测试学校", "计算机学院", "副教授"
+        ));
+        assertThat(result.hasMore()).isTrue();
+        verify(availableTeacherMapper).selectPage("张", 10, 10);
+    }
+
+    @Test
+    @DisplayName("非学生账号不能查询指导教师")
+    void nonStudentCannotListAvailableTeachers() {
+        when(userMapper.selectById(USER_ID)).thenReturn(user("S001"));
+        when(organizationMapper.selectById(SCHOOL_ID)).thenReturn(school());
+        when(authorizationSnapshotService.loadRequired(USER_ID)).thenReturn(
+                new AuthorizationSnapshot(USER_ID, "teacher", 1, Set.of("TEACHER"), Set.of(), Set.of())
+        );
+
+        assertThatThrownBy(() -> service.availableTeachers(1L, new AvailableTeacherQuery()))
+                .isInstanceOfSatisfying(BizException.class, error ->
+                        assertThat(error.getCode()).isEqualTo(ErrorCode.DATA_FORBIDDEN.getCode()));
+        verify(availableTeacherMapper, never()).selectPage(anyString(), anyInt(), anyInt());
     }
 
     @Test
@@ -473,6 +530,52 @@ class TeamServiceImplTest {
         assertThat(result.currentRegistrationId()).isEqualTo("700");
         assertThat(result.currentRegistrationVersion()).isEqualTo(2);
     }
+
+    @Test
+    @DisplayName("详情返回当前轮次教师、驳回原因和附件")
+    void detailReturnsCurrentRegistrationContext() {
+        TeamDO team = team();
+        team.setStatus(TeamStatus.REJECTED.databaseValue());
+        team.setCurrentRegistrationId(700L);
+        TeamRegistrationDO registration = registration();
+        registration.setStatus("REJECTED");
+        registration.setRejectStage("ADMIN");
+        registration.setRejectReason("成员资料不完整");
+        TeamTeacherApplicationDO application = new TeamTeacherApplicationDO();
+        application.setId(800L);
+        application.setRegistrationId(700L);
+        application.setTeacherId(8L);
+        application.setStatus("ACCEPTED");
+        SysUserDO teacher = teacher();
+        when(teamMapper.selectById(TEAM_ID)).thenReturn(team);
+        when(authorizationService.requireEditionForTeamRead(team)).thenReturn(edition(1L));
+        when(memberMapper.selectList(any())).thenReturn(List.of(leaderMember()));
+        when(registrationMapper.selectById(700L)).thenReturn(registration);
+        when(teacherApplicationMapper.selectCurrentByRegistrationId(700L)).thenReturn(application);
+        when(userMapper.selectById(8L)).thenReturn(teacher);
+        when(attachmentMapper.selectByRegistrationId(700L)).thenReturn(List.of(
+                new TeamRegistrationAttachmentMapper.AttachmentRow(
+                        300L, "报名表.pdf", "REGISTRATION_ATTACHMENT", 0
+                )
+        ));
+        when(eligibilityService.checkCanRegister(any())).thenReturn(
+                new RegistrationEligibilityResult(false, "REGISTRATION_STATE_INVALID",
+                        "当前队伍状态不允许提交报名", null, SCHOOL_ID, null, null, null)
+        );
+
+        var result = service.detail(TEAM_ID);
+
+        assertThat(result.currentRegistrationStatus()).isEqualTo("REJECTED");
+        assertThat(result.currentRejectStage()).isEqualTo("ADMIN");
+        assertThat(result.currentRejectReason()).isEqualTo("成员资料不完整");
+        assertThat(result.currentTeacherId()).isEqualTo("8");
+        assertThat(result.currentTeacherName()).isEqualTo("教师甲");
+        assertThat(result.currentTeacherApplicationStatus()).isEqualTo("ACCEPTED");
+        assertThat(result.attachments()).singleElement().satisfies(attachment -> {
+            assertThat(attachment.fileId()).isEqualTo("300");
+            assertThat(attachment.fileName()).isEqualTo("报名表.pdf");
+        });
+    }
     @Test
     @DisplayName("学校管理员列表范围包含其组织下的队伍")
     void schoolAdminListUsesOrganizationScope() {
@@ -552,6 +655,7 @@ class TeamServiceImplTest {
                 registrationMapper,
                 attachmentMapper,
                 teacherApplicationMapper,
+                availableTeacherMapper,
                 userMapper,
                 organizationMapper,
                 authorizationService,

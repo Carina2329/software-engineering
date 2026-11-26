@@ -3,10 +3,10 @@
 | 项目 | 内容 |
 | --- | --- |
 | 任务编号 | `BIZ-TEAM-FRONTEND-CONTRACT-001` |
-| 当前状态 | 待开始 |
+| 当前状态 | 已完成，待 PR 审查 |
 | 负责人 | 段欣懿 |
-| 基线 | `feature/business-core@0c0fcf7` |
-| 目标分支 | 公共契约实现完成后确定 `codex/` 分支 |
+| 基线 | `feature/business-core@692f630` |
+| 目标分支 | `codex/team-registration-frontend-contract` |
 | 依赖 | V0.6、报名组织契约、EP-028、EP-033、EP-034、EP-096/097 |
 | 后续依赖 | `BIZ-TEAM-REGISTRATION-FRONTEND-001` |
 
@@ -98,3 +98,11 @@ attachments[]
 - 完成后交前端任务负责人消费。
 - 未冻结教师选择接口前，学生报名页面不得用教师 ID 手工输入或全局用户列表顶替。
 - 未补齐 EP-028 读取模型前，不得声称“驳回后查看原因并重提”闭环已完成。
+
+## 五、交付结果
+
+- 新增 `GET /api/v1/editions/{edition_id}/available-teachers`，对应 EP-098。
+- EP-028 增加当前报名状态、驳回阶段/原因、教师选择/申请状态和当前轮次附件。
+- OpenAPI 升级到 1.6.1，接口汇总同步。
+- 全量测试：457 通过，0 失败，38 跳过。
+- 真实 MySQL：`TeamFrontendContractMysqlTest` 和阶段 3 全部 MySQL 门控测试通过。

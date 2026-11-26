@@ -1,9 +1,11 @@
 package com.campus.contest.module.team;
 
 import com.campus.contest.module.team.controller.TeamController;
+import com.campus.contest.module.team.dto.AvailableTeacherQuery;
 import com.campus.contest.module.team.dto.TeamApprovalRequest;
 import com.campus.contest.module.team.dto.TeamPageQuery;
 import com.campus.contest.module.team.service.TeamService;
+import com.campus.contest.module.team.vo.AvailableTeacherPageVO;
 import com.campus.contest.module.team.vo.TeamApprovalVO;
 import com.campus.contest.module.team.vo.TeamPageVO;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +63,26 @@ class TeamControllerTest {
         assertThat(captor.getValue().getTeacherId()).isEqualTo("8");
         assertThat(captor.getValue().getStatus()).isEqualTo("DRAFT");
     }
+
+    @Test
+    void bindsAvailableTeacherPaginationParameters() throws Exception {
+        when(teamService.availableTeachers(eq(1L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AvailableTeacherPageVO(List.of(), 0, 2, 10, false));
+
+        mockMvc.perform(get("/api/v1/editions/1/available-teachers")
+                        .queryParam("keyword", "张")
+                        .queryParam("page", "2")
+                        .queryParam("size", "10"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<AvailableTeacherQuery> captor =
+                ArgumentCaptor.forClass(AvailableTeacherQuery.class);
+        verify(teamService).availableTeachers(eq(1L), captor.capture());
+        assertThat(captor.getValue().getKeyword()).isEqualTo("张");
+        assertThat(captor.getValue().getPage()).isEqualTo(2);
+        assertThat(captor.getValue().getSize()).isEqualTo(10);
+    }
+
     @Test
     void exposesApprovalEndpointWithIdempotencyHeader() throws Exception {
         when(teamService.approveRegistration(eq(100L), org.mockito.ArgumentMatchers.any(), eq("approve-key")))

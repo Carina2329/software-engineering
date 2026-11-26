@@ -16,6 +16,7 @@ import com.campus.contest.module.system.dto.AuthorizationSnapshot;
 import com.campus.contest.module.system.entity.SysUserDO;
 import com.campus.contest.module.system.mapper.SysUserMapper;
 import com.campus.contest.module.system.service.AuthorizationSnapshotService;
+import com.campus.contest.module.team.dto.AvailableTeacherQuery;
 import com.campus.contest.module.team.dto.TeamApprovalRequest;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamMemberInput;
@@ -28,6 +29,7 @@ import com.campus.contest.module.team.entity.TeamRegistrationAttachmentDO;
 import com.campus.contest.module.team.entity.TeamRegistrationDO;
 import com.campus.contest.module.team.entity.TeamTeacherApplicationDO;
 import com.campus.contest.module.team.enums.TeamStatus;
+import com.campus.contest.module.team.mapper.AvailableTeacherMapper;
 import com.campus.contest.module.team.mapper.TeamMapper;
 import com.campus.contest.module.team.mapper.TeamMemberMapper;
 import com.campus.contest.module.team.mapper.TeamRegistrationAttachmentMapper;
@@ -44,6 +46,9 @@ import com.campus.contest.module.team.support.model.RegistrationMemberSnapshot;
 import com.campus.contest.module.team.support.model.SchoolQuotaReservation;
 import com.campus.contest.module.team.support.service.RegistrationEligibilityService;
 import com.campus.contest.module.team.support.service.SchoolQuotaService;
+import com.campus.contest.module.team.vo.AvailableTeacherPageVO;
+import com.campus.contest.module.team.vo.AvailableTeacherVO;
+import com.campus.contest.module.team.vo.RegistrationAttachmentVO;
 import com.campus.contest.module.team.vo.TeamApprovalVO;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamDetailVO;
@@ -92,6 +97,7 @@ public class TeamServiceImpl implements TeamService {
     private final TeamRegistrationMapper registrationMapper;
     private final TeamRegistrationAttachmentMapper attachmentMapper;
     private final TeamTeacherApplicationMapper teacherApplicationMapper;
+    private final AvailableTeacherMapper availableTeacherMapper;
     private final SysUserMapper userMapper;
     private final OrganizationMapper organizationMapper;
     private final TeamAuthorizationService authorizationService;
@@ -178,6 +184,53 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
+    public AvailableTeacherPageVO availableTeachers(
+            Long editionId,
+            AvailableTeacherQuery query
+    ) {
+        ContestEditionDO edition = authorizationService.requireVisibleEdition(editionId);
+        requireRegistrationWindow(edition);
+        Long operatorId = authorizationService.currentUserId();
+        requireVerifiedLeader(operatorId);
+        AuthorizationSnapshot snapshot = authorizationSnapshotService.loadRequired(operatorId);
+        if (snapshot.roleCodes() == null || !snapshot.roleCodes().contains("STUDENT")) {
+            throw new BizException(
+                    ErrorCode.DATA_FORBIDDEN.getCode(),
+                    "只有学生队长可以选择指导教师"
+            );
+        }
+
+        int page = normalizePage(query == null ? null : query.getPage());
+        int size = normalizeTeacherPageSize(query == null ? null : query.getSize());
+        String keyword = normalizeKeyword(query == null ? null : query.getKeyword());
+        long total = availableTeacherMapper.count(keyword);
+        long offsetValue = (long) (page - 1) * size;
+        if (offsetValue > Integer.MAX_VALUE) {
+            throw invalidParam("page 超出支持范围");
+        }
+        int offset = (int) offsetValue;
+        List<AvailableTeacherVO> items = availableTeacherMapper
+                .selectPage(keyword, offset, size)
+                .stream()
+                .map(row -> new AvailableTeacherVO(
+                        String.valueOf(row.id()),
+                        row.realName(),
+                        String.valueOf(row.schoolId()),
+                        row.schoolName(),
+                        row.college(),
+                        row.title()
+                ))
+                .toList();
+        return new AvailableTeacherPageVO(
+                items,
+                total,
+                page,
+                size,
+                total > (long) page * size
+        );
+    }
+
+    @Override
     public TeamCreateVO create(Long editionId, TeamCreateRequest request, String idempotencyKey) {
         if (request == null) {
             throw invalidParam("请求体不能为空");
@@ -207,6 +260,7 @@ public class TeamServiceImpl implements TeamService {
         authorizationService.requireReadable(team, edition);
         List<TeamMemberDO> activeMembers = listActiveMembers(teamId);
         RegistrationView registration = registrationView(team);
+        CurrentRegistrationView currentRegistration = currentRegistrationView(team);
         List<String> memberNames = activeMembers.stream()
                 .map(TeamMemberDO::getMemberName)
                 .toList();
@@ -224,7 +278,14 @@ public class TeamServiceImpl implements TeamService {
                 team.getVersion(),
                 team.getCurrentRegistrationId() == null
                         ? null : String.valueOf(team.getCurrentRegistrationId()),
-                currentRegistrationVersion(team),
+                currentRegistration.version(),
+                currentRegistration.status(),
+                currentRegistration.rejectStage(),
+                currentRegistration.rejectReason(),
+                currentRegistration.teacherId(),
+                currentRegistration.teacherName(),
+                currentRegistration.teacherApplicationStatus(),
+                currentRegistration.attachments(),
                 registration.canRegister(),
                 registration.state(),
                 registration.reason()
@@ -1464,14 +1525,42 @@ public class TeamServiceImpl implements TeamService {
         );
     }
 
-    private Integer currentRegistrationVersion(TeamDO team) {
+    private CurrentRegistrationView currentRegistrationView(TeamDO team) {
         if (team.getCurrentRegistrationId() == null) {
-            return null;
+            return CurrentRegistrationView.empty();
         }
         TeamRegistrationDO registration = registrationMapper.selectById(
                 team.getCurrentRegistrationId()
         );
-        return registration == null ? null : registration.getVersion();
+        if (registration == null) {
+            return CurrentRegistrationView.empty();
+        }
+        TeamTeacherApplicationDO application =
+                teacherApplicationMapper.selectCurrentByRegistrationId(registration.getId());
+        Long teacherId = application == null
+                ? team.getTeacherId()
+                : application.getTeacherId();
+        SysUserDO teacher = teacherId == null ? null : userMapper.selectById(teacherId);
+        List<RegistrationAttachmentVO> attachments =
+                attachmentMapper.selectByRegistrationId(registration.getId())
+                        .stream()
+                        .map(row -> new RegistrationAttachmentVO(
+                                String.valueOf(row.fileId()),
+                                row.originalName(),
+                                row.fileType(),
+                                row.sortNo() == null ? 0 : row.sortNo()
+                        ))
+                        .toList();
+        return new CurrentRegistrationView(
+                registration.getVersion(),
+                registration.getStatus(),
+                registration.getRejectStage(),
+                registration.getRejectReason(),
+                teacherId == null ? null : String.valueOf(teacherId),
+                teacher == null ? null : teacher.getRealName(),
+                application == null ? null : application.getStatus(),
+                attachments
+        );
     }
 
     private String pendingTeacherTeamSql(Long userId) {
@@ -1625,6 +1714,27 @@ public class TeamServiceImpl implements TeamService {
                 .toUpperCase(Locale.ROOT);
     }
 
+    private String normalizeKeyword(String value) {
+        if (!hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.length() > 64) {
+            throw invalidParam("keyword 不能超过 64 个字符");
+        }
+        return normalized;
+    }
+
+    private int normalizeTeacherPageSize(Integer size) {
+        if (size == null) {
+            return 20;
+        }
+        if (size < 1 || size > 50) {
+            throw invalidParam("size 必须在 1-50 之间");
+        }
+        return size;
+    }
+
     private int normalizePage(Integer page) {
         if (page == null) {
             return 1;
@@ -1721,5 +1831,22 @@ public class TeamServiceImpl implements TeamService {
     }
 
     private record RegistrationView(boolean canRegister, String state, String reason) {
+    }
+
+    private record CurrentRegistrationView(
+            Integer version,
+            String status,
+            String rejectStage,
+            String rejectReason,
+            String teacherId,
+            String teacherName,
+            String teacherApplicationStatus,
+            List<RegistrationAttachmentVO> attachments
+    ) {
+        private static CurrentRegistrationView empty() {
+            return new CurrentRegistrationView(
+                    null, null, null, null, null, null, null, List.of()
+            );
+        }
     }
 }

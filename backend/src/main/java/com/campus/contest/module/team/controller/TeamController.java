@@ -1,6 +1,7 @@
 package com.campus.contest.module.team.controller;
 
 import com.campus.contest.common.Result;
+import com.campus.contest.module.team.dto.AvailableTeacherQuery;
 import com.campus.contest.module.team.dto.TeamApprovalRequest;
 import com.campus.contest.module.team.dto.TeamCreateRequest;
 import com.campus.contest.module.team.dto.TeamPageQuery;
@@ -8,6 +9,7 @@ import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.dto.TeamUpdateRequest;
 import com.campus.contest.module.team.service.TeamService;
 import com.campus.contest.module.team.vo.TeamApprovalVO;
+import com.campus.contest.module.team.vo.AvailableTeacherPageVO;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamDetailVO;
 import com.campus.contest.module.team.vo.TeamMemberVO;
@@ -63,6 +65,16 @@ public class TeamController {
         query.setTeacherId(teacherId);
         query.setKeyword(keyword);
         return Result.ok(teamService.list(editionId, query));
+    }
+
+    /** EP-098 */
+    @GetMapping("/editions/{edition_id}/available-teachers")
+    @PreAuthorize("hasAuthority('team:registration:submit')")
+    public Result<AvailableTeacherPageVO> availableTeachers(
+            @PathVariable("edition_id") Long editionId,
+            @Valid @ModelAttribute AvailableTeacherQuery query
+    ) {
+        return Result.ok(teamService.availableTeachers(editionId, query));
     }
 
     /** EP-027 */
