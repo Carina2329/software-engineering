@@ -6,8 +6,8 @@ import type { AvailableTeacher } from '../../types/team'
 
 const props = withDefaults(defineProps<{
   editionId: string; initialTeacherId?: string | null
-  disabled?: boolean; canRegister?: boolean; registerState?: string | null; registerReason?: string | null; submitting?: boolean
-}>(), { initialTeacherId: null, disabled: false, canRegister: false, registerState: null, registerReason: null, submitting: false })
+  disabled?: boolean; canSubmit?: boolean; canRegister?: boolean; registerState?: string | null; registerReason?: string | null; submitting?: boolean
+}>(), { initialTeacherId: null, disabled: false, canSubmit: false, canRegister: false, registerState: null, registerReason: null, submitting: false })
 const emit = defineEmits<{ submit: [payload: { teacherId: string; remark: string }] }>()
 const teacherKeyword = ref('')
 const teachers = ref<AvailableTeacher[]>([])
@@ -32,7 +32,7 @@ async function loadTeachers(reset = false): Promise<void> {
   finally { teacherLoading.value = false }
 }
 function submit(): void {
-  if (props.disabled || props.submitting) return
+  if (!props.canSubmit || props.disabled || props.submitting) return
   if (!teacherId.value) { ElMessage.warning('请选择指导教师'); return }
   emit('submit', { teacherId: teacherId.value, remark: remark.value.trim() })
 }
@@ -67,7 +67,7 @@ function submit(): void {
       <el-input v-model="remark" type="textarea" :rows="3" maxlength="500" show-word-limit :disabled="disabled || submitting" placeholder="可选，说明项目背景或补充信息" />
     </div>
     <div class="actions">
-      <el-button type="primary" size="large" :loading="submitting" :disabled="disabled || !canRegister" @click="submit">提交报名</el-button>
+      <el-button type="primary" size="large" :loading="submitting" :disabled="disabled || submitting || !canSubmit" @click="submit">提交报名</el-button>
       <span>提交成功后成员进入冻结状态，教师驳回或管理员驳回后可修改重提。</span>
     </div>
   </section>

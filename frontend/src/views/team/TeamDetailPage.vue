@@ -58,8 +58,8 @@ onMounted(async () => { await ensureCurrentMenus(); await loadAll() })
     <template v-if="detail">
       <RegistrationTimeline :detail="detail" />
       <el-card class="section-card"><div class="card-heading"><div><span class="eyebrow">TEAM PROFILE</span><h2>队伍资料</h2></div><el-button v-if="canEdit" type="primary" :loading="saving" @click="saveTeam">保存资料</el-button></div><el-form label-position="top"><el-form-item label="队伍名称"><el-input v-model="teamName" maxlength="64" :disabled="!canEdit" /></el-form-item></el-form><MemberEditor ref="memberEditorRef" :members="members" :disabled="!canEdit" @update:members="memberDraft = $event" @remove="removeMember" /></el-card>
-      <RegistrationSubmitPanel v-if="detail.status !== 'APPROVED'" :edition-id="detail.edition_id" :initial-teacher-id="detail.current_teacher_id" :disabled="!canEdit" :can-register="detail.can_register" :register-state="detail.register_state" :register-reason="detail.register_reason" :submitting="submitting" @submit="submitRegistration" />
-      <el-alert v-else type="success" :closable="false" show-icon title="报名已通过，队伍当前只读" description="成员、附件和指导教师信息已冻结。" />
+      <RegistrationSubmitPanel v-if="detail.status !== 'APPROVED'" :edition-id="detail.edition_id" :initial-teacher-id="detail.current_teacher_id" :disabled="!canEdit" :can-submit="canSubmit" :can-register="detail.can_register" :register-state="detail.register_state" :register-reason="detail.register_reason" :submitting="submitting" @submit="submitRegistration" />
+      <el-alert v-else type="success" :closable="false" show-icon title="报名已通过，队伍当前只读" description="成员和指导教师信息已冻结。" />
     </template>
     <el-empty v-else-if="!loading" description="未找到队伍或当前账号无权查看" />
   </div>

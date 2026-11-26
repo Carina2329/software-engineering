@@ -13,7 +13,7 @@ const hasProblem = computed(() => ['REJECTED', 'WITHDRAWN'].includes(props.detai
   <section class="timeline-panel">
     <div class="heading"><span class="eyebrow">REGISTRATION FLOW</span><h3>报名进度</h3></div>
     <el-steps :active="activeStep" :process-status="hasProblem ? 'error' : 'process'" finish-status="success" align-center>
-      <el-step title="填写队伍" description="成员与附件" />
+      <el-step title="填写队伍" description="成员与报名信息" />
       <el-step title="教师确认" description="指导教师审核" />
       <el-step title="管理员终审" description="资格与名额复核" />
       <el-step title="报名通过" description="成员冻结" />
