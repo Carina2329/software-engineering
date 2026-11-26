@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 契约版本 | 1.0.1 |
-| 冻结日期 | 2026-11-24 |
-| 需求基线 | 《AI学科竞赛系统-功能需求说明书》V0.6 |
+| 契约版本 | 1.0.2 |
+| 冻结日期 | 2026-11-26 |
+| 需求基线 | 《AI学科竞赛系统-功能需求说明书》V0.6.1 |
 | 接口基线 | `docs/api/openapi-v1.json` |
 | 数据库增量 | `docs/db/contest-selection-delta-v0.3.md` |
 | 目标业务 | 队长创建队伍、维护成员快照、提交和撤回报名、教师确认、管理员终审 |
@@ -26,7 +26,6 @@
 队长创建队伍
 → DRAFT
 → 填写本人和队员资料
-→ 上传报名材料
 → 选择教师并提交
 → PENDING_TEACHER
 → 教师确认
@@ -39,7 +38,7 @@
 
 ```text
 REJECTED / WITHDRAWN
-→ 队长修改成员、附件或说明
+→ 队长修改成员或报名说明
 → 重新提交，生成新的报名轮次
 → PENDING_TEACHER
 ```
@@ -54,8 +53,8 @@ REJECTED / WITHDRAWN
 | `PENDING_TEACHER` | 1 | 只读，可撤回 |
 | `PENDING_ADMIN` | 2 | 只读，可撤回 |
 | `APPROVED` | 3 | 只读，成员冻结 |
-| `REJECTED` | 4 | 修改成员、附件或说明后直接重提 |
-| `WITHDRAWN` | 5 | 修改成员、附件或说明后重提 |
+| `REJECTED` | 4 | 修改成员或报名说明后直接重提 |
+| `WITHDRAWN` | 5 | 修改成员或报名说明后重提 |
 
 不允许：
 
@@ -142,13 +141,9 @@ PENDING / ACCEPTED / REJECTED / WITHDRAWN
 
 ### `team_registration_attachment`
 
-必须使用明确报名轮次 ID：
+该表仅保留历史兼容，当前报名提交不写入附件映射。
 
-```text
-registration_id + file_id + file_type + sort_no
-```
-
-不得使用 `team_version` 区分附件轮次。
+报名阶段只提交队伍版本、指导教师和报名说明。作品文件统一在后续作品提交流程通过 `work_file` 关联，不混入报名轮次。
 
 `members_snapshot` 使用以下固定键：
 
@@ -166,21 +161,6 @@ registration_id + file_id + file_type + sort_no
 普通队员的 `user_id` 可为 `null`。顺序固定为队长优先，其后按 `member_id` 升序。
 
 ## 六、跨模块冻结接口
-
-### 文件附件
-
-```text
-com.campus.contest.module.work.service.RegistrationAttachmentPolicy
-com.campus.contest.module.work.model.ValidatedRegistrationAttachment
-```
-
-```java
-List<ValidatedRegistrationAttachment> validateForCaptain(
-        Long captainUserId,
-        Long teamId,
-        List<Long> fileIds
-);
-```
 
 ### 报名资格
 
@@ -270,17 +250,12 @@ UNIQUE(
 - `quota_held` 保证每个轮次最多占用和释放一次。
 - 跨校队伍占用队长已审核学校名额。
 
-## 九、附件权限
+## 九、报名材料边界
 
-EP-033 创建附件映射前必须校验：
-
-1. 文件存在、未删除、上传完成。
-2. 当前队长有权使用该文件。
-3. 文件不属于其他用户、队伍或无关业务。
-4. MIME、扩展名和大小符合现有上传策略。
-5. 文件用途与报名材料类型匹配。
-6. 禁止通过猜测或伪造 `file_id` 关联私有文件。
-7. 下载继续使用现有文件权限和 `TEAM / GUIDED / ALL` 数据范围。
+- 当前报名阶段不要求、不上传、不返回报名附件。
+- EP-033 不接收 `attachment_file_ids`，EP-028 不返回 `attachments`。
+- `team_registration_attachment` 仅保留历史数据兼容，新报名轮次不写入。
+- 作品文件由后续作品提交流程管理，继续使用 `work_file` 和现有文件权限。
 
 ## 十、事务边界
 
@@ -292,7 +267,6 @@ EP-033 创建附件映射前必须校验：
 → 校验可见性、时间窗口和 can_register
 → 占用有限学校名额并设置 quota_held
 → 创建 team_registration 和成员/资格/名额快照
-→ 创建附件映射
 → 创建教师申请
 → 更新 team.status/current_registration_id/version
 → 写审计

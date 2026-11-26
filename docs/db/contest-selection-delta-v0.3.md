@@ -2,8 +2,8 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 文档版本 | V0.3 |
-| 日期 | 2026-11-24 |
+| 文档版本 | V0.3.1 |
+| 日期 | 2026-11-26 |
 | 状态 | 公共契约冻结，待生成正式迁移脚本 |
 | 前置 | `contest-selection-delta-v0.2.md`、多组织平台公共基线 |
 | 关联契约 | `docs/business/business-core/team-registration-contract.md` |
@@ -16,7 +16,7 @@
 - 删除邀请状态和邀请并发设计。
 - `team_member` 改为参赛成员快照。
 - 新增 `team_registration` 报名轮次。
-- 附件通过 `registration_id` 关联。
+- 报名附件映射仅保留历史兼容，新报名轮次不写入。
 - 新增资格名单和学校名额。
 - 明确队长代办制和教师两级审核事务。
 
@@ -128,7 +128,7 @@ CREATE TABLE team_registration (
 `member_id`、`user_id`、`member_name`、`school_id`、`student_no`、
 `is_leader` 六个键；普通队员的 `user_id` 可为 null。
 
-## 五、新增 `team_registration_attachment`
+## 五、`team_registration_attachment` 历史兼容
 
 ```sql
 CREATE TABLE team_registration_attachment (
@@ -146,6 +146,8 @@ CREATE TABLE team_registration_attachment (
 ```
 
 文件本体继续使用 `file` 表，不使用 `work_file`。
+
+自 V0.3.1 起，报名提交不再创建附件映射。该表保留用于兼容已存在的历史数据，当前 EP-033 不写入，EP-028 不读取，作品文件统一由后续作品提交流程通过 `work_file` 管理。
 
 ## 六、新增 `team_teacher_application`
 
@@ -253,7 +255,7 @@ CREATE TABLE edition_school_quota (
 ## 九、事务和约束
 
 - 接受教师：锁定届次和当前申请，统计有效 PENDING_ADMIN/APPROVED 轮次。
-- 提交报名：锁定 team，条件占用名额，创建轮次、快照、附件和教师申请。
+- 提交报名：锁定 team，条件占用名额，创建轮次、快照和教师申请，不写报名附件映射。
 - 名额释放：仅当 `quota_held=1` 时减一次并置 0。
 - 提交/撤回：使用 team 和 registration 的 version 条件更新。
 - 所有关键写操作与 `sys_oper_log` 同事务。
