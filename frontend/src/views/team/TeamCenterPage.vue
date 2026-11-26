@@ -33,7 +33,7 @@ onMounted(async () => { await ensureCurrentMenus(); await load() })
 </script>
 <template>
   <div class="team-center-page">
-    <section class="hero-card"><div><span class="eyebrow">STUDENT TEAM CENTER</span><h1>我的参赛队伍</h1><p>按届次管理队伍成员、报名附件和指导教师确认流程。</p></div><el-button v-if="canCreate && editionId" type="primary" size="large" @click="openCreate">创建队伍</el-button></section>
+    <section class="hero-card"><div><span class="eyebrow">STUDENT TEAM CENTER</span><h1>我的参赛队伍</h1><p>按届次管理队伍成员和指导教师确认流程。</p></div><el-button v-if="canCreate && editionId" type="primary" size="large" @click="openCreate">创建队伍</el-button></section>
     <el-alert v-if="!editionId" type="warning" :closable="false" show-icon title="缺少届次参数" description="请从赛事详情页进入，并在地址中携带 edition_id。" />
     <el-card v-else>
       <el-form inline class="filter-row">

@@ -15,7 +15,7 @@ const detail = ref<TeamDetail | null>(null); const members = ref<TeamMember[]>([
 const teamName = ref(''); const loading = ref(false); const saving = ref(false); const submitting = ref(false); const withdrawing = ref(false)
 const memberEditorRef = ref<{ validate: () => boolean }>()
 const canEdit = computed(() => Boolean(detail.value && editableTeamStatuses.includes(detail.value.status) && hasPermission('team:update')))
-const canSubmit = computed(() => Boolean(detail.value?.can_register && canEdit.value))
+const canSubmit = computed(() => Boolean(detail.value?.can_register && canEdit.value && hasPermission('team:registration:submit')))
 const canWithdraw = computed(() => Boolean(detail.value && ['PENDING_TEACHER', 'PENDING_ADMIN'].includes(detail.value.status) && detail.value.current_registration_version !== null && hasPermission('team:registration:submit')))
 async function loadAll(): Promise<void> {
   if (!teamId.value) return
@@ -36,10 +36,10 @@ async function removeMember(memberId: string): Promise<void> {
   try { await removeTeamMember(detail.value.id, memberId, detail.value.version, createTeamIdempotencyKey()); ElMessage.success('成员已移出'); await loadAll() }
   catch (error) { ElMessage.error(getTeamErrorMessage(error, '移出成员失败')); await loadAll() }
 }
-async function submitRegistration(payload: { teacherId: string; fileIds: string[]; remark: string }): Promise<void> {
+async function submitRegistration(payload: { teacherId: string; remark: string }): Promise<void> {
   if (!detail.value || !canSubmit.value) return
   submitting.value = true
-  try { await submitTeamRegistration(detail.value.id, { version: detail.value.version, teacher_id: payload.teacherId, attachment_file_ids: payload.fileIds, remark: payload.remark || undefined }, createTeamIdempotencyKey()); ElMessage.success('报名已提交，等待教师确认'); await loadAll() }
+  try { await submitTeamRegistration(detail.value.id, { version: detail.value.version, teacher_id: payload.teacherId, remark: payload.remark || undefined }, createTeamIdempotencyKey()); ElMessage.success('报名已提交，等待教师确认'); await loadAll() }
   catch (error) { ElMessage.error(getTeamErrorMessage(error, '提交报名失败')); await loadAll() } finally { submitting.value = false }
 }
 async function withdraw(): Promise<void> {
@@ -58,7 +58,7 @@ onMounted(async () => { await ensureCurrentMenus(); await loadAll() })
     <template v-if="detail">
       <RegistrationTimeline :detail="detail" />
       <el-card class="section-card"><div class="card-heading"><div><span class="eyebrow">TEAM PROFILE</span><h2>队伍资料</h2></div><el-button v-if="canEdit" type="primary" :loading="saving" @click="saveTeam">保存资料</el-button></div><el-form label-position="top"><el-form-item label="队伍名称"><el-input v-model="teamName" maxlength="64" :disabled="!canEdit" /></el-form-item></el-form><MemberEditor ref="memberEditorRef" :members="members" :disabled="!canEdit" @update:members="memberDraft = $event" @remove="removeMember" /></el-card>
-      <RegistrationSubmitPanel v-if="detail.status !== 'APPROVED'" :edition-id="detail.edition_id" :initial-teacher-id="detail.current_teacher_id" :attachments="detail.attachments" :disabled="!canEdit" :can-register="detail.can_register" :register-state="detail.register_state" :register-reason="detail.register_reason" :submitting="submitting" @submit="submitRegistration" />
+      <RegistrationSubmitPanel v-if="detail.status !== 'APPROVED'" :edition-id="detail.edition_id" :initial-teacher-id="detail.current_teacher_id" :disabled="!canEdit" :can-register="detail.can_register" :register-state="detail.register_state" :register-reason="detail.register_reason" :submitting="submitting" @submit="submitRegistration" />
       <el-alert v-else type="success" :closable="false" show-icon title="报名已通过，队伍当前只读" description="成员、附件和指导教师信息已冻结。" />
     </template>
     <el-empty v-else-if="!loading" description="未找到队伍或当前账号无权查看" />

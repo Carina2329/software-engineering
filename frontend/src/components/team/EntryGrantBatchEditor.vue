@@ -23,7 +23,9 @@ function addRevoke(): void {
   revoke.grant_id = ''; revoke.version = 0; revoke.reason = ''
 }
 function removeQueue(index: number): void { queue.value.splice(index, 1) }
+function clearQueue(): void { queue.value = [] }
 function submit(): void { if (!queue.value.length) { ElMessage.warning('请先添加至少一条维护操作'); return } emit('submit', queue.value.map((item) => ({ ...item }))) }
+defineExpose({ clearQueue })
 </script>
 <template>
   <section class="grant-editor">

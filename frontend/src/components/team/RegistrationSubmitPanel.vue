@@ -2,25 +2,22 @@
 import { onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getTeamErrorMessage, listAvailableTeachers } from '../../api/team'
-import type { AvailableTeacher, RegistrationAttachment } from '../../types/team'
-import AttachmentUploader from './AttachmentUploader.vue'
+import type { AvailableTeacher } from '../../types/team'
 
 const props = withDefaults(defineProps<{
-  editionId: string; initialTeacherId?: string | null; attachments?: RegistrationAttachment[]
+  editionId: string; initialTeacherId?: string | null
   disabled?: boolean; canRegister?: boolean; registerState?: string | null; registerReason?: string | null; submitting?: boolean
-}>(), { initialTeacherId: null, attachments: () => [], disabled: false, canRegister: false, registerState: null, registerReason: null, submitting: false })
-const emit = defineEmits<{ submit: [payload: { teacherId: string; fileIds: string[]; remark: string }] }>()
+}>(), { initialTeacherId: null, disabled: false, canRegister: false, registerState: null, registerReason: null, submitting: false })
+const emit = defineEmits<{ submit: [payload: { teacherId: string; remark: string }] }>()
 const teacherKeyword = ref('')
 const teachers = ref<AvailableTeacher[]>([])
 const teacherLoading = ref(false)
 const teacherPage = ref(1)
 const teacherTotal = ref(0)
 const teacherId = ref(props.initialTeacherId ?? '')
-const fileIds = ref<string[]>(props.attachments.map((item) => item.file_id))
 const remark = ref('')
 
 watch(() => props.initialTeacherId, (value) => { teacherId.value = value ?? '' })
-watch(() => props.attachments, (items) => { fileIds.value = items.map((item) => item.file_id) }, { deep: true })
 onMounted(() => { void loadTeachers(true) })
 
 async function loadTeachers(reset = false): Promise<void> {
@@ -37,8 +34,7 @@ async function loadTeachers(reset = false): Promise<void> {
 function submit(): void {
   if (props.disabled || props.submitting) return
   if (!teacherId.value) { ElMessage.warning('请选择指导教师'); return }
-  if (!fileIds.value.length) { ElMessage.warning('请至少上传一个报名附件'); return }
-  emit('submit', { teacherId: teacherId.value, fileIds: [...fileIds.value], remark: remark.value.trim() })
+  emit('submit', { teacherId: teacherId.value, remark: remark.value.trim() })
 }
 </script>
 
@@ -66,7 +62,6 @@ function submit(): void {
         <el-pagination v-model:current-page="teacherPage" small layout="prev, pager, next" :page-size="20" :total="teacherTotal" :disabled="disabled" @current-change="loadTeachers(false)" />
       </div>
     </div>
-    <AttachmentUploader v-model="fileIds" :attachments="attachments" :disabled="disabled || submitting" />
     <div class="remark-row">
       <label>报名说明</label>
       <el-input v-model="remark" type="textarea" :rows="3" maxlength="500" show-word-limit :disabled="disabled || submitting" placeholder="可选，说明项目背景或补充信息" />

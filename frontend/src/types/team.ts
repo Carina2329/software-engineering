@@ -48,7 +48,6 @@ export interface TeamMember {
 }
 export interface TeamUpdateRequest { team_name?: string; version: number; members?: TeamMemberInput[] }
 export interface TeamVersionResult { id: string; version: number }
-export interface RegistrationAttachment { file_id: string; file_name: string; file_type: string | null; sort_no: number }
 
 export interface TeamDetail {
   id: string
@@ -70,7 +69,6 @@ export interface TeamDetail {
   current_teacher_id: string | null
   current_teacher_name: string | null
   current_teacher_application_status: TeacherApplicationStatus | null
-  attachments: RegistrationAttachment[]
   can_register: boolean
   register_state: string | null
   register_reason: string | null
@@ -79,7 +77,6 @@ export interface TeamDetail {
 export interface TeamRegistrationSubmitRequest {
   version: number
   teacher_id: string
-  attachment_file_ids: string[]
   remark?: string
 }
 export interface TeamRegistrationSubmitResult {
@@ -154,20 +151,6 @@ export interface EntryGrantBatchItem {
 }
 export interface EntryGrantBatchRequest { items: EntryGrantBatchItem[] }
 export interface EntryGrantBatchResult { upserted_count: number; revoked_count: number }
-export interface FileUploadResult {
-  file_name: string
-  file_id: string
-  size: number
-  path: string
-  success: boolean
-  duplicated: boolean
-  error: string | null
-}
-export interface BatchUploadResponse {
-  results: FileUploadResult[]
-  success_count: number
-  failure_count: number
-}
 export interface SchoolQuotaInput { school_id: string; max_teams: number | null }
 export interface SchoolQuotaItem extends SchoolQuotaInput { used_teams?: number; school_name?: string }
 

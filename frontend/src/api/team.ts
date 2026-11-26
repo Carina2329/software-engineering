@@ -3,7 +3,6 @@ import request, { ApiError, getApiErrorMessage } from './request'
 import type {
   AvailableTeacherPage,
   AvailableTeacherQuery,
-  BatchUploadResponse,
   EntryGrantBatchRequest,
   EntryGrantBatchResult,
   EntryGrantList,
@@ -82,9 +81,3 @@ export const listEntryGrants = (editionId: string, status?: EntryGrantStatus): P
   })
 export const batchEntryGrants = (editionId: string, payload: EntryGrantBatchRequest, key: string): Promise<EntryGrantBatchResult> =>
   post(`/editions/${encodeURIComponent(editionId)}/entry-grants/batch`, payload, idempotencyConfig(key))
-export const uploadRegistrationAttachments = async (files: File[]): Promise<BatchUploadResponse> => {
-  const form = new FormData()
-  files.forEach((file) => form.append('files', file))
-  form.append('purpose', 'REGISTRATION_ATTACHMENT')
-  return request.post<BatchUploadResponse, FormData>('/files/batch', form)
-}

@@ -13,7 +13,7 @@ function confirm(): void { if (!approved.value && !reason.value.trim()) return; 
 <template>
   <el-dialog :model-value="modelValue" :title="title" width="520px" destroy-on-close @update:model-value="emit('update:modelValue', $event)">
     <div class="summary"><span>队伍</span><strong>{{ teamName }}</strong><span>报名轮次版本</span><strong>{{ version }}</strong></div>
-    <el-alert v-if="approved" type="success" :closable="false" show-icon title="确认通过后将进入下一审核阶段" description="请确认成员快照、报名附件和指导教师信息无误。" />
+    <el-alert v-if="approved" type="success" :closable="false" show-icon title="确认通过后将进入下一审核阶段" description="请确认成员快照和指导教师信息无误。" />
     <el-alert v-else type="warning" :closable="false" show-icon title="驳回后队伍需修改并重新提交" description="驳回原因将展示给队长，教师驳回会释放学校名额。" />
     <el-form label-position="top" class="reason-form">
       <el-form-item :label="approved ? '审核说明（可选）' : '驳回原因（必填）'" :required="!approved">
