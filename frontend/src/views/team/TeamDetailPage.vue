@@ -49,7 +49,13 @@ async function withdraw(): Promise<void> {
   try { await withdrawTeamRegistration(detail.value.id, detail.value.current_registration_version, createTeamIdempotencyKey()); ElMessage.success('报名已撤回'); await loadAll() }
   catch (error) { ElMessage.error(getTeamErrorMessage(error, '撤回报名失败')); await loadAll() } finally { withdrawing.value = false }
 }
-function back(): void { router.back() }
+function back(): void {
+  if (detail.value) {
+    void router.push({ path: '/teams', query: { edition_id: detail.value.edition_id } })
+    return
+  }
+  router.back()
+}
 onMounted(async () => { await ensureCurrentMenus(); await loadAll() })
 </script>
 <template>

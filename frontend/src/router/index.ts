@@ -131,8 +131,30 @@ const router = createRouter({
               'edition:publish',
               'edition:milestone:create',
               'edition:milestone:update',
+              'team:approve',
+              'team:eligibility:manage',
             ],
             title: '竞赛管理',
+          },
+        },
+        {
+          path: 'team-approvals',
+          name: 'admin-team-approvals',
+          component: () => import('../views/admin/team/TeamApprovalPage.vue'),
+          meta: {
+            requiresAuth: true,
+            permissions: ['team:approve'],
+            title: '报名终审',
+          },
+        },
+        {
+          path: 'editions/:editionId/entry-grants',
+          name: 'admin-entry-grants',
+          component: () => import('../views/admin/team/EntryGrantManagementPage.vue'),
+          meta: {
+            requiresAuth: true,
+            permissions: ['team:eligibility:manage'],
+            title: '比赛资格名单',
           },
         },
         {
@@ -147,6 +169,8 @@ const router = createRouter({
               'edition:publish',
               'edition:milestone:create',
               'edition:milestone:update',
+              'team:approve',
+              'team:eligibility:manage',
             ],
             title: '届次配置',
           },
@@ -179,6 +203,36 @@ const router = createRouter({
       meta: {
         requiresAuth: true,
         title: '届次详情',
+      },
+    },
+    {
+      path: '/teams',
+      name: 'teams',
+      component: () => import('../views/team/TeamCenterPage.vue'),
+      meta: {
+        requiresAuth: true,
+        permissions: ['team:list'],
+        title: '我的参赛队伍',
+      },
+    },
+    {
+      path: '/teams/:teamId',
+      name: 'team-detail',
+      component: () => import('../views/team/TeamDetailPage.vue'),
+      meta: {
+        requiresAuth: true,
+        permissions: ['team:view'],
+        title: '队伍详情',
+      },
+    },
+    {
+      path: '/team-approvals',
+      name: 'team-approvals',
+      component: () => import('../views/team/TeacherApprovalPage.vue'),
+      meta: {
+        requiresAuth: true,
+        permissions: ['team:approve'],
+        title: '教师确认',
       },
     },
     {

@@ -36,6 +36,7 @@ import com.campus.contest.module.contest.vo.EditionDetailVO;
 import com.campus.contest.module.contest.vo.EditionItemVO;
 import com.campus.contest.module.contest.vo.EditionPageVO;
 import com.campus.contest.module.contest.vo.EditionPublishVO;
+import com.campus.contest.module.contest.vo.EditionSchoolQuotaVO;
 import com.campus.contest.module.contest.vo.EditionVersionVO;
 import com.campus.contest.module.organization.entity.OrganizationDO;
 import com.campus.contest.module.organization.mapper.OrganizationMapper;
@@ -244,12 +245,24 @@ public class EditionServiceImpl implements EditionService {
                 && edition.getWorkDeadline() != null
                 && !now.isAfter(edition.getWorkDeadline());
         boolean readOnly = isReadOnly(edition, now);
+        List<EditionSchoolQuotaVO> schoolQuotas = schoolQuotaMapper.selectList(
+                        Wrappers.<EditionSchoolQuotaDO>lambdaQuery()
+                                .eq(EditionSchoolQuotaDO::getEditionId, editionId)
+                                .orderByAsc(EditionSchoolQuotaDO::getSchoolId)
+                ).stream()
+                .map(row -> new EditionSchoolQuotaVO(
+                        String.valueOf(row.getSchoolId()),
+                        row.getMaxTeams(),
+                        row.getUsedTeams() == null ? 0 : row.getUsedTeams()
+                ))
+                .toList();
         return EditionDetailVO.from(
                 edition,
                 registrationOpen,
                 submissionOpen,
                 readOnly,
-                owner == null ? null : owner.getOrgName()
+                owner == null ? null : owner.getOrgName(),
+                schoolQuotas
         );
     }
 

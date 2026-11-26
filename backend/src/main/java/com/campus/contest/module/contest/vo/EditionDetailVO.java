@@ -10,6 +10,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 public record EditionDetailVO(
         String id,
@@ -41,7 +42,8 @@ public record EditionDetailVO(
         @JsonProperty("province_code") String provinceCode,
         String visibility,
         @JsonProperty("entry_mode") String entryMode,
-        @JsonProperty("cross_school_team_allowed") boolean crossSchoolTeamAllowed
+        @JsonProperty("cross_school_team_allowed") boolean crossSchoolTeamAllowed,
+        @JsonProperty("school_quotas") List<EditionSchoolQuotaVO> schoolQuotas
 ) {
     private static final ZoneOffset SHANGHAI_OFFSET = ZoneOffset.ofHours(8);
 
@@ -50,7 +52,8 @@ public record EditionDetailVO(
             boolean registrationOpen,
             boolean submissionOpen,
             boolean readOnly,
-            String ownerOrgName
+            String ownerOrgName,
+            List<EditionSchoolQuotaVO> schoolQuotas
     ) {
         return new EditionDetailVO(
                 String.valueOf(edition.getId()),
@@ -82,7 +85,8 @@ public record EditionDetailVO(
                 edition.getProvinceCode(),
                 edition.getVisibility(),
                 edition.getEntryMode(),
-                Integer.valueOf(1).equals(edition.getCrossSchoolTeamAllowed())
+                Integer.valueOf(1).equals(edition.getCrossSchoolTeamAllowed()),
+                schoolQuotas
         );
     }
 

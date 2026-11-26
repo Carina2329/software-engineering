@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import ApprovalDecisionDialog from '../../components/team/ApprovalDecisionDialog.vue'
 import { approveTeamRegistration, createTeamIdempotencyKey, getTeam, getTeamErrorMessage, listTeamMembers, listTeams } from '../../api/team'
 import type { ApprovalDecision, TeamDetail, TeamMember, TeamPageItem, TeamStatus } from '../../types/team'
 import { TEAM_STATUS_LABELS, TEAM_STATUS_TAG_TYPES } from '../../types/team'
 import { useCurrentMenus } from '../../layouts/useCurrentMenus'
-const route = useRoute(); const { ensureCurrentMenus } = useCurrentMenus()
+const route = useRoute(); const router = useRouter(); const { ensureCurrentMenus } = useCurrentMenus()
 const editionId = computed(() => String(route.query.edition_id ?? ''))
 const loading = ref(false); const teams = ref<TeamPageItem[]>([]); const total = ref(0); const page = ref(1); const size = ref(10); const filter = reactive({ keyword: '' })
 const drawerVisible = ref(false); const detailLoading = ref(false); const detail = ref<TeamDetail | null>(null); const members = ref<TeamMember[]>([])
@@ -18,11 +18,14 @@ async function reloadDetail(): Promise<void> { if (!detail.value) return; const 
 function openDecision(value: ApprovalDecision): void { if (!canAct.value) { ElMessage.warning('队伍状态已变化，请刷新后重试'); return } decision.value = value; dialogVisible.value = true }
 async function confirmDecision(reason: string): Promise<void> { if (!detail.value || detail.value.current_registration_version === null) { ElMessage.warning('当前报名轮次版本缺失，请刷新'); return } submitting.value = true; try { await approveTeamRegistration(detail.value.id, { stage: 'TEACHER', decision: decision.value, reason: reason || undefined, version: detail.value.current_registration_version }, createTeamIdempotencyKey()); ElMessage.success(decision.value === 'APPROVE' ? '已确认通过' : '已驳回报名'); dialogVisible.value = false; drawerVisible.value = false; await load() } catch (error) { ElMessage.error(getTeamErrorMessage(error, '教师确认失败')); await load(); await reloadDetail() } finally { submitting.value = false } }
 function search(): void { page.value = 1; void load() }
+function backToEdition(): void {
+  if (editionId.value) void router.push(`/contests/${editionId.value}`)
+}
 onMounted(async () => { await ensureCurrentMenus(); await load() })
 </script>
 <template>
   <div class="teacher-page">
-    <section class="hero-card"><div><span class="eyebrow">TEACHER CONFIRMATION</span><h1>待我确认的队伍</h1><p>查看成员快照和报名信息后，确认通过或填写原因驳回。</p></div><el-tag size="large" effect="plain">{{ total }} 支待确认</el-tag></section>
+    <section class="hero-card"><div><span class="eyebrow">TEACHER CONFIRMATION</span><h1>待我确认的队伍</h1><p>查看成员快照和报名信息后，确认通过或填写原因驳回。</p></div><div class="hero-actions"><el-button v-if="editionId" plain @click="backToEdition">返回届次详情</el-button><el-tag size="large" effect="plain">{{ total }} 支待确认</el-tag></div></section>
     <el-alert v-if="!editionId" type="warning" :closable="false" show-icon title="缺少届次参数" description="请携带 edition_id 进入教师确认页。" />
     <el-card v-else>
       <el-form inline class="filters"><el-form-item label="队伍"><el-input v-model="filter.keyword" clearable placeholder="队伍名称或编码" @keyup.enter="search" /></el-form-item><el-form-item><el-button type="primary" @click="search">查询</el-button></el-form-item></el-form>
@@ -34,5 +37,5 @@ onMounted(async () => { await ensureCurrentMenus(); await load() })
   </div>
 </template>
 <style scoped>
-.teacher-page { display: grid; gap: 16px; padding: 18px; }.hero-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 28px 30px; border-radius: 18px 18px 18px 5px; color: #f0f5f1; background: radial-gradient(circle at 90% 10%, rgba(216,186,112,.34), transparent 16rem), linear-gradient(135deg, #143b31, #275b4b); }.hero-card h1 { margin: 7px 0 8px; font-family: Georgia, "Songti SC", serif; font-size: 32px; font-weight: 500; }.hero-card p { margin: 0; color: rgba(240,245,241,.72); }.eyebrow { color: #d8ba70; font-size: 11px; font-weight: 700; letter-spacing: .16em; }.filters { margin-bottom: 4px; }.pagination { display: flex; justify-content: flex-end; margin-top: 18px; }.drawer-body { min-height: 300px; }.team-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }.team-summary h2 { margin: 0 0 5px; }.team-summary p { margin: 0; color: #74877f; }.member-table { margin-top: 16px; }.drawer-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.teacher-page { display: grid; gap: 16px; padding: 18px; }.hero-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 28px 30px; border-radius: 18px 18px 18px 5px; color: #f0f5f1; background: radial-gradient(circle at 90% 10%, rgba(216,186,112,.34), transparent 16rem), linear-gradient(135deg, #143b31, #275b4b); }.hero-card h1 { margin: 7px 0 8px; font-family: Georgia, "Songti SC", serif; font-size: 32px; font-weight: 500; }.hero-card p { margin: 0; color: rgba(240,245,241,.72); }.hero-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }.eyebrow { color: #d8ba70; font-size: 11px; font-weight: 700; letter-spacing: .16em; }.filters { margin-bottom: 4px; }.pagination { display: flex; justify-content: flex-end; margin-top: 18px; }.drawer-body { min-height: 300px; }.team-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }.team-summary h2 { margin: 0 0 5px; }.team-summary p { margin: 0; color: #74877f; }.member-table { margin-top: 16px; }.drawer-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 </style>

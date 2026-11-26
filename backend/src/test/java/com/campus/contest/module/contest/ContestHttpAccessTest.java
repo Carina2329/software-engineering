@@ -14,6 +14,7 @@ import com.campus.contest.module.contest.service.MilestoneService;
 import com.campus.contest.module.contest.vo.ContestCreateVO;
 import com.campus.contest.module.contest.vo.ContestDetailVO;
 import com.campus.contest.module.contest.vo.EditionDetailVO;
+import com.campus.contest.module.contest.vo.EditionSchoolQuotaVO;
 import com.campus.contest.module.contest.vo.MilestoneVO;
 import com.campus.contest.security.AuthSessionService;
 import com.campus.contest.security.AuthenticatedUser;
@@ -208,7 +209,8 @@ class ContestHttpAccessTest {
                 null,
                 "SCHOOL",
                 "OPEN",
-                false
+                false,
+                List.of(new EditionSchoolQuotaVO("10", 5, 2))
         ));
 
         MvcResult result = mockMvc.perform(get("/api/v1/editions/31")
@@ -222,6 +224,9 @@ class ContestHttpAccessTest {
         assertThat(data.path("registration_open").asBoolean()).isTrue();
         assertThat(data.path("submission_open").asBoolean()).isTrue();
         assertThat(data.path("read_only").asBoolean()).isFalse();
+        assertThat(data.path("school_quotas").get(0).path("school_id").asText()).isEqualTo("10");
+        assertThat(data.path("school_quotas").get(0).path("max_teams").asInt()).isEqualTo(5);
+        assertThat(data.path("school_quotas").get(0).path("used_teams").asInt()).isEqualTo(2);
     }
 
     @Test

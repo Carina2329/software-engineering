@@ -3,8 +3,8 @@
 | 项目 | 内容 |
 | --- | --- |
 | 任务编号 | `BIZ-TEAM-REGISTRATION-FRONTEND-001` |
-| 当前状态 | 待认领 |
-| 建议负责人 | 李同学，单一负责人 |
+| 当前状态 | 已完成，PR #32 已合并 |
+| 负责人 | 李同学，单一负责人 |
 | 基线 | 前置任务 `BIZ-TEAM-FRONTEND-CONTRACT-001` 合并后的最新 `feature/business-core` |
 | 目标分支 | `feature/business-team-registration-frontend` |
 | PR 目标分支 | `feature/business-core` |

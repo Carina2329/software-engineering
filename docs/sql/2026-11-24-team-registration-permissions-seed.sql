@@ -12,26 +12,31 @@ SET @contest_root_id = (
 INSERT INTO sys_menu
   (parent_id, menu_name, menu_type, path, perms, sort_no, visible, status,
    created_at, created_by, deleted, version)
-SELECT @contest_root_id, '报名组织', 2, '/teams', NULL,
-       30, 0, 1, NOW(), 0, 0, 0
+SELECT @contest_root_id, '报名组织', 2, '/admin/contests', NULL,
+       30, 1, 1, NOW(), 0, 0, 0
 WHERE @contest_root_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM sys_menu
-    WHERE parent_id = @contest_root_id AND path = '/teams' AND deleted = 0
+    WHERE parent_id = @contest_root_id
+      AND (menu_name = '报名组织' OR path = '/teams')
+      AND deleted = 0
   );
 
 SET @team_menu_id = (
   SELECT id FROM sys_menu
-  WHERE parent_id = @contest_root_id AND path = '/teams' AND deleted = 0
-  ORDER BY id LIMIT 1
+  WHERE parent_id = @contest_root_id
+    AND menu_name = '报名组织'
+    AND deleted = 0
+  ORDER BY id
+  LIMIT 1
 );
 
 UPDATE sys_menu
 SET menu_name = '报名组织',
     menu_type = 2,
-    path = '/teams',
+    path = '/admin/contests',
     sort_no = 30,
-    visible = 0,
+    visible = 1,
     status = 1,
     deleted = 0
 WHERE id = @team_menu_id;

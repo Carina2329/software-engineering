@@ -147,6 +147,13 @@ export interface EditionDetail {
   visibility: EditionVisibility
   entry_mode: EntryMode
   cross_school_team_allowed: boolean
+  school_quotas: EditionSchoolQuota[]
+}
+
+export interface EditionSchoolQuota {
+  school_id: string
+  max_teams: number | null
+  used_teams: number
 }
 
 export interface EditionCreateRequest {
@@ -197,6 +204,7 @@ export interface EditionUpdateRequest {
   visibility?: EditionVisibility
   entry_mode?: EntryMode
   cross_school_team_allowed?: boolean
+  school_quotas?: Array<Pick<EditionSchoolQuota, 'school_id' | 'max_teams'>>
 }
 
 export interface EditionCreateResult {
