@@ -25,14 +25,12 @@ import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.dto.TeamUpdateRequest;
 import com.campus.contest.module.team.entity.TeamDO;
 import com.campus.contest.module.team.entity.TeamMemberDO;
-import com.campus.contest.module.team.entity.TeamRegistrationAttachmentDO;
 import com.campus.contest.module.team.entity.TeamRegistrationDO;
 import com.campus.contest.module.team.entity.TeamTeacherApplicationDO;
 import com.campus.contest.module.team.enums.TeamStatus;
 import com.campus.contest.module.team.mapper.AvailableTeacherMapper;
 import com.campus.contest.module.team.mapper.TeamMapper;
 import com.campus.contest.module.team.mapper.TeamMemberMapper;
-import com.campus.contest.module.team.mapper.TeamRegistrationAttachmentMapper;
 import com.campus.contest.module.team.mapper.TeamRegistrationMapper;
 import com.campus.contest.module.team.mapper.TeamTeacherApplicationMapper;
 import com.campus.contest.module.team.service.TeamAuditService;
@@ -48,7 +46,6 @@ import com.campus.contest.module.team.support.service.RegistrationEligibilitySer
 import com.campus.contest.module.team.support.service.SchoolQuotaService;
 import com.campus.contest.module.team.vo.AvailableTeacherPageVO;
 import com.campus.contest.module.team.vo.AvailableTeacherVO;
-import com.campus.contest.module.team.vo.RegistrationAttachmentVO;
 import com.campus.contest.module.team.vo.TeamApprovalVO;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamDetailVO;
@@ -58,8 +55,6 @@ import com.campus.contest.module.team.vo.TeamPageVO;
 import com.campus.contest.module.team.vo.TeamRegistrationSubmitVO;
 import com.campus.contest.module.team.vo.TeamRegistrationWithdrawVO;
 import com.campus.contest.module.team.vo.TeamVersionVO;
-import com.campus.contest.module.work.model.ValidatedRegistrationAttachment;
-import com.campus.contest.module.work.service.RegistrationAttachmentPolicy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -95,7 +90,6 @@ public class TeamServiceImpl implements TeamService {
     private final TeamMapper teamMapper;
     private final TeamMemberMapper memberMapper;
     private final TeamRegistrationMapper registrationMapper;
-    private final TeamRegistrationAttachmentMapper attachmentMapper;
     private final TeamTeacherApplicationMapper teacherApplicationMapper;
     private final AvailableTeacherMapper availableTeacherMapper;
     private final SysUserMapper userMapper;
@@ -103,7 +97,6 @@ public class TeamServiceImpl implements TeamService {
     private final TeamAuthorizationService authorizationService;
     private final RegistrationEligibilityService eligibilityService;
     private final SchoolQuotaService quotaService;
-    private final RegistrationAttachmentPolicy attachmentPolicy;
     private final AuthorizationSnapshotService authorizationSnapshotService;
     private final TeamAuditService auditService;
     private final IdempotencyService idempotencyService;
@@ -285,7 +278,6 @@ public class TeamServiceImpl implements TeamService {
                 currentRegistration.teacherId(),
                 currentRegistration.teacherName(),
                 currentRegistration.teacherApplicationStatus(),
-                currentRegistration.attachments(),
                 registration.canRegister(),
                 registration.state(),
                 registration.reason()
@@ -379,14 +371,12 @@ public class TeamServiceImpl implements TeamService {
         requireIdempotencyKey(idempotencyKey);
         requireVersion(request.getVersion());
         Long teacherId = parseId(request.getTeacherId(), "指导教师 ID");
-        List<Long> fileIds = parseFileIds(request.getAttachmentFileIds());
         String remark = normalizeRemark(request.getRemark());
         Long operatorId = authorizationService.currentUserId();
         Map<String, Object> fingerprint = new LinkedHashMap<>();
         fingerprint.put("team_id", String.valueOf(teamId));
         fingerprint.put("version", request.getVersion());
         fingerprint.put("teacher_id", String.valueOf(teacherId));
-        fingerprint.put("attachment_file_ids", fileIds);
         fingerprint.put("remark", remark);
         return executeIdempotently(
                 operatorId,
@@ -395,7 +385,7 @@ public class TeamServiceImpl implements TeamService {
                 fingerprint,
                 TeamRegistrationSubmitVO.class,
                 () -> doSubmitWithDuplicateHandling(
-                        teamId, request.getVersion(), teacherId, fileIds, remark, operatorId
+                        teamId, request.getVersion(), teacherId, remark, operatorId
                 )
         );
     }
@@ -763,13 +753,12 @@ public class TeamServiceImpl implements TeamService {
             Long teamId,
             Integer teamVersion,
             Long teacherId,
-            List<Long> fileIds,
             String remark,
             Long operatorId
     ) {
         try {
             TeamRegistrationSubmitVO result = transactionTemplate.execute(status ->
-                    doSubmit(teamId, teamVersion, teacherId, fileIds, remark, operatorId)
+                    doSubmit(teamId, teamVersion, teacherId, remark, operatorId)
             );
             if (result == null) {
                 throw new IllegalStateException("提交报名事务未返回结果");
@@ -778,7 +767,7 @@ public class TeamServiceImpl implements TeamService {
         } catch (DuplicateKeyException exception) {
             throw new BizException(
                     ErrorCode.DUPLICATE_RELATION.getCode(),
-                    "报名轮次或附件关系重复"
+                    "报名轮次重复"
             );
         }
     }
@@ -787,7 +776,6 @@ public class TeamServiceImpl implements TeamService {
             Long teamId,
             Integer teamVersion,
             Long teacherId,
-            List<Long> fileIds,
             String remark,
             Long operatorId
     ) {
@@ -811,8 +799,6 @@ public class TeamServiceImpl implements TeamService {
         }
         SysUserDO teacher = requireAvailableTeacher(teacherId);
         List<TeamMemberDO> members = listActiveMembers(teamId);
-        List<ValidatedRegistrationAttachment> attachments =
-                attachmentPolicy.validateForCaptain(operatorId, teamId, fileIds);
 
         LocalDateTime now = LocalDateTime.now(clock);
         TeamRegistrationDO registration = new TeamRegistrationDO();
@@ -855,18 +841,6 @@ public class TeamServiceImpl implements TeamService {
             );
         }
 
-        for (int index = 0; index < attachments.size(); index++) {
-            ValidatedRegistrationAttachment attachment = attachments.get(index);
-            TeamRegistrationAttachmentDO mapping = new TeamRegistrationAttachmentDO();
-            mapping.setRegistrationId(registration.getId());
-            mapping.setFileId(attachment.fileId());
-            mapping.setFileType(attachment.materialType());
-            mapping.setSortNo(index);
-            mapping.setCreatedAt(now);
-            mapping.setCreatedBy(operatorId);
-            attachmentMapper.insert(mapping);
-        }
-
         TeamTeacherApplicationDO application = new TeamTeacherApplicationDO();
         application.setRegistrationId(registration.getId());
         application.setTeacherId(teacher.getId());
@@ -896,8 +870,7 @@ public class TeamServiceImpl implements TeamService {
                 "team_id", String.valueOf(teamId),
                 "registration_id", String.valueOf(registration.getId()),
                 "round_no", registration.getRoundNo(),
-                "teacher_id", String.valueOf(teacherId),
-                "attachment_count", attachments.size()
+                "teacher_id", String.valueOf(teacherId)
         ));
         return new TeamRegistrationSubmitVO(
                 String.valueOf(teamId),
@@ -1408,22 +1381,6 @@ public class TeamServiceImpl implements TeamService {
         return teacher;
     }
 
-    private List<Long> parseFileIds(List<String> values) {
-        if (values == null || values.isEmpty()) {
-            throw invalidParam("报名附件不能为空");
-        }
-        List<Long> result = new ArrayList<>(values.size());
-        Set<Long> seen = new HashSet<>();
-        for (String value : values) {
-            Long fileId = parseId(value, "附件 ID");
-            if (!seen.add(fileId)) {
-                throw invalidParam("报名附件 ID 不能重复");
-            }
-            result.add(fileId);
-        }
-        return List.copyOf(result);
-    }
-
     private String normalizeRemark(String value) {
         if (value == null) {
             return null;
@@ -1541,16 +1498,6 @@ public class TeamServiceImpl implements TeamService {
                 ? team.getTeacherId()
                 : application.getTeacherId();
         SysUserDO teacher = teacherId == null ? null : userMapper.selectById(teacherId);
-        List<RegistrationAttachmentVO> attachments =
-                attachmentMapper.selectByRegistrationId(registration.getId())
-                        .stream()
-                        .map(row -> new RegistrationAttachmentVO(
-                                String.valueOf(row.fileId()),
-                                row.originalName(),
-                                row.fileType(),
-                                row.sortNo() == null ? 0 : row.sortNo()
-                        ))
-                        .toList();
         return new CurrentRegistrationView(
                 registration.getVersion(),
                 registration.getStatus(),
@@ -1558,8 +1505,7 @@ public class TeamServiceImpl implements TeamService {
                 registration.getRejectReason(),
                 teacherId == null ? null : String.valueOf(teacherId),
                 teacher == null ? null : teacher.getRealName(),
-                application == null ? null : application.getStatus(),
-                attachments
+                application == null ? null : application.getStatus()
         );
     }
 
@@ -1840,12 +1786,11 @@ public class TeamServiceImpl implements TeamService {
             String rejectReason,
             String teacherId,
             String teacherName,
-            String teacherApplicationStatus,
-            List<RegistrationAttachmentVO> attachments
+            String teacherApplicationStatus
     ) {
         private static CurrentRegistrationView empty() {
             return new CurrentRegistrationView(
-                    null, null, null, null, null, null, null, List.of()
+                    null, null, null, null, null, null, null
             );
         }
     }

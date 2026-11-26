@@ -7,7 +7,7 @@
 | 当前负责人 | 阶段 4 待认领 |
 | 目标分支 | 阶段 1～3：`feature/business-team-registration-stage3`（已合并）；阶段 4：`feature/business-team-registration-frontend` |
 | PR 目标分支 | `feature/business-core` |
-| 事实源 | V0.6 需求、`team-registration-contract.md`、`contest-selection-delta-v0.3.md`、最新 OpenAPI |
+| 事实源 | V0.6.1 需求、`team-registration-contract.md`、`contest-selection-delta-v0.3.md`、最新 OpenAPI |
 
 ## 一、目标
 
@@ -16,7 +16,7 @@
 ```text
 创建队伍
 → 队长填写全队成员
-→ 提交报名和附件
+→ 提交报名信息
 → 教师确认
 → 管理员终审
 → 驳回修改重提或撤回
@@ -36,14 +36,13 @@
 - 同届次同校同学号唯一。
 - 队长固定。
 
-### 阶段 2：报名轮次、附件和撤回
+### 阶段 2：报名轮次和撤回
 
 - EP-033 提交和重提。
 - EP-080 撤回当前报名轮次。
 - 创建 `team_registration`。
 - 保存成员、资格和名额快照。
-- 通过 `registration_id` 关联附件。
-- 附件权限和类型校验。
+- 报名阶段不接收、不保存报名附件。
 - 幂等、version 和审计。
 
 ### 阶段 3：教师确认、资格名额和终审
@@ -87,7 +86,7 @@ frontend/src/components/team/
 公共负责人维护：
 
 ```text
-V0.6 需求
+V0.6.1 需求
 team-registration-contract.md
 contest-selection-delta-v0.3.md
 docs/sql/
@@ -107,7 +106,6 @@ frontend/src/main.ts
 以下支持接口已由公共基础负责人提供，李同学只消费：
 
 ```text
-com.campus.contest.module.work.service.RegistrationAttachmentPolicy
 com.campus.contest.module.team.support.service.RegistrationEligibilityService
 com.campus.contest.module.team.support.service.SchoolQuotaService
 ```
@@ -118,12 +116,6 @@ com.campus.contest.module.team.support.service.SchoolQuotaService
 RegistrationEligibilityService.checkCanRegister(...)
 SchoolQuotaService.occupy(...)
 SchoolQuotaService.release(...)
-```
-
-文件模块只提供：
-
-```text
-RegistrationAttachmentPolicy.validateForCaptain(...)
 ```
 
 这些能力必须在 EP-033 调用方事务内工作，不单独实现报名提交接口，不修改报名轮次或队伍状态。
@@ -149,8 +141,7 @@ RegistrationAttachmentPolicy.validateForCaptain(...)
 - 学生申请入队接口和邀请接口当前不存在，历史归档仍可查。
 - 提交后成员冻结，驳回后可编辑重提。
 - 历史报名轮次 JSON 不变化。
-- 附件按 registration_id 关联；不存在、他人私有、错误类型或超限文件均失败。
-- 合法附件下载遵守 TEAM / GUIDED / ALL 数据范围。
+- 报名提交无需上传附件，作品文件留到后续作品提交流程。
 - 教师拒绝、管理员驳回、撤回正确清理 teacher_id 并释放名额。
 - 重复释放不重复扣减。
 - 截止后管理员仍可审核截止前提交的报名。

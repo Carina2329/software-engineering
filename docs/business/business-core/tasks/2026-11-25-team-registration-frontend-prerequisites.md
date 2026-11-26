@@ -54,18 +54,6 @@ current_reject_reason
 current_teacher_id
 current_teacher_name
 current_teacher_application_status
-attachments[]
-```
-
-附件项只包含：
-
-```json
-{
-  "file_id": "101",
-  "file_name": "报名表.pdf",
-  "file_type": "REGISTRATION_ATTACHMENT",
-  "sort_no": 0
-}
 ```
 
 规则：
@@ -74,8 +62,7 @@ attachments[]
 - 仅对已通过 `requireReadable` 的队长、教师、管理员返回。
 - `current_teacher_id/name` 从当前轮次教师申请读取；未选择或已撤回时为空。
 - 驳回原因和阶段来自当前轮次的 `reject_stage/reject_reason`。
-- 附件通过 `team_registration_attachment + file` 查询，不得暴露存储路径。
-- 已通过旧轮次附件不混入当前轮次。
+- 报名阶段不返回附件，作品文件留到后续作品提交流程。
 
 ### 3. 公共契约同步
 
@@ -89,9 +76,8 @@ attachments[]
 1. 队长可按姓名选择教师，学生无法调用全局用户列表。
 2. 停用、非教师、学校未审核账号不会出现在教师选择结果。
 3. EP-028 刷新后仍返回当前报名状态、教师申请状态、驳回阶段和原因。
-4. EP-028 只返回当前轮次附件，不返回其他轮次或他人文件。
-5. 队长、教师、管理员范围和 404/403 语义保持现有规则。
-6. Full backend tests、真实 MySQL 测试和前端现有构建均不受影响。
+4. 队长、教师、管理员范围和 404/403 语义保持现有规则。
+5. Full backend tests、真实 MySQL 测试和前端现有构建均不受影响。
 
 ## 四、停止点
 
@@ -102,7 +88,7 @@ attachments[]
 ## 五、交付结果
 
 - 新增 `GET /api/v1/editions/{edition_id}/available-teachers`，对应 EP-098。
-- EP-028 增加当前报名状态、驳回阶段/原因、教师选择/申请状态和当前轮次附件。
+- EP-028 增加当前报名状态、驳回阶段/原因和教师选择/申请状态；不返回报名附件。
 - OpenAPI 升级到 1.6.1，接口汇总同步。
 - 全量测试：457 通过，0 失败，38 跳过。
 - 真实 MySQL：`TeamFrontendContractMysqlTest` 和阶段 3 全部 MySQL 门控测试通过。

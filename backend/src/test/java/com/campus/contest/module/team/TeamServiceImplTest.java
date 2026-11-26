@@ -26,13 +26,11 @@ import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.dto.TeamUpdateRequest;
 import com.campus.contest.module.team.entity.TeamDO;
 import com.campus.contest.module.team.entity.TeamMemberDO;
-import com.campus.contest.module.team.entity.TeamRegistrationAttachmentDO;
 import com.campus.contest.module.team.entity.TeamRegistrationDO;
 import com.campus.contest.module.team.entity.TeamTeacherApplicationDO;
 import com.campus.contest.module.team.enums.TeamStatus;
 import com.campus.contest.module.team.mapper.TeamMapper;
 import com.campus.contest.module.team.mapper.TeamMemberMapper;
-import com.campus.contest.module.team.mapper.TeamRegistrationAttachmentMapper;
 import com.campus.contest.module.team.mapper.TeamRegistrationMapper;
 import com.campus.contest.module.team.mapper.TeamTeacherApplicationMapper;
 import com.campus.contest.module.team.mapper.AvailableTeacherMapper;
@@ -49,8 +47,6 @@ import com.campus.contest.module.team.vo.TeamApprovalVO;
 import com.campus.contest.module.team.vo.TeamCreateVO;
 import com.campus.contest.module.team.vo.TeamRegistrationSubmitVO;
 import com.campus.contest.module.team.vo.TeamRegistrationWithdrawVO;
-import com.campus.contest.module.work.model.ValidatedRegistrationAttachment;
-import com.campus.contest.module.work.service.RegistrationAttachmentPolicy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -72,7 +68,6 @@ import java.time.LocalDateTime;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Arrays;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
@@ -104,8 +99,6 @@ class TeamServiceImplTest {
     @Mock
     private TeamRegistrationMapper registrationMapper;
     @Mock
-    private TeamRegistrationAttachmentMapper attachmentMapper;
-    @Mock
     private TeamTeacherApplicationMapper teacherApplicationMapper;
     @Mock
     private AvailableTeacherMapper availableTeacherMapper;
@@ -119,8 +112,6 @@ class TeamServiceImplTest {
     private RegistrationEligibilityService eligibilityService;
     @Mock
     private SchoolQuotaService quotaService;
-    @Mock
-    private RegistrationAttachmentPolicy attachmentPolicy;
     @Mock
     private AuthorizationSnapshotService authorizationSnapshotService;
     @Mock
@@ -147,7 +138,6 @@ class TeamServiceImplTest {
                 teamMapper,
                 memberMapper,
                 registrationMapper,
-                attachmentMapper,
                 teacherApplicationMapper,
                 availableTeacherMapper,
                 userMapper,
@@ -155,7 +145,6 @@ class TeamServiceImplTest {
                 authorizationService,
                 eligibilityService,
                 quotaService,
-                attachmentPolicy,
                 authorizationSnapshotService,
                 auditService,
                 TestInfrastructure.passthroughIdempotencyService(),
@@ -325,7 +314,7 @@ class TeamServiceImplTest {
     }
 
     @Test
-    @DisplayName("资格通过时创建报名轮次、占用名额并创建附件和教师申请")
+    @DisplayName("资格通过时创建报名轮次、占用名额并创建教师申请")
     void submitsRegistrationAndCreatesRound() {
         TeamDO team = team();
         when(teamMapper.selectActiveByIdForUpdate(TEAM_ID)).thenReturn(team);
@@ -335,11 +324,6 @@ class TeamServiceImplTest {
         when(organizationMapper.selectById(SCHOOL_ID)).thenReturn(school());
         when(authorizationSnapshotService.loadRequired(8L)).thenReturn(teacherSnapshot());
         when(memberMapper.selectList(any())).thenReturn(List.of(leaderMember()));
-        when(attachmentPolicy.validateForCaptain(USER_ID, TEAM_ID, List.of(300L)))
-                .thenReturn(List.of(new ValidatedRegistrationAttachment(
-                        300L, "报名表.pdf", "application/pdf", 1024L,
-                        "REGISTRATION_ATTACHMENT"
-                )));
         when(registrationMapper.selectMaxRoundNo(TEAM_ID)).thenReturn(0);
         when(registrationMapper.insert(any(TeamRegistrationDO.class))).thenAnswer(invocation -> {
             TeamRegistrationDO registration = invocation.getArgument(0);
@@ -359,7 +343,6 @@ class TeamServiceImplTest {
         assertThat(result.status()).isEqualTo("PENDING_TEACHER");
         verify(registrationMapper).insert(any(TeamRegistrationDO.class));
         verify(quotaService).occupy(700L, 1L, SCHOOL_ID);
-        verify(attachmentMapper).insert(any(TeamRegistrationAttachmentDO.class));
         verify(teacherApplicationMapper).insert(any(TeamTeacherApplicationDO.class));
         verify(teamMapper).updateById(any(TeamDO.class));
     }
@@ -500,18 +483,6 @@ class TeamServiceImplTest {
     }
 
     @Test
-    @DisplayName("附件 ID 为 null 返回 400")
-    void rejectsNullAttachmentId() {
-        TeamRegistrationSubmitRequest request = registrationRequest();
-        request.setAttachmentFileIds(Arrays.asList("300", null));
-
-        assertThatThrownBy(() -> service.submitRegistration(TEAM_ID, request, "submit-key"))
-                .isInstanceOfSatisfying(BizException.class, error ->
-                        assertThat(error.getCode()).isEqualTo(ErrorCode.INVALID_PARAM.getCode()));
-        verify(teamMapper, never()).selectActiveByIdForUpdate(any());
-    }
-
-    @Test
     @DisplayName("详情返回当前报名轮次版本用于撤回")
     void detailReturnsCurrentRegistrationVersion() {
         TeamDO team = team();
@@ -532,7 +503,7 @@ class TeamServiceImplTest {
     }
 
     @Test
-    @DisplayName("详情返回当前轮次教师、驳回原因和附件")
+    @DisplayName("详情返回当前轮次教师、申请状态和驳回原因")
     void detailReturnsCurrentRegistrationContext() {
         TeamDO team = team();
         team.setStatus(TeamStatus.REJECTED.databaseValue());
@@ -553,11 +524,6 @@ class TeamServiceImplTest {
         when(registrationMapper.selectById(700L)).thenReturn(registration);
         when(teacherApplicationMapper.selectCurrentByRegistrationId(700L)).thenReturn(application);
         when(userMapper.selectById(8L)).thenReturn(teacher);
-        when(attachmentMapper.selectByRegistrationId(700L)).thenReturn(List.of(
-                new TeamRegistrationAttachmentMapper.AttachmentRow(
-                        300L, "报名表.pdf", "REGISTRATION_ATTACHMENT", 0
-                )
-        ));
         when(eligibilityService.checkCanRegister(any())).thenReturn(
                 new RegistrationEligibilityResult(false, "REGISTRATION_STATE_INVALID",
                         "当前队伍状态不允许提交报名", null, SCHOOL_ID, null, null, null)
@@ -571,10 +537,6 @@ class TeamServiceImplTest {
         assertThat(result.currentTeacherId()).isEqualTo("8");
         assertThat(result.currentTeacherName()).isEqualTo("教师甲");
         assertThat(result.currentTeacherApplicationStatus()).isEqualTo("ACCEPTED");
-        assertThat(result.attachments()).singleElement().satisfies(attachment -> {
-            assertThat(attachment.fileId()).isEqualTo("300");
-            assertThat(attachment.fileName()).isEqualTo("报名表.pdf");
-        });
     }
     @Test
     @DisplayName("学校管理员列表范围包含其组织下的队伍")
@@ -653,7 +615,6 @@ class TeamServiceImplTest {
                 teamMapper,
                 memberMapper,
                 registrationMapper,
-                attachmentMapper,
                 teacherApplicationMapper,
                 availableTeacherMapper,
                 userMapper,
@@ -661,7 +622,6 @@ class TeamServiceImplTest {
                 authorizationService,
                 eligibilityService,
                 quotaService,
-                attachmentPolicy,
                 authorizationSnapshotService,
                 auditService,
                 new CachingIdempotencyService(),
@@ -869,7 +829,6 @@ class TeamServiceImplTest {
         TeamRegistrationSubmitRequest request = new TeamRegistrationSubmitRequest();
         request.setVersion(0);
         request.setTeacherId("8");
-        request.setAttachmentFileIds(List.of("300"));
         request.setRemark("第一次报名");
         return request;
     }

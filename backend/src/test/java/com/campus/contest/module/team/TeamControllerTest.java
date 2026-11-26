@@ -4,10 +4,12 @@ import com.campus.contest.module.team.controller.TeamController;
 import com.campus.contest.module.team.dto.AvailableTeacherQuery;
 import com.campus.contest.module.team.dto.TeamApprovalRequest;
 import com.campus.contest.module.team.dto.TeamPageQuery;
+import com.campus.contest.module.team.dto.TeamRegistrationSubmitRequest;
 import com.campus.contest.module.team.service.TeamService;
 import com.campus.contest.module.team.vo.AvailableTeacherPageVO;
 import com.campus.contest.module.team.vo.TeamApprovalVO;
 import com.campus.contest.module.team.vo.TeamPageVO;
+import com.campus.contest.module.team.vo.TeamRegistrationSubmitVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -109,5 +111,38 @@ class TeamControllerTest {
         assertThat(captor.getValue().getStage()).isEqualTo("ADMIN");
         assertThat(captor.getValue().getDecision()).isEqualTo("APPROVE");
         assertThat(captor.getValue().getVersion()).isEqualTo(2);
+    }
+
+    @Test
+    void acceptsRegistrationWithoutAttachmentFields() throws Exception {
+        when(teamService.submitRegistration(
+                eq(100L),
+                org.mockito.ArgumentMatchers.any(),
+                eq("submit-key")
+        )).thenReturn(new TeamRegistrationSubmitVO(
+                "100", "PENDING_TEACHER", 2, "700", 1
+        ));
+
+        mockMvc.perform(post("/api/v1/teams/100/registration")
+                        .header("Idempotency-Key", "submit-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "teacher_id": "8",
+                                  "remark": "报名信息",
+                                  "version": 1
+                                }
+                                """))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.registration_id").value("700"));
+
+        ArgumentCaptor<TeamRegistrationSubmitRequest> captor =
+                ArgumentCaptor.forClass(TeamRegistrationSubmitRequest.class);
+        verify(teamService).submitRegistration(
+                eq(100L), captor.capture(), eq("submit-key")
+        );
+        assertThat(captor.getValue().getTeacherId()).isEqualTo("8");
+        assertThat(captor.getValue().getRemark()).isEqualTo("报名信息");
+        assertThat(captor.getValue().getVersion()).isEqualTo(1);
     }
 }

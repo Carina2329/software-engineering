@@ -18,7 +18,7 @@
 
 ## 二、工作包
 
-### 工作包 A：队伍 API、类型和附件适配
+### 工作包 A：队伍 API 和类型
 
 允许新增或修改：
 
@@ -41,15 +41,6 @@ frontend/src/types/team.ts
 - EP-096/097 资格名单维护和查询
 - 前置任务提供的教师选择接口
 
-附件复用：
-
-```text
-POST /api/v1/files/batch
-purpose=REGISTRATION_ATTACHMENT
-```
-
-前端只能保存上传成功后的 `file_id`，不得假造文件 ID。
-
 通用要求：
 
 - 所有写接口生成 `Idempotency-Key`，同一次重试复用同一个 Key。
@@ -68,7 +59,6 @@ frontend/src/views/team/TeamDetailPage.vue
 frontend/src/components/team/MemberEditor.vue
 frontend/src/components/team/RegistrationSubmitPanel.vue
 frontend/src/components/team/RegistrationTimeline.vue
-frontend/src/components/team/AttachmentUploader.vue
 ```
 
 页面能力：
@@ -77,13 +67,12 @@ frontend/src/components/team/AttachmentUploader.vue
 - 最多填写 5 人；普通队员不需要账号。
 - 修改姓名、学校、学号，移出普通队员，不允许移出队长。
 - 使用前置任务提供的教师选择器提交报名。
-- 上传报名附件并关联 `file_id`。
 - 展示 `can_register/register_state/register_reason`。
 - PENDING_TEACHER/PENDING_ADMIN 可撤回。
 - REJECTED 展示驳回阶段和原因，修改后直接重提。
 - WITHDRAWN 修改后可重提。
 - APPROVED 只读。
-- 刷新后仍能展示当前轮次、附件、指导教师和驳回信息。
+- 刷新后仍能展示当前轮次、指导教师和驳回信息。
 
 ### 工作包 C：教师确认页
 
@@ -117,7 +106,7 @@ frontend/src/components/team/SchoolQuotaEditor.vue
 
 - 按状态、队伍名称和指导教师筛选。
 - 只审核 PENDING_ADMIN 队伍。
-- 查看成员、附件、资格和名额信息。
+- 查看成员、资格和名额信息。
 - 通过或填写原因驳回。
 - 展示管理员数据范围外的 403 和不可见数据 404。
 
@@ -166,7 +155,7 @@ docs/sql/
 
 ## 四、验收场景
 
-1. 队长创建队伍、填写 5 人、上传附件并提交。
+1. 队长创建队伍、填写 5 人并提交报名信息。
 2. 第 6 人不能录入，同校同学号不能重复。
 3. 不满足资格时展示后端 `can_register=false` 和原因。
 4. 教师通过后学生看到 PENDING_ADMIN；教师拒绝后学生看到原因并可重提。

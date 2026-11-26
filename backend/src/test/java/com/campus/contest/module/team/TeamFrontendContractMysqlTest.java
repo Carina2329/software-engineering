@@ -2,7 +2,6 @@ package com.campus.contest.module.team;
 
 import com.campus.contest.config.MybatisPlusConfig;
 import com.campus.contest.module.team.mapper.AvailableTeacherMapper;
-import com.campus.contest.module.team.mapper.TeamRegistrationAttachmentMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.mybatis.spring.annotation.MapperScan;
@@ -14,7 +13,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,12 +34,10 @@ class TeamFrontendContractMysqlTest {
     @Autowired
     private AvailableTeacherMapper availableTeacherMapper;
     @Autowired
-    private TeamRegistrationAttachmentMapper attachmentMapper;
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void teacherLookupAndCurrentAttachmentReadModelUseRealMysql() {
+    void teacherLookupUsesRealMysql() {
         String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         Long schoolId = jdbcTemplate.queryForObject(
                 "SELECT id FROM organization WHERE org_type = 'SCHOOL' AND status = 1 AND deleted = 0 LIMIT 1",
@@ -91,74 +87,6 @@ class TeamFrontendContractMysqlTest {
                     assertThat(row.realName()).isEqualTo(realName);
                     assertThat(row.schoolId()).isEqualTo(schoolId);
                     assertThat(row.schoolName()).isNotBlank();
-                });
-
-        jdbcTemplate.update(
-                """
-                INSERT INTO team
-                    (edition_id, team_name, team_code, leader_id, status, member_count,
-                     created_by, deleted, version)
-                VALUES (1, ?, ?, 2, 1, 1, 2, 0, 0)
-                """,
-                "Front Contract " + suffix,
-                "FC" + suffix
-        );
-        Long teamId = jdbcTemplate.queryForObject(
-                "SELECT id FROM team WHERE team_code = ?",
-                Long.class,
-                "FC" + suffix
-        );
-        jdbcTemplate.update(
-                """
-                INSERT INTO team_registration
-                    (team_id, edition_id, round_no, status, members_snapshot,
-                     quota_held, submitted_at, created_by, deleted, version)
-                VALUES (?, 1, 1, 'REJECTED', CAST('[{"member_id":"1"}]' AS JSON),
-                        0, NOW(), 2, 0, 0)
-                """,
-                teamId
-        );
-        Long registrationId = jdbcTemplate.queryForObject(
-                "SELECT id FROM team_registration WHERE team_id = ?",
-                Long.class,
-                teamId
-        );
-        String checksum = (suffix + suffix + suffix + suffix + suffix
-                + suffix + "00000000").substring(0, 64);
-        jdbcTemplate.update(
-                """
-                INSERT INTO file
-                    (original_name, mime_type, file_size, storage_type, storage_path,
-                     sha256, uploader_id, created_at, created_by, updated_at, updated_by, deleted, version)
-                VALUES (?, 'application/pdf', 1024, 1, ?, ?, 2, NOW(), 2, NOW(), 2, 0, 0)
-                """,
-                "报名表-" + suffix + ".pdf",
-                "test/" + suffix + ".pdf",
-                checksum
-        );
-        Long fileId = jdbcTemplate.queryForObject(
-                "SELECT id FROM file WHERE sha256 = ?",
-                Long.class,
-                checksum
-        );
-        jdbcTemplate.update(
-                """
-                INSERT INTO team_registration_attachment
-                    (registration_id, file_id, file_type, sort_no, created_at, created_by)
-                VALUES (?, ?, 'REGISTRATION_ATTACHMENT', 0, ?, 2)
-                """,
-                registrationId,
-                fileId,
-                LocalDateTime.now()
-        );
-
-        assertThat(attachmentMapper.selectByRegistrationId(registrationId))
-                .singleElement()
-                .satisfies(row -> {
-                    assertThat(row.fileId()).isEqualTo(fileId);
-                    assertThat(row.originalName()).contains(suffix);
-                    assertThat(row.fileType()).isEqualTo("REGISTRATION_ATTACHMENT");
-                    assertThat(row.sortNo()).isZero();
                 });
     }
 
