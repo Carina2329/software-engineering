@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 任务编号 | `BIZ-TEAM-FRONTEND-CONTRACT-001` |
-| 当前状态 | 已完成，待 PR 审查 |
+| 当前状态 | 已完成，PR #31 已合并 |
 | 负责人 | 段欣懿 |
 | 基线 | `feature/business-core@692f630` |
 | 目标分支 | `codex/team-registration-frontend-contract` |
@@ -92,3 +92,5 @@ current_teacher_application_status
 - OpenAPI 升级到 1.6.1，接口汇总同步。
 - 全量测试：457 通过，0 失败，38 跳过。
 - 真实 MySQL：`TeamFrontendContractMysqlTest` 和阶段 3 全部 MySQL 门控测试通过。
+
+后续公共接入由 PR #34 完成，EP-099 教师筛选和名称选择由 PR #35 补齐。
