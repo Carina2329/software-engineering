@@ -4,7 +4,7 @@ import type { TeamDetail, TeamStatus } from '../../types/team'
 import { TEAM_STATUS_LABELS } from '../../types/team'
 const props = defineProps<{ detail: TeamDetail }>()
 const activeStep = computed(() => {
-  const index: Record<TeamStatus, number> = { DRAFT: 0, PENDING_TEACHER: 1, PENDING_ADMIN: 2, APPROVED: 3, REJECTED: 1, WITHDRAWN: 0 }
+  const index: Record<TeamStatus, number> = { DRAFT: 0, PENDING_TEACHER: 1, PENDING_ADMIN: 2, APPROVED: 4, REJECTED: 1, WITHDRAWN: 0 }
   return index[props.detail.status]
 })
 const hasProblem = computed(() => ['REJECTED', 'WITHDRAWN'].includes(props.detail.status))
@@ -27,7 +27,9 @@ const hasProblem = computed(() => ['REJECTED', 'WITHDRAWN'].includes(props.detai
     <el-alert v-if="detail.current_reject_stage" type="error" :closable="false" show-icon
       :title="`${detail.current_reject_stage === 'TEACHER' ? '教师' : '管理员'}驳回`"
       :description="detail.current_reject_reason || '未填写驳回原因'" />
-    <el-alert v-if="detail.can_register" type="success" :closable="false" show-icon
+    <el-alert v-if="detail.status === 'APPROVED'" type="success" :closable="false" show-icon
+      title="报名已通过" description="成员和指导教师信息已冻结，无需再次提交。" />
+    <el-alert v-else-if="detail.can_register" type="success" :closable="false" show-icon
       title="当前具备提交条件" :description="detail.register_reason || `资格状态：${detail.register_state || '可报名'}`" />
     <el-alert v-else type="warning" :closable="false" show-icon
       title="当前不可提交" :description="detail.register_reason || `资格状态：${detail.register_state || '不满足报名条件'}`" />
