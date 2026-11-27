@@ -2,7 +2,12 @@
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { SchoolQuotaItem } from '../../types/team'
-const props = withDefaults(defineProps<{ modelValue: SchoolQuotaItem[]; readOnly?: boolean }>(), { readOnly: false })
+interface SchoolOption { id: string; school_name: string; province_name: string }
+const props = withDefaults(defineProps<{
+  modelValue: SchoolQuotaItem[]
+  schools?: SchoolOption[]
+  readOnly?: boolean
+}>(), { schools: () => [], readOnly: false })
 const emit = defineEmits<{ 'update:modelValue': [value: SchoolQuotaItem[]] }>()
 const rows = ref<SchoolQuotaItem[]>([])
 watch(() => props.modelValue, (value) => { rows.value = value.map((item) => ({ ...item })) }, { immediate: true, deep: true })
@@ -13,11 +18,13 @@ function toggleUnlimited(row: SchoolQuotaItem, unlimited: boolean): void { row.m
 function validate(): boolean {
   const ids = new Set<string>()
   for (const row of rows.value) {
-    if (!row.school_id.trim()) { ElMessage.warning('学校 ID 不能为空'); return false }
+    if (!row.school_id.trim()) { ElMessage.warning('请选择学校'); return false }
     if (ids.has(row.school_id.trim())) { ElMessage.warning('学校不能重复配置'); return false }
     ids.add(row.school_id.trim())
     const used = row.used_teams ?? 0
-    if (row.max_teams !== null && row.max_teams < used) { ElMessage.warning(`学校 ${row.school_id} 的名额不能低于已占用数 ${used}`); return false }
+    const schoolName = props.schools.find((school) => school.id === row.school_id)?.school_name
+      || `学校 ${row.school_id}`
+    if (row.max_teams !== null && row.max_teams < used) { ElMessage.warning(`${schoolName} 的名额不能低于已占用数 ${used}`); return false }
     if (row.max_teams !== null && row.max_teams < 1) { ElMessage.warning('有限名额必须至少为 1'); return false }
   }
   return true
@@ -32,7 +39,14 @@ defineExpose({ validate })
     </div>
     <div v-if="rows.length" class="quota-list">
       <div v-for="(row, index) in rows" :key="index" class="quota-row">
-        <el-input v-model="row.school_id" placeholder="学校 ID" :disabled="readOnly" @input="emitRows" />
+        <el-select v-model="row.school_id" filterable placeholder="选择学校" :disabled="readOnly" @change="emitRows">
+          <el-option
+            v-for="school in schools"
+            :key="school.id"
+            :value="school.id"
+            :label="`${school.school_name}（${school.province_name}）`"
+          />
+        </el-select>
         <el-checkbox :model-value="row.max_teams === null" :disabled="readOnly" @change="toggleUnlimited(row, Boolean($event))">不限量</el-checkbox>
         <el-input-number v-model="row.max_teams" :min="Math.max(row.used_teams ?? 0, 1)" :disabled="readOnly || row.max_teams === null" @change="emitRows" />
         <span class="used">已占用 {{ row.used_teams ?? 0 }}</span>

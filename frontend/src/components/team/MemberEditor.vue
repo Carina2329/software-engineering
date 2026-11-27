@@ -57,7 +57,7 @@ defineExpose({ validate })
   <section class="member-editor">
     <div class="section-title">
       <div><span class="eyebrow">TEAM MEMBERS</span><h3>队伍成员</h3></div>
-      <el-button type="primary" plain :disabled="!canAdd" @click="addMember">添加普通队员</el-button>
+      <el-button v-if="!disabled" type="primary" plain :disabled="!canAdd" @click="addMember">添加普通队员</el-button>
     </div>
     <el-table :data="leader ? [leader] : []" border>
       <el-table-column prop="member_name" label="队长" min-width="150" />
@@ -65,7 +65,13 @@ defineExpose({ validate })
       <el-table-column prop="student_no" label="学号" min-width="150" />
       <el-table-column label="身份" width="90"><template #default><el-tag type="warning">队长</el-tag></template></el-table-column>
     </el-table>
-    <div v-if="rows.length" class="member-list">
+    <el-table v-if="disabled && rows.length" :data="rows" border>
+      <el-table-column prop="member_name" label="姓名" />
+      <el-table-column prop="school_id" label="学校 ID" />
+      <el-table-column prop="student_no" label="学号" />
+      <el-table-column label="身份" width="90"><template #default><el-tag type="info">队员</el-tag></template></el-table-column>
+    </el-table>
+    <div v-else-if="rows.length" class="member-list">
       <div v-for="(row, index) in rows" :key="row.member_id || index" class="member-row">
         <el-input v-model="row.member_name" maxlength="32" placeholder="姓名" :disabled="disabled" @input="emitMembers" />
         <el-input v-model="row.school_id" placeholder="学校 ID" :disabled="disabled" @input="emitMembers" />
@@ -73,7 +79,7 @@ defineExpose({ validate })
         <el-button link type="danger" :disabled="disabled" @click="removeRow(row, index)">移出</el-button>
       </div>
     </div>
-    <el-empty v-else description="暂无普通队员，可添加最多 4 人" :image-size="64" />
+    <el-empty v-else :description="disabled ? '暂无普通队员' : '暂无普通队员，可添加最多 4 人'" :image-size="64" />
     <p class="member-tip">队伍最多 5 人；同一届次同校同学号不能重复。普通队员无需平台账号。</p>
   </section>
 </template>

@@ -611,14 +611,16 @@ function editionToForm(detail: EditionDetail): EditionForm {
   <div class="edition-admin-page">
     <header class="page-heading">
       <div>
-        <el-button link @click="router.back()">← 返回竞赛列表</el-button>
         <p class="eyebrow">Edition configuration</p>
         <h1>{{ contest?.contest_name || '竞赛届次' }}</h1>
         <p>每届独立配置时间、人数、教师指导上限和赛题模式；草稿只有管理员可见。</p>
       </div>
-      <el-button v-if="canCreate" type="primary" size="large" @click="openCreate">
-        创建草稿届次
-      </el-button>
+      <div class="page-actions">
+        <el-button class="page-nav-button" plain @click="router.back()">返回竞赛列表</el-button>
+        <el-button v-if="canCreate" type="primary" @click="openCreate">
+          创建草稿届次
+        </el-button>
+      </div>
     </header>
 
     <el-card shadow="never">
@@ -965,6 +967,7 @@ function editionToForm(detail: EditionDetail): EditionForm {
           <SchoolQuotaEditor
             ref="schoolQuotaEditorRef"
             v-model="schoolQuotas"
+            :schools="schools"
             :read-only="!editable"
           />
         </section>
@@ -1181,9 +1184,10 @@ function editionToForm(detail: EditionDetail): EditionForm {
 
 .page-heading h1 {
   margin: 7px 0;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 31px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .page-heading p {
@@ -1244,9 +1248,10 @@ function editionToForm(detail: EditionDetail): EditionForm {
 .milestone-section h2 {
   margin: 0 0 12px;
   color: #183f35;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 19px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .section-hint {

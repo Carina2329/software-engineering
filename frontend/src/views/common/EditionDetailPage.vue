@@ -91,7 +91,6 @@ onMounted(async () => {
   <main v-loading="loading" class="edition-detail-page">
     <header class="detail-header">
       <div>
-        <el-button link @click="handleReturn">← {{ returnLabel }}</el-button>
         <p class="eyebrow">{{ contest?.contest_name || '竞赛届次' }}</p>
         <h1>{{ edition?.edition_name || '届次详情' }}</h1>
         <div v-if="edition" class="header-tags">
@@ -100,7 +99,8 @@ onMounted(async () => {
           <el-tag v-if="edition.read_only" type="danger">只读</el-tag>
         </div>
       </div>
-      <div v-if="edition" class="header-actions">
+      <div v-if="edition" class="header-actions page-actions">
+        <el-button class="page-nav-button" plain @click="handleReturn">{{ returnLabel }}</el-button>
         <el-button
           v-if="canOpenTeamCenter"
           type="primary"
@@ -343,7 +343,8 @@ onMounted(async () => {
 
 .detail-header h1 {
   margin: 8px 0 16px;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: clamp(34px, 5vw, 52px);
   font-weight: 500;
 }
@@ -391,7 +392,8 @@ onMounted(async () => {
 
 .window-card h2 {
   margin: 0 0 24px;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 25px;
   font-weight: 500;
 }
@@ -434,7 +436,8 @@ dd {
 .detail-card h2,
 .milestone-card h2 {
   margin: 0;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 21px;
   font-weight: 500;
 }

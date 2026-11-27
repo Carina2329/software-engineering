@@ -147,11 +147,11 @@ onMounted(async () => {
 <style scoped>
 .team-registration-entry { display: grid; gap: 16px; padding: 18px; }
 .hero-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 28px 30px; border-radius: 18px 18px 18px 5px; color: #f0f5f1; background: radial-gradient(circle at 90% 10%, rgba(216,186,112,.34), transparent 16rem), linear-gradient(135deg, #143b31, #275b4b); }
-.hero-card h1 { margin: 7px 0 8px; font-family: Georgia, "Songti SC", serif; font-size: 32px; font-weight: 500; }
+.hero-card h1 { margin: 7px 0 8px; font-family: inherit; font-variant-numeric: tabular-nums; font-size: 32px; font-weight: 600; }
 .hero-card p { margin: 0; color: rgba(240,245,241,.74); }
 .eyebrow { color: #d8ba70; font-size: 10px; font-weight: 700; letter-spacing: .16em; }
 .workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
-.workspace-heading h2 { margin: 5px 0; color: #18352e; font-family: Georgia, "Songti SC", serif; font-size: 24px; font-weight: 500; }
+.workspace-heading h2 { margin: 5px 0; color: #18352e; font-family: inherit; font-variant-numeric: tabular-nums; font-size: 24px; font-weight: 600; }
 .workspace-heading p { margin: 0; color: #7c8c85; font-size: 12px; }
 .contest-select { width: min(360px, 45vw); }
 @media (max-width: 760px) {

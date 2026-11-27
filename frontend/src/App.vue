@@ -11,6 +11,8 @@
   background: #f4f7f5;
   font-family:
     "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -37,5 +39,29 @@ body {
 button,
 input {
   font: inherit;
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.page-actions .el-button {
+  height: 36px;
+  margin-left: 0;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.page-nav-button {
+  min-width: 112px;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 </style>

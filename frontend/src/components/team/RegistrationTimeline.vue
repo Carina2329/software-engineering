@@ -29,6 +29,14 @@ const hasProblem = computed(() => ['REJECTED', 'WITHDRAWN'].includes(props.detai
       :description="detail.current_reject_reason || '未填写驳回原因'" />
     <el-alert v-if="detail.status === 'APPROVED'" type="success" :closable="false" show-icon
       title="报名已通过" description="成员和指导教师信息已冻结，无需再次提交。" />
+    <el-alert v-else-if="detail.status === 'PENDING_TEACHER'" type="info" :closable="false" show-icon
+      title="等待教师确认" description="报名已提交，审核中无需重复提交。" />
+    <el-alert v-else-if="detail.status === 'PENDING_ADMIN'" type="info" :closable="false" show-icon
+      title="等待管理员终审" description="教师已确认，管理员审核期间无需重复提交。" />
+    <el-alert v-else-if="detail.status === 'REJECTED'" type="warning" :closable="false" show-icon
+      title="报名已驳回" description="请按驳回原因修改队伍信息后直接重新提交。" />
+    <el-alert v-else-if="detail.status === 'WITHDRAWN'" type="warning" :closable="false" show-icon
+      title="报名已撤回" description="修改队伍信息后可重新提交。" />
     <el-alert v-else-if="detail.can_register" type="success" :closable="false" show-icon
       title="当前具备提交条件" :description="detail.register_reason || `资格状态：${detail.register_state || '可报名'}`" />
     <el-alert v-else type="warning" :closable="false" show-icon
