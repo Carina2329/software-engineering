@@ -57,7 +57,10 @@ input {
 }
 
 .page-nav-button {
+  height: 36px;
   min-width: 112px;
+  border-radius: 8px;
+  font-weight: 600;
 }
 
 .tabular-nums {
