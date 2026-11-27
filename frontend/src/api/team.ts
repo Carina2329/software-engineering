@@ -55,6 +55,8 @@ export const listTeams = (editionId: string, params: TeamPageQuery): Promise<Tea
   get(`/editions/${encodeURIComponent(editionId)}/teams`, { params })
 export const listAvailableTeachers = (editionId: string, params: AvailableTeacherQuery): Promise<AvailableTeacherPage> =>
   get(`/editions/${encodeURIComponent(editionId)}/available-teachers`, { params })
+export const listApprovalTeachers = (editionId: string, params: AvailableTeacherQuery): Promise<AvailableTeacherPage> =>
+  get(`/editions/${encodeURIComponent(editionId)}/approval-teachers`, { params })
 export const createTeam = (editionId: string, payload: TeamCreateRequest, key: string): Promise<TeamCreateResult> =>
   post(`/editions/${encodeURIComponent(editionId)}/teams`, payload, idempotencyConfig(key))
 export const getTeam = (teamId: string): Promise<TeamDetail> => get(`/teams/${encodeURIComponent(teamId)}`)

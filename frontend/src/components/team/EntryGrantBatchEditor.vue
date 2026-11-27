@@ -3,7 +3,14 @@ import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { EntryGrant, EntryGrantBatchItem, EntryGrantType } from '../../types/team'
 import { ENTRY_GRANT_TYPE_LABELS } from '../../types/team'
-const props = withDefaults(defineProps<{ grants: EntryGrant[]; readOnly?: boolean }>(), { readOnly: false })
+interface SchoolOption { id: string; school_name: string }
+interface EditionOption { id: string; edition_name: string; year: number }
+const props = withDefaults(defineProps<{
+  grants: EntryGrant[]
+  schools?: SchoolOption[]
+  sourceEditions?: EditionOption[]
+  readOnly?: boolean
+}>(), { schools: () => [], sourceEditions: () => [], readOnly: false })
 const emit = defineEmits<{ submit: [items: EntryGrantBatchItem[]] }>()
 const mode = ref<'UPSERT' | 'REVOKE'>('UPSERT')
 const queue = ref<EntryGrantBatchItem[]>([])
@@ -34,10 +41,24 @@ defineExpose({ clearQueue })
     <div v-if="mode === 'UPSERT'" class="form-grid">
       <el-select v-model="upsert.grant_type" :disabled="readOnly"><el-option v-for="(label, value) in ENTRY_GRANT_TYPE_LABELS" :key="value" :value="value" :label="label" /></el-select>
       <el-input v-model="upsert.leader_name" maxlength="32" placeholder="队长姓名" :disabled="readOnly" />
-      <el-input v-model="upsert.school_id" placeholder="学校 ID" :disabled="readOnly" />
+      <el-select v-model="upsert.school_id" filterable placeholder="选择队长学校" :disabled="readOnly">
+        <el-option
+          v-for="school in schools"
+          :key="school.id"
+          :value="school.id"
+          :label="school.school_name"
+        />
+      </el-select>
       <el-input v-model="upsert.student_no" maxlength="20" placeholder="学号" :disabled="readOnly" />
       <el-input v-model="upsert.leader_user_id" placeholder="队长用户 ID（可选）" :disabled="readOnly" />
-      <el-input v-model="upsert.source_edition_id" placeholder="来源届次 ID（可选）" :disabled="readOnly" />
+      <el-select v-model="upsert.source_edition_id" clearable filterable placeholder="来源届次（可选）" :disabled="readOnly">
+        <el-option
+          v-for="item in sourceEditions"
+          :key="item.id"
+          :value="item.id"
+          :label="`${item.edition_name}（${item.year}）`"
+        />
+      </el-select>
       <el-input v-model="upsert.source_team_code" maxlength="16" placeholder="来源队伍编码（可选）" :disabled="readOnly" />
       <el-input v-model="upsert.reason" maxlength="500" placeholder="说明（可选）" :disabled="readOnly" />
       <el-button type="primary" plain :disabled="readOnly" @click="addUpsert">加入批次</el-button>
