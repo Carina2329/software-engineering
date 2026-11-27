@@ -21,9 +21,9 @@ defineEmits<{
       </div>
       <h1>学科竞赛平台运行总览</h1>
     </div>
-    <div class="header-side">
-      <el-button class="return-button" plain @click="$emit('return')">
-        ← {{ returnLabel }}
+    <div class="header-side page-actions">
+      <el-button class="return-button page-nav-button" plain @click="$emit('return')">
+        {{ returnLabel }}
       </el-button>
       <span class="scope-label">统计范围：全平台</span>
       <ConnectionStatus :state="connectionState" />

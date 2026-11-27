@@ -29,11 +29,14 @@ async function submitCreate(): Promise<void> {
 }
 function search(): void { page.value = 1; void load() }
 function openTeam(id: string): void { void router.push(`/teams/${id}`) }
+function backToEdition(): void {
+  if (editionId.value) void router.push(`/contests/${editionId.value}`)
+}
 onMounted(async () => { await ensureCurrentMenus(); await load() })
 </script>
 <template>
   <div class="team-center-page">
-    <section class="hero-card"><div><span class="eyebrow">STUDENT TEAM CENTER</span><h1>我的参赛队伍</h1><p>按届次管理队伍成员和指导教师确认流程。</p></div><el-button v-if="canCreate && editionId" type="primary" size="large" @click="openCreate">创建队伍</el-button></section>
+    <section class="hero-card"><div><span class="eyebrow">STUDENT TEAM CENTER</span><h1>我的参赛队伍</h1><p>按届次管理队伍成员和指导教师确认流程。</p></div><div class="hero-actions page-actions"><el-button v-if="editionId" class="page-nav-button" plain @click="backToEdition">返回届次详情</el-button><el-button v-if="canCreate && editionId" type="primary" @click="openCreate">创建队伍</el-button></div></section>
     <el-alert v-if="!editionId" type="warning" :closable="false" show-icon title="缺少届次参数" description="请从赛事详情页进入，并在地址中携带 edition_id。" />
     <el-card v-else>
       <el-form inline class="filter-row">
@@ -57,7 +60,8 @@ onMounted(async () => { await ensureCurrentMenus(); await load() })
 <style scoped>
 .team-center-page { display: grid; gap: 16px; padding: 18px; }
 .hero-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 28px 30px; border-radius: 18px 18px 18px 5px; color: #f0f5f1; background: radial-gradient(circle at 90% 10%, rgba(216, 186, 112, .34), transparent 16rem), linear-gradient(135deg, #143b31, #275b4b); }
-.hero-card h1 { margin: 7px 0 8px; font-family: Georgia, "Songti SC", serif; font-size: 32px; font-weight: 500; }.hero-card p { margin: 0; color: rgba(240,245,241,.74); }
+.hero-card h1 { margin: 7px 0 8px; font-family: inherit; font-variant-numeric: tabular-nums; font-size: 32px; font-weight: 600; }.hero-card p { margin: 0; color: rgba(240,245,241,.74); }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
 .eyebrow { color: #d8ba70; font-size: 11px; font-weight: 700; letter-spacing: .16em; }.filter-row { margin-bottom: 4px; }.status-select { width: 150px; }.pagination { display: flex; justify-content: flex-end; margin-top: 18px; } code { color: #47665c; font-family: Consolas, monospace; }
 @media (max-width: 760px) { .hero-card { align-items: flex-start; flex-direction: column; } }
 </style>

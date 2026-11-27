@@ -27,7 +27,7 @@ onMounted(() => {
     </el-aside>
     <el-main v-loading="loading" class="admin-main">
       <div class="admin-toolbar">
-        <el-button plain @click="router.push('/')">返回账号中心</el-button>
+        <el-button class="page-nav-button" plain @click="router.push('/')">返回账号中心</el-button>
       </div>
       <router-view />
     </el-main>

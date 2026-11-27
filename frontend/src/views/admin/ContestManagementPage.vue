@@ -207,7 +207,7 @@ onMounted(() => {
         <h1>竞赛与届次</h1>
         <p>竞赛主档记录赛事的稳定信息；每一届的时间、人数与赛题规则在届次下独立配置。</p>
       </div>
-      <el-button v-if="canCreate" type="primary" size="large" @click="openCreate">
+      <el-button v-if="canCreate" type="primary" @click="openCreate">
         创建竞赛
       </el-button>
     </section>
@@ -355,7 +355,8 @@ onMounted(() => {
 
 .hero-card h1 {
   margin: 7px 0 8px;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 32px;
   font-weight: 500;
 }

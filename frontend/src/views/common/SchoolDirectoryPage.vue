@@ -52,7 +52,7 @@ onMounted(loadSchools)
         <h1>学校目录</h1>
         <p>仅展示已启用且省份有效的学校</p>
       </div>
-      <el-button plain @click="handleReturn">← {{ returnLabel }}</el-button>
+      <el-button class="page-nav-button" plain @click="handleReturn">{{ returnLabel }}</el-button>
     </header>
 
     <el-card shadow="never">

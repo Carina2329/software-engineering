@@ -24,12 +24,18 @@ const adminEntryPath = computed(() => {
   if (auth.can('organization:list')) return '/admin/organizations'
   if (auth.can('system:role:list')) return '/admin/roles'
   if (auth.can('system:menu:list')) return '/admin/menus'
+  if (auth.hasRole('ADMIN') && (auth.can('team:approve') || auth.can('team:eligibility:manage'))) {
+    return '/admin/team-registration'
+  }
   return null
 })
 const contestManageAvailable = computed(
   () => contestManagePermissions.some((permission) => auth.can(permission)),
 )
 const dashboardAvailable = computed(() => auth.can('dashboard:view'))
+const teamRegistrationAvailable = computed(
+  () => auth.hasRole('ADMIN') && (auth.can('team:approve') || auth.can('team:eligibility:manage')),
+)
 
 const profileInitial = computed(
   () => auth.displayName.trim().slice(0, 1).toUpperCase() || '用',
@@ -76,6 +82,14 @@ async function handleLogout(): Promise<void> {
           @click="router.push('/dashboard')"
         >
           平台运行总览
+        </el-button>
+        <el-button
+          v-if="teamRegistrationAvailable"
+          type="warning"
+          plain
+          @click="router.push('/admin/team-registration')"
+        >
+          报名组织
         </el-button>
         <el-button v-if="adminEntryPath" type="primary" plain @click="router.push(adminEntryPath)">
           管理后台

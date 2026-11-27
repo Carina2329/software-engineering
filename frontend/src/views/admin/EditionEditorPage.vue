@@ -46,6 +46,8 @@ import type {
 import { listOrganizations, listSchools } from '../../api/organization'
 import type { OrganizationItem, SchoolItem } from '../../types/organization'
 import { useCurrentMenus } from '../../layouts/useCurrentMenus'
+import SchoolQuotaEditor from '../../components/team/SchoolQuotaEditor.vue'
+import type { SchoolQuotaItem } from '../../types/team'
 
 interface EditionForm {
   edition_name: string
@@ -91,6 +93,8 @@ const canUpdate = computed(() => hasPermission('edition:update'))
 const canPublish = computed(() => hasPermission('edition:publish'))
 const canCreateMilestone = computed(() => hasPermission('edition:milestone:create'))
 const canUpdateMilestone = computed(() => hasPermission('edition:milestone:update'))
+const canReviewTeams = computed(() => hasPermission('team:approve'))
+const canManageEligibility = computed(() => hasPermission('team:eligibility:manage'))
 
 const contestId = computed(() => {
   const value = route.params.contestId
@@ -114,6 +118,8 @@ const saving = ref(false)
 const formError = ref('')
 const formRef = ref<FormInstance>()
 const selectedEdition = ref<EditionDetail | null>(null)
+const schoolQuotas = ref<SchoolQuotaItem[]>([])
+const schoolQuotaEditorRef = ref<{ validate: () => boolean }>()
 const idempotencyKey = ref('')
 const form = reactive<EditionForm>(emptyEditionForm())
 const rules: FormRules = {
@@ -220,6 +226,7 @@ const loadAll = async (): Promise<void> => {
 const openCreate = (): void => {
   editorMode.value = 'create'
   selectedEdition.value = null
+  schoolQuotas.value = []
   milestones.value = []
   Object.assign(form, emptyEditionForm())
   formError.value = ''
@@ -234,6 +241,11 @@ const openEdit = async (row: EditionItem): Promise<void> => {
   try {
     const detail = await getContestEdition(row.id)
     selectedEdition.value = detail
+    schoolQuotas.value = (detail.school_quotas ?? []).map((quota) => ({
+      school_id: quota.school_id,
+      max_teams: quota.max_teams,
+      used_teams: quota.used_teams,
+    }))
     Object.assign(form, editionToForm(detail))
     editorVisible.value = true
     await loadMilestones()
@@ -310,6 +322,7 @@ const saveEdition = async (): Promise<void> => {
     formError.value = validationError
     return
   }
+  if (editorMode.value === 'edit' && !schoolQuotaEditorRef.value?.validate()) return
   if (editorMode.value === 'edit' && form.version === null) {
     formError.value = '未取得届次版本号，请刷新后重试'
     return
@@ -356,7 +369,14 @@ const saveEdition = async (): Promise<void> => {
       if (!selectedEdition.value || form.version === null) return
       await updateContestEdition(
         selectedEdition.value.id,
-        { ...payload, version: form.version },
+        {
+          ...payload,
+          version: form.version,
+          school_quotas: schoolQuotas.value.map((quota) => ({
+            school_id: quota.school_id.trim(),
+            max_teams: quota.max_teams,
+          })),
+        },
         idempotencyKey.value,
       )
       ElMessage.success('届次配置已保存')
@@ -391,6 +411,11 @@ const publish = async (row?: EditionItem): Promise<void> => {
     if (selectedEdition.value?.id === edition.id) {
       const refreshed = await getContestEdition(edition.id)
       selectedEdition.value = refreshed
+      schoolQuotas.value = refreshed.school_quotas.map((quota) => ({
+        school_id: quota.school_id,
+        max_teams: quota.max_teams,
+        used_teams: quota.used_teams,
+      }))
       Object.assign(form, editionToForm(refreshed))
     }
   } catch (error) {
@@ -586,14 +611,16 @@ function editionToForm(detail: EditionDetail): EditionForm {
   <div class="edition-admin-page">
     <header class="page-heading">
       <div>
-        <el-button link @click="router.back()">← 返回竞赛列表</el-button>
         <p class="eyebrow">Edition configuration</p>
         <h1>{{ contest?.contest_name || '竞赛届次' }}</h1>
         <p>每届独立配置时间、人数、教师指导上限和赛题模式；草稿只有管理员可见。</p>
       </div>
-      <el-button v-if="canCreate" type="primary" size="large" @click="openCreate">
-        创建草稿届次
-      </el-button>
+      <div class="page-actions">
+        <el-button class="page-nav-button" plain @click="router.back()">返回竞赛列表</el-button>
+        <el-button v-if="canCreate" type="primary" @click="openCreate">
+          创建草稿届次
+        </el-button>
+      </div>
     </header>
 
     <el-card shadow="never">
@@ -634,7 +661,7 @@ function editionToForm(detail: EditionDetail): EditionForm {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="290" fixed="right">
+        <el-table-column label="操作" width="470" fixed="right">
           <template #default="{ row }">
             <el-button v-if="canUpdate" link type="primary" @click="openEdit(row)">配置</el-button>
             <el-button
@@ -652,6 +679,22 @@ function editionToForm(detail: EditionDetail): EditionForm {
               @click="router.push(`/contests/${row.id}`)"
             >
               学生端预览
+            </el-button>
+            <el-button
+              v-if="canReviewTeams"
+              link
+              type="warning"
+              @click="router.push({ path: '/admin/team-approvals', query: { edition_id: row.id } })"
+            >
+              报名终审
+            </el-button>
+            <el-button
+              v-if="canManageEligibility"
+              link
+              type="success"
+              @click="router.push(`/admin/editions/${row.id}/entry-grants`)"
+            >
+              资格名单
             </el-button>
           </template>
         </el-table-column>
@@ -916,6 +959,19 @@ function editionToForm(detail: EditionDetail): EditionForm {
           </div>
         </section>
 
+        <section v-if="selectedEdition" class="form-section quota-section">
+          <h2>学校报名名额</h2>
+          <p class="section-hint">
+            未配置学校或不限量时不限制报名队伍数；有限名额不能低于当前已占用数。
+          </p>
+          <SchoolQuotaEditor
+            ref="schoolQuotaEditorRef"
+            v-model="schoolQuotas"
+            :schools="schools"
+            :read-only="!editable"
+          />
+        </section>
+
         <section class="form-section">
           <h2>赛题与审核</h2>
           <el-form-item label="赛题模式">
@@ -1128,9 +1184,10 @@ function editionToForm(detail: EditionDetail): EditionForm {
 
 .page-heading h1 {
   margin: 7px 0;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 31px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .page-heading p {
@@ -1191,9 +1248,10 @@ function editionToForm(detail: EditionDetail): EditionForm {
 .milestone-section h2 {
   margin: 0 0 12px;
   color: #183f35;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 19px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .section-hint {

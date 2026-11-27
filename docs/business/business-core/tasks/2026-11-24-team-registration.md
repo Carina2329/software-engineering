@@ -3,8 +3,8 @@
 | 项目 | 内容 |
 | --- | --- |
 | 任务编号 | `BIZ-TEAM-REGISTRATION-001` |
-| 当前状态 | 阶段 1～3 已完成；阶段 4 待认领 |
-| 当前负责人 | 阶段 4 待认领 |
+| 当前状态 | 阶段 1～4 已完成；公共路由、菜单和学校名额接入已完成 |
+| 当前负责人 | 段欣懿完成公共接入 |
 | 目标分支 | 阶段 1～3：`feature/business-team-registration-stage3`（已合并）；阶段 4：`feature/business-team-registration-frontend` |
 | PR 目标分支 | `feature/business-core` |
 | 事实源 | V0.6.1 需求、`team-registration-contract.md`、`contest-selection-delta-v0.3.md`、最新 OpenAPI |
@@ -159,7 +159,8 @@ SchoolQuotaService.release(...)
 ## 七、停止点
 
 - 阶段 1～3 已通过公共负责人审查并合并。
-- 阶段 4 先完成 `BIZ-TEAM-FRONTEND-CONTRACT-001`，再开始前端页面闭环。
+- 阶段 4 已由 `BIZ-TEAM-FRONTEND-CONTRACT-001` 和 `BIZ-TEAM-REGISTRATION-FRONTEND-001`
+  完成，前端 PR #32 已合并。
 - 前端任务不得自行修改公共路由、菜单、权限种子、OpenAPI 或现有管理员页面。
 - 需要修改公共契约时停止并提交差异，不自行修改公共文件。
-- PR 完成后保持 Ready，不自行合并。
+- 公共路由、菜单、学校名额回显和页面导航由段欣懿接入。

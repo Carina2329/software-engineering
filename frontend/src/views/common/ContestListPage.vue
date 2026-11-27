@@ -105,8 +105,8 @@ onMounted(loadContests)
         <p>查看已发布赛事与届次，确认当前报名和作品提交窗口。</p>
       </div>
       <div class="header-side">
-        <el-button class="back-button" plain @click="handleReturn">
-          ← {{ returnLabel }}
+        <el-button class="back-button page-nav-button" plain @click="handleReturn">
+          {{ returnLabel }}
         </el-button>
         <div class="filter-panel">
           <el-input
@@ -223,7 +223,8 @@ onMounted(loadContests)
 
 .catalog-header h1 {
   margin: 8px 0;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: clamp(35px, 5vw, 54px);
   font-weight: 500;
 }
@@ -284,7 +285,8 @@ onMounted(loadContests)
 
 .contest-card h2 {
   margin: 28px 0 10px;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 25px;
   font-weight: 500;
 }

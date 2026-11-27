@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   getContest,
@@ -16,8 +16,13 @@ import {
 } from '../../types/contest'
 import type { ContestDetail, EditionDetail, Milestone } from '../../types/contest'
 import { useContextualReturn } from '../../composables/useContextualReturn'
+import { useAuthStore } from '../../stores/auth'
+import { useCurrentMenus } from '../../layouts/useCurrentMenus'
 
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+const { ensureCurrentMenus, hasPermission } = useCurrentMenus()
 const { returnLabel, handleReturn } = useContextualReturn({
   defaultLabel: '返回竞赛中心',
   defaultFallback: '/contests',
@@ -31,6 +36,18 @@ const editionId = computed(() => {
   const value = route.params.editionId
   return Array.isArray(value) ? String(value[0] ?? '') : String(value ?? '')
 })
+const canOpenTeamCenter = computed(
+  () => auth.hasRole('STUDENT') && hasPermission('team:list'),
+)
+const canOpenTeacherApproval = computed(
+  () => auth.hasRole('TEACHER') && hasPermission('team:approve'),
+)
+const canOpenAdminApproval = computed(
+  () => auth.hasRole('ADMIN') && hasPermission('team:approve'),
+)
+const canManageEligibility = computed(
+  () => auth.hasRole('ADMIN') && hasPermission('team:eligibility:manage'),
+)
 
 const load = async (): Promise<void> => {
   if (!editionId.value) return
@@ -64,14 +81,16 @@ const teamRuleText = computed(() => {
     : `${edition.value.min_team_size}–${edition.value.max_team_size} 人`
 })
 
-onMounted(load)
+onMounted(async () => {
+  await ensureCurrentMenus().catch(() => undefined)
+  await load()
+})
 </script>
 
 <template>
   <main v-loading="loading" class="edition-detail-page">
     <header class="detail-header">
       <div>
-        <el-button link @click="handleReturn">← {{ returnLabel }}</el-button>
         <p class="eyebrow">{{ contest?.contest_name || '竞赛届次' }}</p>
         <h1>{{ edition?.edition_name || '届次详情' }}</h1>
         <div v-if="edition" class="header-tags">
@@ -79,6 +98,41 @@ onMounted(load)
           <el-tag effect="plain">{{ edition.year }} 年</el-tag>
           <el-tag v-if="edition.read_only" type="danger">只读</el-tag>
         </div>
+      </div>
+      <div v-if="edition" class="header-actions page-actions">
+        <el-button class="page-nav-button" plain @click="handleReturn">{{ returnLabel }}</el-button>
+        <el-button
+          v-if="canOpenTeamCenter"
+          type="primary"
+          plain
+          @click="router.push({ path: '/teams', query: { edition_id: edition.id } })"
+        >
+          报名组队
+        </el-button>
+        <el-button
+          v-if="canOpenTeacherApproval"
+          type="warning"
+          plain
+          @click="router.push({ path: '/team-approvals', query: { edition_id: edition.id } })"
+        >
+          待我确认
+        </el-button>
+        <el-button
+          v-if="canOpenAdminApproval"
+          type="warning"
+          plain
+          @click="router.push({ path: '/admin/team-approvals', query: { edition_id: edition.id } })"
+        >
+          报名终审
+        </el-button>
+        <el-button
+          v-if="canManageEligibility"
+          type="success"
+          plain
+          @click="router.push(`/admin/editions/${edition.id}/entry-grants`)"
+        >
+          资格名单
+        </el-button>
       </div>
     </header>
 
@@ -254,6 +308,10 @@ onMounted(load)
 }
 
 .detail-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
   margin-bottom: 18px;
   padding: 30px 32px;
   border-radius: 20px 20px 20px 6px;
@@ -261,6 +319,13 @@ onMounted(load)
   background:
     linear-gradient(135deg, rgba(13, 49, 40, 0.98), rgba(42, 91, 77, 0.94)),
     #173f35;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .detail-header :deep(.el-button.is-link) {
@@ -278,7 +343,8 @@ onMounted(load)
 
 .detail-header h1 {
   margin: 8px 0 16px;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: clamp(34px, 5vw, 52px);
   font-weight: 500;
 }
@@ -326,7 +392,8 @@ onMounted(load)
 
 .window-card h2 {
   margin: 0 0 24px;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 25px;
   font-weight: 500;
 }
@@ -369,7 +436,8 @@ dd {
 .detail-card h2,
 .milestone-card h2 {
   margin: 0;
-  font-family: Georgia, "Songti SC", serif;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
   font-size: 21px;
   font-weight: 500;
 }
@@ -456,6 +524,15 @@ dd {
 }
 
 @media (max-width: 820px) {
+  .detail-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .header-actions {
+    justify-content: flex-start;
+  }
+
   .window-grid,
   .detail-grid {
     grid-template-columns: 1fr;

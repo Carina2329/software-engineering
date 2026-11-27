@@ -323,6 +323,9 @@ class EditionServiceImplTest {
         ContestEditionDO edition = validEdition(31L, EditionStatus.REGISTERING);
         when(accessMapper.selectEditionById(any())).thenReturn(edition);
         when(organizationMapper.selectById(SCHOOL_ID)).thenReturn(schoolOrganization());
+        when(schoolQuotaMapper.selectList(any())).thenReturn(List.of(
+                schoolQuota(1L, SCHOOL_ID, 5, 2)
+        ));
 
         EditionDetailVO detail = service.get(31L);
 
@@ -332,6 +335,11 @@ class EditionServiceImplTest {
         assertThat(detail.readOnly()).isFalse();
         assertThat(detail.ownerOrgName()).isEqualTo("测试学校");
         assertThat(detail.registerDeadline().getOffset()).isEqualTo(OFFSET);
+        assertThat(detail.schoolQuotas()).singleElement().satisfies(quota -> {
+            assertThat(quota.schoolId()).isEqualTo(String.valueOf(SCHOOL_ID));
+            assertThat(quota.maxTeams()).isEqualTo(5);
+            assertThat(quota.usedTeams()).isEqualTo(2);
+        });
     }
 
     @Test
