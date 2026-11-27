@@ -25,7 +25,7 @@ const adminEntryPath = computed(() => {
   if (auth.can('system:role:list')) return '/admin/roles'
   if (auth.can('system:menu:list')) return '/admin/menus'
   if (auth.hasRole('ADMIN') && (auth.can('team:approve') || auth.can('team:eligibility:manage'))) {
-    return '/admin/contests'
+    return '/admin/team-registration'
   }
   return null
 })
@@ -87,7 +87,7 @@ async function handleLogout(): Promise<void> {
           v-if="teamRegistrationAvailable"
           type="warning"
           plain
-          @click="router.push('/admin/contests')"
+          @click="router.push('/admin/team-registration')"
         >
           报名组织
         </el-button>

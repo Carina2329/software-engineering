@@ -43,7 +43,7 @@ onMounted(async () => {
   }
   if (auth.hasRole('ADMIN')
     && (auth.can('team:approve') || auth.can('team:eligibility:manage'))) {
-    await router.replace('/admin/contests')
+    await router.replace('/admin/team-registration')
     return
   }
   await router.replace('/403')

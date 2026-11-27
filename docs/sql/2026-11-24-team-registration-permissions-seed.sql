@@ -12,7 +12,7 @@ SET @contest_root_id = (
 INSERT INTO sys_menu
   (parent_id, menu_name, menu_type, path, perms, sort_no, visible, status,
    created_at, created_by, deleted, version)
-SELECT @contest_root_id, '报名组织', 2, '/admin/contests', NULL,
+SELECT @contest_root_id, '报名组织', 2, '/admin/team-registration', NULL,
        30, 1, 1, NOW(), 0, 0, 0
 WHERE @contest_root_id IS NOT NULL
   AND NOT EXISTS (
@@ -34,7 +34,7 @@ SET @team_menu_id = (
 UPDATE sys_menu
 SET menu_name = '报名组织',
     menu_type = 2,
-    path = '/admin/contests',
+    path = '/admin/team-registration',
     sort_no = 30,
     visible = 1,
     status = 1,
