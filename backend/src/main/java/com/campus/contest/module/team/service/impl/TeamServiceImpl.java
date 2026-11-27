@@ -224,6 +224,35 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
+    public AvailableTeacherPageVO approvalTeachers(
+            Long editionId,
+            AvailableTeacherQuery query
+    ) {
+        authorizationService.requireEditionForApprovalFilter(editionId);
+        int page = normalizePage(query == null ? null : query.getPage());
+        int size = normalizeTeacherPageSize(query == null ? null : query.getSize());
+        String keyword = normalizeKeyword(query == null ? null : query.getKeyword());
+        long total = availableTeacherMapper.count(keyword);
+        long offsetValue = (long) (page - 1) * size;
+        if (offsetValue > Integer.MAX_VALUE) {
+            throw invalidParam("page 超出支持范围");
+        }
+        List<AvailableTeacherVO> items = availableTeacherMapper
+                .selectPage(keyword, (int) offsetValue, size)
+                .stream()
+                .map(row -> new AvailableTeacherVO(
+                        String.valueOf(row.id()),
+                        row.realName(),
+                        String.valueOf(row.schoolId()),
+                        row.schoolName(),
+                        row.college(),
+                        row.title()
+                ))
+                .toList();
+        return new AvailableTeacherPageVO(items, total, page, size, total > (long) page * size);
+    }
+
+    @Override
     public TeamCreateVO create(Long editionId, TeamCreateRequest request, String idempotencyKey) {
         if (request == null) {
             throw invalidParam("请求体不能为空");

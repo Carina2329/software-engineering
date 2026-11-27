@@ -3,8 +3,13 @@ import { computed, ref, watch } from 'vue'
 import type { TeamMember, TeamMemberInput } from '../../types/team'
 
 interface MemberRow extends TeamMemberInput { member_id?: string; persisted: boolean }
+interface SchoolOption { id: string; school_name: string; province_name?: string }
 
-const props = withDefaults(defineProps<{ members: TeamMember[]; disabled?: boolean }>(), { disabled: false })
+const props = withDefaults(defineProps<{
+  members: TeamMember[]
+  schools?: SchoolOption[]
+  disabled?: boolean
+}>(), { schools: () => [], disabled: false })
 const emit = defineEmits<{ 'update:members': [members: TeamMemberInput[]]; remove: [memberId: string] }>()
 const rows = ref<MemberRow[]>([])
 const leader = computed(() => props.members.find((member) => member.is_leader) ?? null)
@@ -50,6 +55,10 @@ function validate(): boolean {
   }
   return rows.value.length <= 4
 }
+function schoolName(schoolId: string): string {
+  return props.schools.find((school) => school.id === schoolId)?.school_name
+    || `学校 ${schoolId}`
+}
 defineExpose({ validate })
 </script>
 
@@ -61,20 +70,27 @@ defineExpose({ validate })
     </div>
     <el-table :data="leader ? [leader] : []" border>
       <el-table-column prop="member_name" label="队长" min-width="150" />
-      <el-table-column prop="school_id" label="学校 ID" width="130" />
+      <el-table-column label="学校" width="180"><template #default="{ row }">{{ schoolName(row.school_id) }}</template></el-table-column>
       <el-table-column prop="student_no" label="学号" min-width="150" />
       <el-table-column label="身份" width="90"><template #default><el-tag type="warning">队长</el-tag></template></el-table-column>
     </el-table>
     <el-table v-if="disabled && rows.length" :data="rows" border>
       <el-table-column prop="member_name" label="姓名" />
-      <el-table-column prop="school_id" label="学校 ID" />
+      <el-table-column label="学校"><template #default="{ row }">{{ schoolName(row.school_id) }}</template></el-table-column>
       <el-table-column prop="student_no" label="学号" />
       <el-table-column label="身份" width="90"><template #default><el-tag type="info">队员</el-tag></template></el-table-column>
     </el-table>
     <div v-else-if="rows.length" class="member-list">
       <div v-for="(row, index) in rows" :key="row.member_id || index" class="member-row">
         <el-input v-model="row.member_name" maxlength="32" placeholder="姓名" :disabled="disabled" @input="emitMembers" />
-        <el-input v-model="row.school_id" placeholder="学校 ID" :disabled="disabled" @input="emitMembers" />
+        <el-select v-model="row.school_id" filterable placeholder="选择学校" :disabled="disabled" @change="emitMembers">
+          <el-option
+            v-for="school in schools"
+            :key="school.id"
+            :value="school.id"
+            :label="`${school.school_name}${school.province_name ? `（${school.province_name}）` : ''}`"
+          />
+        </el-select>
         <el-input v-model="row.student_no" maxlength="20" placeholder="学号" :disabled="disabled" @input="emitMembers" />
         <el-button link type="danger" :disabled="disabled" @click="removeRow(row, index)">移出</el-button>
       </div>

@@ -77,6 +77,16 @@ public class TeamController {
         return Result.ok(teamService.availableTeachers(editionId, query));
     }
 
+    /** EP-099 */
+    @GetMapping("/editions/{edition_id}/approval-teachers")
+    @PreAuthorize("hasAuthority('team:approve')")
+    public Result<AvailableTeacherPageVO> approvalTeachers(
+            @PathVariable("edition_id") Long editionId,
+            @Valid @ModelAttribute AvailableTeacherQuery query
+    ) {
+        return Result.ok(teamService.approvalTeachers(editionId, query));
+    }
+
     /** EP-027 */
     @PostMapping("/editions/{edition_id}/teams")
     @ResponseStatus(HttpStatus.CREATED)

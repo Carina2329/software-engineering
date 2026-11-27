@@ -220,6 +220,28 @@ class TeamServiceImplTest {
     }
 
     @Test
+    @DisplayName("管理员报名终审可按教师姓名查询教师选项")
+    void adminCanListApprovalTeachers() {
+        when(authorizationService.requireEditionForApprovalFilter(1L)).thenReturn(edition(1L));
+        when(availableTeacherMapper.count("张")).thenReturn(1L);
+        when(availableTeacherMapper.selectPage("张", 0, 20)).thenReturn(List.of(
+                new AvailableTeacherRow(
+                        8L, "张老师", SCHOOL_ID, "测试学校", "计算机学院", "副教授"
+                )
+        ));
+        AvailableTeacherQuery query = new AvailableTeacherQuery();
+        query.setKeyword(" 张 ");
+
+        var result = service.approvalTeachers(1L, query);
+
+        assertThat(result.items()).singleElement().satisfies(item -> {
+            assertThat(item.id()).isEqualTo("8");
+            assertThat(item.realName()).isEqualTo("张老师");
+        });
+        verify(authorizationService).requireEditionForApprovalFilter(1L);
+    }
+
+    @Test
     @DisplayName("非学生账号不能查询指导教师")
     void nonStudentCannotListAvailableTeachers() {
         when(userMapper.selectById(USER_ID)).thenReturn(user("S001"));

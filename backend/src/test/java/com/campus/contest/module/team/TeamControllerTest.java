@@ -86,6 +86,23 @@ class TeamControllerTest {
     }
 
     @Test
+    void exposesApprovalTeacherFilterEndpoint() throws Exception {
+        when(teamService.approvalTeachers(eq(1L), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new AvailableTeacherPageVO(List.of(), 0, 1, 20, false));
+
+        mockMvc.perform(get("/api/v1/editions/1/approval-teachers")
+                        .queryParam("keyword", "张")
+                        .queryParam("page", "1")
+                        .queryParam("size", "20"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<AvailableTeacherQuery> captor =
+                ArgumentCaptor.forClass(AvailableTeacherQuery.class);
+        verify(teamService).approvalTeachers(eq(1L), captor.capture());
+        assertThat(captor.getValue().getKeyword()).isEqualTo("张");
+    }
+
+    @Test
     void exposesApprovalEndpointWithIdempotencyHeader() throws Exception {
         when(teamService.approveRegistration(eq(100L), org.mockito.ArgumentMatchers.any(), eq("approve-key")))
                 .thenReturn(new TeamApprovalVO("100", "APPROVED", 3, "700"));

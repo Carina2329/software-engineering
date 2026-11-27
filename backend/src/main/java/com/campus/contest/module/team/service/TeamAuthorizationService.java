@@ -67,6 +67,18 @@ public class TeamAuthorizationService {
         return edition;
     }
 
+    public ContestEditionDO requireEditionForApprovalFilter(Long editionId) {
+        ContestEditionDO edition = contestEditionMapper.selectById(editionId);
+        if (edition == null) {
+            throw new BizException(
+                    ErrorCode.RESOURCE_NOT_FOUND.getCode(),
+                    "届次不存在或对当前用户不可见"
+            );
+        }
+        contestAuthorizationService.requireContestEventManageable(edition);
+        return edition;
+    }
+
     /**
      * 队长、管理员走常规届次可见性；待确认教师或已确认教师可通过有效申请关系读取届次。
      */

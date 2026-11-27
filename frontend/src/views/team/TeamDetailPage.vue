@@ -6,12 +6,15 @@ import MemberEditor from '../../components/team/MemberEditor.vue'
 import RegistrationSubmitPanel from '../../components/team/RegistrationSubmitPanel.vue'
 import RegistrationTimeline from '../../components/team/RegistrationTimeline.vue'
 import { createTeamIdempotencyKey, getTeam, getTeamErrorMessage, listTeamMembers, removeTeamMember, submitTeamRegistration, updateTeam, withdrawTeamRegistration } from '../../api/team'
+import { listSchools } from '../../api/organization'
 import type { TeamDetail, TeamMember, TeamMemberInput } from '../../types/team'
+import type { SchoolItem } from '../../types/organization'
 import { TEAM_STATUS_LABELS, TEAM_STATUS_TAG_TYPES, editableTeamStatuses } from '../../types/team'
 import { useCurrentMenus } from '../../layouts/useCurrentMenus'
 const route = useRoute(); const router = useRouter(); const { ensureCurrentMenus, hasPermission } = useCurrentMenus()
 const teamId = computed(() => String(route.params.teamId ?? ''))
 const detail = ref<TeamDetail | null>(null); const members = ref<TeamMember[]>([]); const memberDraft = ref<TeamMemberInput[]>([])
+const schools = ref<SchoolItem[]>([])
 const teamName = ref(''); const loading = ref(false); const saving = ref(false); const submitting = ref(false); const withdrawing = ref(false)
 const memberEditorRef = ref<{ validate: () => boolean }>()
 const canEdit = computed(() => Boolean(detail.value && editableTeamStatuses.includes(detail.value.status) && hasPermission('team:update')))
@@ -22,6 +25,14 @@ async function loadAll(): Promise<void> {
   loading.value = true
   try { const [team, memberList] = await Promise.all([getTeam(teamId.value), listTeamMembers(teamId.value)]); detail.value = team; members.value = memberList; teamName.value = team.team_name }
   catch (error) { ElMessage.error(getTeamErrorMessage(error, '队伍详情加载失败')) } finally { loading.value = false }
+}
+async function loadSchools(): Promise<void> {
+  try {
+    const data = await listSchools({ page: 1, size: 100 })
+    schools.value = data.items
+  } catch {
+    // The team remains usable with the raw school identifier if the directory is unavailable.
+  }
 }
 async function saveTeam(): Promise<void> {
   if (!detail.value || !canEdit.value) return
@@ -56,14 +67,17 @@ function back(): void {
   }
   router.back()
 }
-onMounted(async () => { await ensureCurrentMenus(); await loadAll() })
+onMounted(async () => {
+  await ensureCurrentMenus()
+  await Promise.all([loadAll(), loadSchools()])
+})
 </script>
 <template>
   <div v-loading="loading" class="team-detail-page">
     <section class="detail-hero"><div><span class="eyebrow">TEAM REGISTRATION</span><h1>{{ detail?.team_name || '队伍详情' }}</h1><p v-if="detail"><code>{{ detail.team_code }}</code> · {{ detail.member_count }} 人 <el-tag :type="TEAM_STATUS_TAG_TYPES[detail.status]" effect="plain">{{ TEAM_STATUS_LABELS[detail.status] }}</el-tag></p></div><div class="hero-actions page-actions"><el-button class="back page-nav-button" @click="back">返回队伍列表</el-button><el-button v-if="canWithdraw" type="danger" plain :loading="withdrawing" @click="withdraw">撤回报名</el-button></div></section>
     <template v-if="detail">
       <RegistrationTimeline :detail="detail" />
-      <el-card class="section-card"><div class="card-heading"><div><span class="eyebrow">TEAM PROFILE</span><h2>队伍资料</h2></div><el-button v-if="canEdit" type="primary" :loading="saving" @click="saveTeam">保存资料</el-button></div><el-form label-position="top"><el-form-item label="队伍名称"><el-input v-model="teamName" maxlength="64" :disabled="!canEdit" /></el-form-item></el-form><MemberEditor ref="memberEditorRef" :members="members" :disabled="!canEdit" @update:members="memberDraft = $event" @remove="removeMember" /></el-card>
+      <el-card class="section-card"><div class="card-heading"><div><span class="eyebrow">TEAM PROFILE</span><h2>队伍资料</h2></div><el-button v-if="canEdit" type="primary" :loading="saving" @click="saveTeam">保存资料</el-button></div><el-form label-position="top"><el-form-item label="队伍名称"><el-input v-model="teamName" maxlength="64" :disabled="!canEdit" /></el-form-item></el-form><MemberEditor ref="memberEditorRef" :members="members" :schools="schools" :disabled="!canEdit" @update:members="memberDraft = $event" @remove="removeMember" /></el-card>
       <RegistrationSubmitPanel v-if="detail.status !== 'APPROVED'" :edition-id="detail.edition_id" :initial-teacher-id="detail.current_teacher_id" :disabled="!canEdit" :can-submit="canSubmit" :can-register="detail.can_register" :register-state="detail.register_state" :register-reason="detail.register_reason" :submitting="submitting" @submit="submitRegistration" />
     </template>
     <el-empty v-else-if="!loading" description="未找到队伍或当前账号无权查看" />

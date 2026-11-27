@@ -24,6 +24,8 @@ public interface TeamService {
 
     AvailableTeacherPageVO availableTeachers(Long editionId, AvailableTeacherQuery query);
 
+    AvailableTeacherPageVO approvalTeachers(Long editionId, AvailableTeacherQuery query);
+
     TeamCreateVO create(Long editionId, TeamCreateRequest request, String idempotencyKey);
 
     TeamDetailVO detail(Long teamId);
