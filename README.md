@@ -4,7 +4,7 @@ AI 大学生学科竞赛全流程智能服务平台。
 
 ## 技术栈
 
-- 后端：Java 17 + Spring Boot 3 + MyBatis-Plus + MySQL 8 + Redis + RabbitMQ
+- 后端：Java 17 + Spring Boot 3 + MyBatis-Plus + MySQL 8 + Redis + RabbitMQ + SeaweedFS
 - 前端：Vue 3 + TypeScript + Vite + Element Plus + Pinia
 
 ## 环境要求
@@ -20,7 +20,7 @@ AI 大学生学科竞赛全流程智能服务平台。
 ## 启动步骤
 
 ```bash
-# 1. 启动 MySQL、Redis、Mailpit 和认证邮件 RabbitMQ
+# 1. 启动 MySQL、Redis、Mailpit、认证邮件 RabbitMQ 和 SeaweedFS
 cd docker && docker compose up -d
 
 # 2. 初始化全新的开发数据库
