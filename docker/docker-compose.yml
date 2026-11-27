@@ -28,6 +28,34 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.51
+    container_name: contest-seaweedfs
+    command:
+      - server
+      - -dir=/data
+      - -ip=127.0.0.1
+      - -ip.bind=0.0.0.0
+      - -master.port=9333
+      - -volume.port=8082
+      - -filer
+      - -filer.port=8888
+      - -s3
+      - -s3.port=8333
+    ports:
+      - "8333:8333"
+      - "8888:8888"
+      - "9333:9333"
+      - "8082:8082"
+    volumes:
+      - seaweedfs-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8888/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   rabbitmq:
     image: rabbitmq:3.13-management
     container_name: contest-rabbitmq
@@ -60,3 +88,4 @@ volumes:
   mysql-data:
   redis-data:
   rabbitmq-data:
+  seaweedfs-data:

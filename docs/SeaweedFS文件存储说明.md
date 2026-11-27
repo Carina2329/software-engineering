@@ -2,11 +2,22 @@
 
 ## 启动
 
-在项目根目录运行：
+推荐直接通过 Docker Compose 启动，无需下载 `weed.exe`：
+
+```powershell
+cd docker
+docker compose up -d seaweedfs
+```
+
+SeaweedFS 数据保存在 Docker 命名卷 `docker_seaweedfs-data` 中。
+
+仅在无法使用 Docker 时，才在项目根目录运行本地二进制启动脚本：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\start-seaweedfs.ps1
 ```
+
+Docker Compose 与本地脚本使用相同端口，不能同时启动。
 
 默认端口：
 
