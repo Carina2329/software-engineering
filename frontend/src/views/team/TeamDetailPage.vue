@@ -60,7 +60,7 @@ onMounted(async () => { await ensureCurrentMenus(); await loadAll() })
 </script>
 <template>
   <div v-loading="loading" class="team-detail-page">
-    <section class="detail-hero"><div><div class="hero-topline"><el-button class="back" @click="back">← 返回队伍列表</el-button><span class="eyebrow">TEAM REGISTRATION</span></div><h1>{{ detail?.team_name || '队伍详情' }}</h1><p v-if="detail"><code>{{ detail.team_code }}</code> · {{ detail.member_count }} 人 <el-tag :type="TEAM_STATUS_TAG_TYPES[detail.status]" effect="plain">{{ TEAM_STATUS_LABELS[detail.status] }}</el-tag></p></div><div class="hero-actions"><el-button v-if="canWithdraw" type="danger" plain :loading="withdrawing" @click="withdraw">撤回报名</el-button></div></section>
+    <section class="detail-hero"><div><span class="eyebrow">TEAM REGISTRATION</span><h1>{{ detail?.team_name || '队伍详情' }}</h1><p v-if="detail"><code>{{ detail.team_code }}</code> · {{ detail.member_count }} 人 <el-tag :type="TEAM_STATUS_TAG_TYPES[detail.status]" effect="plain">{{ TEAM_STATUS_LABELS[detail.status] }}</el-tag></p></div><div class="hero-actions"><el-button class="back" @click="back">← 返回队伍列表</el-button><el-button v-if="canWithdraw" type="danger" plain :loading="withdrawing" @click="withdraw">撤回报名</el-button></div></section>
     <template v-if="detail">
       <RegistrationTimeline :detail="detail" />
       <el-card class="section-card"><div class="card-heading"><div><span class="eyebrow">TEAM PROFILE</span><h2>队伍资料</h2></div><el-button v-if="canEdit" type="primary" :loading="saving" @click="saveTeam">保存资料</el-button></div><el-form label-position="top"><el-form-item label="队伍名称"><el-input v-model="teamName" maxlength="64" :disabled="!canEdit" /></el-form-item></el-form><MemberEditor ref="memberEditorRef" :members="members" :disabled="!canEdit" @update:members="memberDraft = $event" @remove="removeMember" /></el-card>
@@ -74,10 +74,8 @@ onMounted(async () => { await ensureCurrentMenus(); await loadAll() })
 .team-detail-page { display: grid; gap: 16px; padding: 18px; }
 .detail-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 26px 30px; border-radius: 18px 18px 18px 5px; color: #f3f7f4; background: radial-gradient(circle at 88% 8%, rgba(216,186,112,.3), transparent 14rem), linear-gradient(135deg, #143b31, #275b4b); }
 .detail-hero h1 { margin: 8px 0 7px; font-family: Georgia, "Songti SC", serif; font-size: 34px; font-weight: 500; }.detail-hero p { display: flex; align-items: center; gap: 8px; margin: 0; color: rgba(243,247,244,.72); }.detail-hero code { font-family: Consolas, monospace; }
-.hero-topline { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 6px; }
 .back { --el-button-bg-color: rgba(255, 255, 255, 0.1); --el-button-border-color: rgba(216, 186, 112, 0.72); --el-button-text-color: #f2e4b9; --el-button-hover-bg-color: rgba(255, 255, 255, 0.18); --el-button-hover-border-color: #d8ba70; --el-button-hover-text-color: #fff7dc; font-weight: 600; }
-.hero-topline .eyebrow { margin-right: 4px; }
-.eyebrow { color: #d8ba70; font-size: 11px; font-weight: 700; letter-spacing: .16em; }.hero-actions { display: flex; gap: 10px; }
+.eyebrow { color: #d8ba70; font-size: 11px; font-weight: 700; letter-spacing: .16em; }.hero-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
 .section-card { border-radius: 16px; }.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }.card-heading h2 { margin: 4px 0 0; color: #18352e; }.card-heading .eyebrow { color: #6d8f84; }
-@media (max-width: 760px) { .detail-hero { align-items: flex-start; flex-direction: column; }.hero-actions { width: 100%; } }
+@media (max-width: 760px) { .detail-hero { align-items: flex-start; flex-direction: column; }.hero-actions { width: 100%; justify-content: flex-start; } }
 </style>
