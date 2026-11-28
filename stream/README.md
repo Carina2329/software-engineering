@@ -50,13 +50,15 @@ mvn package
 ## 提交到现有 Flink
 
 ```powershell
-docker cp stream/target/recommendation-stream.jar contest-flink-jobmanager:/opt/flink/usrlib/
+docker cp stream/target/recommendation-stream.jar contest-flink-jobmanager:/tmp/
 docker exec -e KAFKA_BOOTSTRAP_SERVERS=kafka:29092 `
   -e REDIS_HOST=redis `
   contest-flink-jobmanager flink run -d `
   -c com.campus.contest.recommendation.stream.RecommendationStreamJob `
-  /opt/flink/usrlib/recommendation-stream.jar
+  /tmp/recommendation-stream.jar
 ```
+
+Flink 官方镜像没有预建 `/opt/flink/usrlib`，因此示例复制到 `/tmp`。
 
 可覆盖的配置：
 
@@ -76,22 +78,39 @@ docker exec -e KAFKA_BOOTSTRAP_SERVERS=kafka:29092 `
 
 ## 需要段欣懿调整的公共 Docker 基线
 
-现有 `kafka` 服务只向客户端宣告 `localhost:9092`。宿主机后端可以连接，但容器内 Flink 会把 `localhost` 解释为自己，因此需增加内部 listener：
+当前 `bitnami/kafka:3.7` 已无法从 Docker Hub 解析，`flink:1.18` 也没有可用镜像。
+本次真实联调使用以下明确版本：
+
+- Kafka：`apache/kafka:3.7.2`
+- Flink：`flink:1.18.1-scala_2.12-java11`
+
+现有 `kafka` 服务只向客户端宣告 `localhost:9092`。宿主机后端可以连接，但容器内 Flink 会把 `localhost` 解释为自己。建议替换为：
 
 ```yaml
 kafka:
+  image: apache/kafka:3.7.2
   ports:
     - "9092:9092"
   environment:
-    KAFKA_CFG_LISTENERS: EXTERNAL://:9092,INTERNAL://:29092,CONTROLLER://:9093
-    KAFKA_CFG_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:29092
-    KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+    KAFKA_NODE_ID: 1
+    KAFKA_PROCESS_ROLES: broker,controller
+    KAFKA_LISTENERS: EXTERNAL://:9092,INTERNAL://:29092,CONTROLLER://:9093
+    KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:29092
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+    KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
 ```
 
-此外当前 `KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=false`，需要初始化 topic。可在启动后执行：
+宿主机后端继续使用 `localhost:9092`，Flink 容器使用 `kafka:29092`。
+自动建 topic 关闭后，需要初始化：
 
 ```powershell
-docker exec contest-kafka kafka-topics.sh `
+docker exec contest-kafka /opt/kafka/bin/kafka-topics.sh `
   --bootstrap-server localhost:9092 `
   --create --if-not-exists `
   --topic contest-behavior `
