@@ -4,6 +4,7 @@ import com.campus.contest.recommendation.stream.config.RedisConnectionSettings;
 import com.campus.contest.recommendation.stream.redis.RedisPreferenceCounterWriter;
 
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.metrics.Counter;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
@@ -23,6 +24,7 @@ public class PreferenceRedisWindowFunction
     private final int retentionDays;
 
     private transient RedisPreferenceCounterWriter writer;
+    private transient Counter writtenCounter;
 
     public PreferenceRedisWindowFunction(
             RedisConnectionSettings redisSettings,
@@ -39,7 +41,7 @@ public class PreferenceRedisWindowFunction
                 retentionDays,
                 Clock.systemUTC()
         );
-        getRuntimeContext()
+        writtenCounter = getRuntimeContext()
                 .getMetricGroup()
                 .counter("recommendation_preference_windows_written");
     }
@@ -55,10 +57,7 @@ public class PreferenceRedisWindowFunction
         long windowStart = context.window().getStart() / 1000L;
         long windowEnd = context.window().getEnd() / 1000L;
         writer.write(key.getUserId(), key.getCategory(), windowStart, viewCount);
-        getRuntimeContext()
-                .getMetricGroup()
-                .counter("recommendation_preference_windows_written")
-                .inc();
+        writtenCounter.inc();
         out.collect(new PreferenceWindowResult(
                 key.getUserId(),
                 key.getCategory(),

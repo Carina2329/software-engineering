@@ -6,6 +6,7 @@ import com.campus.contest.recommendation.stream.redis.RedisClients;
 import com.campus.contest.recommendation.stream.redis.RedisEventDeduplicator;
 
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.metrics.Counter;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 import redis.clients.jedis.JedisPool;
@@ -19,6 +20,8 @@ public class EventDeduplicationProcessFunction
 
     private transient JedisPool pool;
     private transient RedisEventDeduplicator deduplicator;
+    private transient Counter receivedCounter;
+    private transient Counter deduplicatedCounter;
 
     public EventDeduplicationProcessFunction(RedisConnectionSettings redisSettings) {
         this.redisSettings = redisSettings;
@@ -28,10 +31,10 @@ public class EventDeduplicationProcessFunction
     public void open(Configuration parameters) {
         pool = RedisClients.createPool(redisSettings);
         deduplicator = new RedisEventDeduplicator(pool);
-        getRuntimeContext()
+        receivedCounter = getRuntimeContext()
                 .getMetricGroup()
                 .counter("recommendation_events_received");
-        getRuntimeContext()
+        deduplicatedCounter = getRuntimeContext()
                 .getMetricGroup()
                 .counter("recommendation_events_deduplicated");
     }
@@ -42,18 +45,12 @@ public class EventDeduplicationProcessFunction
             Context context,
             Collector<BehaviorEvent> out
     ) {
-        getRuntimeContext()
-                .getMetricGroup()
-                .counter("recommendation_events_received")
-                .inc();
+        receivedCounter.inc();
         if (deduplicator.tryClaim(value.getEventId())) {
             out.collect(value);
             return;
         }
-        getRuntimeContext()
-                .getMetricGroup()
-                .counter("recommendation_events_deduplicated")
-                .inc();
+        deduplicatedCounter.inc();
     }
 
     @Override
