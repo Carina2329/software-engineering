@@ -1,5 +1,15 @@
 # 业务核心公共契约变更记录
 
+## 2026-11-28 - v1.7.0 竞赛学科分类与相似竞赛推荐
+
+- 新增 `CONTEST_CATEGORY` 竞赛学科分类字典，初始四个启用分类：数学建模类、程序设计类、电子设计类、创新创业类。
+- `contest` 主档新增可空 `category` 字段，分类归竞赛系列，届次自动继承；未分类不参与相似竞赛推荐。
+- 新增 EP-100 竞赛详情浏览行为上报，采用 best-effort 投递、event_id 幂等和 Kafka 行为事件流。
+- 新增 EP-101 竞赛中心相似竞赛推荐，最多 3 条，仅初步资格筛选，不返回 `can_register`。
+- Kafka 仅用于学生行为事件流，RabbitMQ 仍只用于认证 OTP。
+- OpenAPI 升级到 `1.7.0`，接口汇总同步。
+- 新增 `docs/business/business-core/recommendation-contract.md` 和 `2026-11-28-contest-category-foundation.sql` 及回滚脚本。
+
 ## 2026-11-27 - 报名组织阶段最终收口
 
 - 队长代办制报名组织完成契约、后端、前端、公共路由和真实联调闭环。

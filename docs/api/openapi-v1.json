@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "AI学科竞赛全流程智能服务平台接口",
-    "version": "1.6.4",
-    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.4.0 将平台冻结为多学校、多主办方赛事托管模式；1.4.1 修正 EP-004 同校学号语义，补充学校归属审核、CN_PROVINCE 公共字典和范围权限边界；1.4.2 明确 EP-007 只替换全局基础角色，并补充 EP-089 的 409 冲突响应；1.4.3 补齐 EP-090/EP-091 的 404、409 和 503 响应；1.4.4 补齐学校归属查询和审核的 404、503 响应。 1.5.0 增加数字大屏一期共享契约与公共 WebSocket 基础；1.5.1 新增 EP-094、EP-095，明确平台管理员 GLOBAL 数据范围、一次性 ticket 和原生 WebSocket 推送协议。 1.6.0 将报名组织冻结为队长代办制：删除 EP-030 和 EP-081～EP-084，新增成员快照、报名轮次、资格名单和学校名额规则。 1.6.1 增加 EP-098 指导教师选择，并扩展 EP-028 当前报名、教师申请和驳回原因读取模型。 1.6.2 移除报名阶段附件提交与读取规则；作品文件统一留到后续作品提交流程。 1.6.3 届次详情返回学校名额配置和已占用数，供管理员配置回显和审核展示。 1.6.4 增加 EP-099 报名终审教师筛选选项，进一步减少手填数据库 ID。",
+    "version": "1.7.0",
+    "description": "第 6 组课程项目 P0 接口契约。外部 JSON 使用 snake_case；业务枚举以字符串传输，数据库内部使用 TINYINT 映射；所有已鉴权接口均要求 HTTPS、RBAC 和数据范围校验。认证支持用户名密码和邮箱 OTP 两种模式；Cookie 路径使用 Spring Security CSRF 防护。下列 paths 为相对路径，完整路径统一以 /api/v1 为前缀。 公共错误码 50003 表示认证或幂等依赖暂不可用，HTTP 503，可重试；50001 和 50002 的含义保持不变。 1.4.0 将平台冻结为多学校、多主办方赛事托管模式；1.4.1 修正 EP-004 同校学号语义，补充学校归属审核、CN_PROVINCE 公共字典和范围权限边界；1.4.2 明确 EP-007 只替换全局基础角色，并补充 EP-089 的 409 冲突响应；1.4.3 补齐 EP-090/EP-091 的 404、409 和 503 响应；1.4.4 补齐学校归属查询和审核的 404、503 响应。 1.5.0 增加数字大屏一期共享契约与公共 WebSocket 基础；1.5.1 新增 EP-094、EP-095，明确平台管理员 GLOBAL 数据范围、一次性 ticket 和原生 WebSocket 推送协议。 1.6.0 将报名组织冻结为队长代办制：删除 EP-030 和 EP-081～EP-084，新增成员快照、报名轮次、资格名单和学校名额规则。 1.6.1 增加 EP-098 指导教师选择，并扩展 EP-028 当前报名、教师申请和驳回原因读取模型。 1.6.2 移除报名阶段附件提交与读取规则；作品文件统一留到后续作品提交流程。 1.6.3 届次详情返回学校名额配置和已占用数，供管理员配置回显和审核展示。 1.6.4 增加 EP-099 报名终审教师筛选选项，进一步减少手填数据库 ID。 1.7.0 增加基于真实竞赛分类的相似竞赛推荐：新增竞赛学科分类、行为事件上报和竞赛中心推荐查询接口。",
     "contact": {
       "name": "第6组",
       "email": "group6@example.edu"
@@ -14009,6 +14009,129 @@
           "contest_edition"
         ]
       }
+    },
+    "/behavior/contest-detail-viewed": {
+      "post": {
+        "tags": [
+          "实时推荐"
+        ],
+        "summary": "上报竞赛详情浏览行为",
+        "description": "学生浏览竞赛届次详情后异步上报浏览行为。前端生成 event_id，同一次浏览网络重试复用同一 event_id，新的详情页加载生成新 event_id。服务端从登录态获取 user_id，按 contest_id 查询竞赛主档补全分类，并以服务端接收时间作为事件时间。上报采用 best-effort，失败允许重试，极端故障下允许极少量丢失或重复。",
+        "operationId": "reportContestDetailViewed",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContestDetailViewedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "行为已受理（不表示已写入 Kafka）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "data",
+                    "trace_id"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true
+                    },
+                    "trace_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-endpoint-id": "EP-100",
+        "x-permission": "登录用户",
+        "x-data-scope": "SELF",
+        "x-idempotency": "event_id 幂等（pending/sent）",
+        "x-rate-limit": "常规接口限流",
+        "x-audit": false,
+        "x-tables": [
+          "contest"
+        ]
+      }
+    },
+    "/recommendations": {
+      "get": {
+        "tags": [
+          "实时推荐"
+        ],
+        "summary": "查询竞赛中心相似竞赛推荐",
+        "description": "返回当前学生的偏好分类和最多 3 个相似竞赛推荐结果。推荐候选来自偏好分类下、且不是学生刚浏览竞赛系列的其他竞赛系列，只返回初步符合推荐条件的届次。接口只做初步判断，最终报名资格在正式提交报名时校验；不返回 can_register。无有效偏好时返回空推荐列表。",
+        "operationId": "listRecommendations",
+        "responses": {
+          "200": {
+            "description": "推荐结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "x-endpoint-id": "EP-101",
+        "x-permission": "登录用户",
+        "x-data-scope": "SELF",
+        "x-idempotency": "否（只读）",
+        "x-rate-limit": "常规接口限流",
+        "x-audit": false,
+        "x-tables": [
+          "contest",
+          "contest_edition"
+        ]
+      }
     }
   },
   "components": {
@@ -14757,6 +14880,132 @@
             "description": "一次性 WebSocket ticket；有效期 30 秒，不得记录到日志。"
           },
           "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ContestDetailViewedRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "contest_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "description": "前端为一次真实浏览生成的 UUID；同一次浏览网络重试复用同一 event_id，新的详情页加载生成新 event_id"
+          },
+          "contest_id": {
+            "type": "string",
+            "description": "浏览详情页对应的竞赛系列 ID"
+          },
+          "client_ts": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "前端发生时间，仅作参考，不参与计算"
+          }
+        }
+      },
+      "RecommendationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "preferred_category",
+          "recommendations",
+          "generated_at"
+        ],
+        "properties": {
+          "preferred_category": {
+            "type": "object",
+            "nullable": true,
+            "required": [
+              "category",
+              "category_name",
+              "view_count",
+              "reason"
+            ],
+            "properties": {
+              "category": {
+                "type": "string"
+              },
+              "category_name": {
+                "type": "string"
+              },
+              "view_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "edition_id",
+                "contest_id",
+                "contest_name",
+                "series_code",
+                "level",
+                "category",
+                "category_name",
+                "register_deadline",
+                "registration_open",
+                "preliminarily_eligible",
+                "reason"
+              ],
+              "properties": {
+                "edition_id": {
+                  "type": "string"
+                },
+                "contest_id": {
+                  "type": "string"
+                },
+                "contest_name": {
+                  "type": "string"
+                },
+                "series_code": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "SCHOOL",
+                    "PROVINCE",
+                    "NATIONAL"
+                  ]
+                },
+                "category": {
+                  "type": "string"
+                },
+                "category_name": {
+                  "type": "string"
+                },
+                "register_deadline": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "registration_open": {
+                  "type": "boolean"
+                },
+                "preliminarily_eligible": {
+                  "type": "boolean",
+                  "description": "初步资格筛选结果；最终报名资格在正式提交报名时校验"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "generated_at": {
             "type": "string",
             "format": "date-time"
           }

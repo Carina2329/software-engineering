@@ -34,6 +34,12 @@ spring:
         acknowledge-mode: manual
         prefetch: ${RABBITMQ_PREFETCH:3}
         default-requeue-rejected: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: ${KAFKA_PRODUCER_ACKS:1}
   servlet:
     multipart:
       max-file-size: 2GB
@@ -55,6 +61,13 @@ app:
       retry-delay-ms: ${MAIL_OTP_RETRY_DELAY_MS:30000}
       max-retries: ${MAIL_OTP_MAX_RETRIES:3}
       message-ttl-ms: ${MAIL_OTP_MESSAGE_TTL_MS:300000}
+  recommendation:
+    kafka:
+      topic: ${RECOMMENDATION_KAFKA_TOPIC:contest-behavior}
+    feature:
+      window-minutes: ${RECOMMENDATION_WINDOW_MINUTES:5}
+      watermark-minutes: ${RECOMMENDATION_WATERMARK_MINUTES:1}
+      retention-days: ${RECOMMENDATION_RETENTION_DAYS:7}
   auth:
     jwt:
       secret: ${AUTH_JWT_SECRET:}

@@ -4,7 +4,8 @@ AI 大学生学科竞赛全流程智能服务平台。
 
 ## 技术栈
 
-- 后端：Java 17 + Spring Boot 3 + MyBatis-Plus + MySQL 8 + Redis + RabbitMQ
+- 后端：Java 17 + Spring Boot 3 + MyBatis-Plus + MySQL 8 + Redis + RabbitMQ + Kafka
+- 实时链路：Kafka（行为事件流）+ Flink（窗口聚合）+ Redis（偏好特征）
 - 前端：Vue 3 + TypeScript + Vite + Element Plus + Pinia
 
 ## 环境要求
@@ -20,7 +21,7 @@ AI 大学生学科竞赛全流程智能服务平台。
 ## 启动步骤
 
 ```bash
-# 1. 启动 MySQL、Redis、Mailpit 和认证邮件 RabbitMQ
+# 1. 启动 MySQL、Redis、Mailpit、认证邮件 RabbitMQ、Kafka 和 Flink
 cd docker && docker compose up -d
 
 # 2. 初始化全新的开发数据库
@@ -33,6 +34,7 @@ mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-18-multitenant-permissio
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-18-multitenant-dev-seed.sql
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-24-team-registration-foundation.sql
 mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-24-team-registration-permissions-seed.sql
+mysql -uroot -proot123 contest_db < ../docs/sql/2026-11-28-contest-category-foundation.sql
 
 # 3. 启动后端：用 IDEA 打开 backend/，运行 ContestApplication
 #    或命令行：cd backend && mvn spring-boot:run
@@ -60,6 +62,7 @@ mysql -uroot -proot123 contest_db < docs/sql/2026-11-18-multitenant-permissions-
 mysql -uroot -proot123 contest_db < docs/sql/2026-11-18-multitenant-dev-seed.sql
 mysql -uroot -proot123 contest_db < docs/sql/2026-11-24-team-registration-foundation.sql
 mysql -uroot -proot123 contest_db < docs/sql/2026-11-24-team-registration-permissions-seed.sql
+mysql -uroot -proot123 contest_db < docs/sql/2026-11-28-contest-category-foundation.sql
 ```
 
 数据库名称由命令中的 `contest_db` 参数选择。不要把整套历史增量重复应用到由当前 `2026-11-08-contest-db-base.sql` 新建的数据库。
