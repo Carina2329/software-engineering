@@ -6,6 +6,10 @@
 - `contest` 主档新增可空 `category` 字段，分类归竞赛系列，届次自动继承；未分类不参与相似竞赛推荐。
 - 新增 EP-100 竞赛详情浏览行为上报，采用 best-effort 投递、event_id 幂等和 Kafka 行为事件流。
 - 新增 EP-101 竞赛中心相似竞赛推荐，最多 3 条，仅初步资格筛选，不返回 `can_register`。
+- EP-012 创建必填分类；EP-014 支持历史补录分类；EP-011/EP-013 返回 `category` 和 `category_name`。
+- EP-101 推荐项增加 `edition_name`；新增 `rec:user:{uid}:last_contest` 用于排除刚浏览系列。
+- 固定 Redis 时间桶 field 为窗口起点 Unix epoch 毫秒，并明确有效偏好、并列和推荐排序口径。
+- EP-100 改为同步等待 Kafka ACK：成功返回 202，失败返回 HTTP 503 + 新增业务码 `50004`。
 - Kafka 仅用于学生行为事件流，RabbitMQ 仍只用于认证 OTP。
 - OpenAPI 升级到 `1.7.0`，接口汇总同步。
 - 新增 `docs/business/business-core/recommendation-contract.md` 和 `2026-11-28-contest-category-foundation.sql` 及回滚脚本。

@@ -1819,6 +1819,16 @@
                               "series_code": {
                                 "type": "string",
                                 "description": "竞赛系列编码"
+                              },
+                              "category": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "竞赛学科分类字典值；历史未分类返回 null"
+                              },
+                              "category_name": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "竞赛学科分类展示名称；历史未分类返回 null"
                               }
                             }
                           }
@@ -2008,11 +2018,16 @@
                     "type": "string",
                     "maxLength": 32,
                     "description": "稳定竞赛系列编码，全平台唯一"
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "竞赛学科分类，必须是启用的 CONTEST_CATEGORY 字典值"
                   }
                 },
                 "required": [
                   "contest_name",
-                  "series_code"
+                  "series_code",
+                  "category"
                 ]
               }
             }
@@ -2106,6 +2121,16 @@
                         "series_code": {
                           "type": "string",
                           "description": "竞赛系列编码"
+                        },
+                        "category": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "竞赛学科分类字典值；历史未分类返回 null"
+                        },
+                        "category_name": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "竞赛学科分类展示名称；历史未分类返回 null"
                         }
                       },
                       "required": [
@@ -2291,6 +2316,10 @@
                     "type": "string",
                     "maxLength": 32,
                     "description": "竞赛系列编码；仅平台管理员可修改"
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "竞赛学科分类，必须是启用的 CONTEST_CATEGORY 字典值；用于历史补录或修改，不能通过 null 清空"
                   }
                 },
                 "required": [
@@ -14016,7 +14045,7 @@
           "实时推荐"
         ],
         "summary": "上报竞赛详情浏览行为",
-        "description": "学生浏览竞赛届次详情后异步上报浏览行为。前端生成 event_id，同一次浏览网络重试复用同一 event_id，新的详情页加载生成新 event_id。服务端从登录态获取 user_id，按 contest_id 查询竞赛主档补全分类，并以服务端接收时间作为事件时间。上报采用 best-effort，失败允许重试，极端故障下允许极少量丢失或重复。",
+        "description": "学生浏览竞赛届次详情后上报浏览行为。前端生成 event_id，同一次浏览网络重试复用同一 event_id，新的详情页加载生成新 event_id。服务端从登录态获取 user_id，按 contest_id 查询竞赛主档补全分类，并以服务端接收时间作为事件时间。上报采用 best-effort：先写 pending，等待 Kafka broker ACK 成功后才标记 sent 并返回 202；Kafka 发送失败保留 pending 并返回 503 + 50004，前端复用同一 event_id 重试。极端故障下仍允许极少量丢失或重复。",
         "operationId": "reportContestDetailViewed",
         "requestBody": {
           "required": true,
@@ -14030,7 +14059,7 @@
         },
         "responses": {
           "202": {
-            "description": "行为已受理（不表示已写入 Kafka）",
+            "description": "行为已受理并投递，不表示 Flink 已生成偏好",
             "content": {
               "application/json": {
                 "schema": {
@@ -14075,7 +14104,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/RecommendationStreamUnavailable"
           }
         },
         "x-endpoint-id": "EP-100",
@@ -14950,6 +14979,7 @@
               "additionalProperties": false,
               "required": [
                 "edition_id",
+                "edition_name",
                 "contest_id",
                 "contest_name",
                 "series_code",
@@ -14964,6 +14994,10 @@
               "properties": {
                 "edition_id": {
                   "type": "string"
+                },
+                "edition_name": {
+                  "type": "string",
+                  "description": "具体届次名称"
                 },
                 "contest_id": {
                   "type": "string"
@@ -15191,6 +15225,25 @@
             "example": {
               "code": 50003,
               "message": "认证链路依赖暂不可用",
+              "data": {
+                "retryable": true,
+                "details": []
+              },
+              "trace_id": "01J8F8M4V8V2K4B6S2Y4H9Q7P1"
+            }
+          }
+        }
+      },
+      "RecommendationStreamUnavailable": {
+        "description": "推荐行为事件流依赖暂不可用，例如 Kafka 发送失败。正常详情浏览不受影响，前端可复用同一 event_id 重试。",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            },
+            "example": {
+              "code": 50004,
+              "message": "推荐行为事件流依赖暂不可用",
               "data": {
                 "retryable": true,
                 "details": []

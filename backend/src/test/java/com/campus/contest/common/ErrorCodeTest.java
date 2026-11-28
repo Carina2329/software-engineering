@@ -22,7 +22,7 @@ class ErrorCodeTest {
                 20001, 20002, 20003, 20004, 20005, 20006, 20007, 20008, 20009,
                 30001, 30002, 30003, 30004,
                 40001, 40002, 40404, 40416,
-                50000, 50001, 50002, 50003
+                50000, 50001, 50002, 50003, 50004
         );
         assertThat(ErrorCode.AI_SERVICE_UNAVAILABLE.getCode()).isEqualTo(50001);
         assertThat(ErrorCode.OBJECT_STORAGE_UNAVAILABLE.getCode()).isEqualTo(50002);
@@ -30,6 +30,10 @@ class ErrorCodeTest {
         assertThat(ErrorCode.AUTH_IDEMPOTENCY_UNAVAILABLE.getHttpStatus())
                 .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(ErrorCode.AUTH_IDEMPOTENCY_UNAVAILABLE.isRetryable()).isTrue();
+        assertThat(ErrorCode.RECOMMENDATION_STREAM_UNAVAILABLE.getCode()).isEqualTo(50004);
+        assertThat(ErrorCode.RECOMMENDATION_STREAM_UNAVAILABLE.getHttpStatus())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(ErrorCode.RECOMMENDATION_STREAM_UNAVAILABLE.isRetryable()).isTrue();
     }
 
     @Test
@@ -44,5 +48,6 @@ class ErrorCodeTest {
         assertThat(ErrorCode.resolveHttpStatus(40416))
                 .isEqualTo(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
         assertThat(ErrorCode.resolveHttpStatus(50003)).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(ErrorCode.resolveHttpStatus(50004)).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
     }
 }

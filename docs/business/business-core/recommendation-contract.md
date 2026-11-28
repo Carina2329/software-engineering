@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 契约版本 | 1.0.0 |
+| 契约版本 | 1.0.1 |
 | 冻结日期 | 2026-11-28 |
 | 页面阶段 | 竞赛中心推荐区 |
 | 推荐对象 | 学生 |
@@ -21,6 +21,9 @@
 - 创建竞赛系列时必须选择分类；创建届次时自动继承所属竞赛系列的分类。
 - 分类由平台统一维护，创建竞赛的管理员只能从启用字典中选择，不能自由输入。
 - 历史竞赛由平台管理员补录分类；未分类不影响原有业务，但不参与相似竞赛推荐。
+- EP-012 创建请求必填 `category`，必须是启用的 `CONTEST_CATEGORY` 字典值。
+- EP-014 修改请求可选 `category`，用于历史补录或修改；传值时必须是启用字典值，不允许通过 `null` 清空。
+- EP-011 列表和 EP-013 详情返回可空 `category` 与 `category_name`；历史未分类返回 `null`。
 
 初始分类字典 `CONTEST_CATEGORY`：
 
@@ -64,8 +67,13 @@
 | --- | --- | --- |
 | rec:ingest:event:{event_id} | 上报层 pending/sent 状态 | 7 天 |
 | rec:flink:dedup:{event_id} | Flink 消费侧兜底去重 | 8 天 |
+| rec:user:{uid}:last_contest | 该用户最近一次有效浏览的 contest_id | 7 天 |
 
-上报层 pending/sent 状态机：pending 允许重新发送，sent 幂等直接返回成功。Kafka 发送失败时保持 pending，返回失败，前端带同一 event_id 重试。
+上报层 pending/sent 状态机：先写 pending，等待 Kafka broker ACK 成功后才改为 sent 并返回 HTTP 202；Kafka 发送失败保留 pending，当前请求返回 HTTP 503 + `50004`，前端带同一 event_id 重试。sent 状态直接幂等返回成功。
+
+202 只表示行为已受理并投递，不表示 Flink 已生成偏好。行为上报校验通过并成功投递后，写入 `rec:user:{uid}:last_contest`，用于 EP-101 排除学生刚浏览的竞赛系列。
+
+推荐链路依赖不可用时使用 `50004`，含义为“推荐行为事件流依赖暂不可用”，HTTP 503，可重试；该错误码不改动 `50003` 的认证语义。
 
 ## 四、实时特征
 
@@ -83,13 +91,23 @@ Flink 窗口口径：
 | 最大预期延迟 | 约 6 分钟 |
 | 特征窗口 | 最近 7 天 |
 
-Redis 偏好计数桶 `rec:user:{uid}:cat:{category}`，以 5 分钟时间桶为 field，value 为浏览次数，key TTL 8 天兜底。读偏好只对最近 7 天桶求和，写入时清理 7 天前字段；TTL 只兜底清理，不承担窗口计算。
+Redis 偏好计数桶 `rec:user:{uid}:cat:{category}`，field 为窗口起点的 Unix epoch 毫秒字符串，value 为浏览次数，key TTL 8 天兜底。读取时只统计 `[当前时间 - 7 天, 当前时间]` 内的桶，忽略未来桶；写入时清理 7 天前字段。TTL 只兜底清理，不承担窗口计算。组员 A 写入和组员 B 读取必须遵循同一 field 格式。
 
 ## 五、推荐接口
 
-`EP-101 GET /recommendations`，返回 `preferred_category`、`recommendations`、`generated_at`。
+`EP-101 GET /recommendations`，返回 `preferred_category`、`recommendations`、`generated_at`。每个推荐项包含 `edition_id`、`edition_name`、`contest_id`、`contest_name`、`series_code`、`level`、`category`、`category_name`、`register_deadline`、`registration_open`、`preliminarily_eligible`、`reason`。
 
 推荐候选必须是“偏好分类下、且不是学生刚浏览的那个竞赛系列”的初步符合推荐条件的届次。推荐结果关联具体 `edition_id`，同系列下的其他届次不冒充相似推荐。
+
+学生刚浏览的竞赛系列从 `rec:user:{uid}:last_contest` 读取；该键不存在时不额外排除，仍按偏好分类正常推荐。
+
+有效偏好与排序口径：
+
+- 只有启用且未删除的分类、且最近 7 天总浏览次数大于 0，才算有效偏好。
+- 偏好分类按浏览次数降序；次数相同按 `category` 字典值升序，保证结果稳定。
+- 已停用或已删除的分类即使 Redis 中仍有计数，也不生成偏好。
+- 无有效偏好时返回 `preferred_category=null`、`recommendations=[]`。
+- 推荐结果按 `register_deadline` 升序，再按 `edition_id` 升序，最多 3 条。
 
 初步资格筛选只判断当前阶段能确定的条件：
 

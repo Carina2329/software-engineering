@@ -46,6 +46,12 @@ public enum ErrorCode {
             "认证或幂等依赖暂不可用",
             HttpStatus.SERVICE_UNAVAILABLE,
             true
+    ),
+    RECOMMENDATION_STREAM_UNAVAILABLE(
+            50004,
+            "推荐行为事件流依赖暂不可用",
+            HttpStatus.SERVICE_UNAVAILABLE,
+            true
     );
 
     private final int code;
